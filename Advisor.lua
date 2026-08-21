@@ -179,6 +179,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
             local fs = portBtn:GetFontString()
             portBtn:SetWidth(math.max(110, ((fs and fs:GetStringWidth()) or 0) + 26))
          end
+         if InCombatLockdown() then portBtn:Disable() else portBtn:Enable() end
          portBtn:Show()
       else
          portBtn:Hide()
