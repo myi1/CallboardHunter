@@ -1,0 +1,141 @@
+-- CallboardHunter Arrow: HUD arrow pointing at the nearest unvisited spawn point.
+local CBH = CallboardHunter
+local Arrow = CBH.Arrow
+
+local frame, tex, label, distText
+local target -- current point {x,y,name,key}
+
+-- Rotate a square texture about its centre. Angle in radians.
+local function RotateTex(t, angle)
+   local c, s = 0.5 * math.cos(angle), 0.5 * math.sin(angle)
+   t:SetTexCoord(0.5 - c + s, 0.5 - s - c,  -- UL
+                 0.5 - c - s, 0.5 - s + c,  -- LL
+                 0.5 + c + s, 0.5 + s - c,  -- UR
+                 0.5 + c - s, 0.5 + s + c)  -- LR
+end
+
+local function PlayerPos()
+   if not WorldMapFrame:IsShown() then SetMapToCurrentZone() end
+   local x, y = GetPlayerMapPosition("player")
+   if x == 0 and y == 0 then return nil end
+   return x, y
+end
+
+local function PickTarget(zone, px, py)
+   local points = CBH.SpawnDB.GetPoints(zone)
+   local w, h = CBH.SpawnDB.GetZoneSize(zone)
+   local best, bestD
+   for _, p in ipairs(points) do
+      if not CBH.visited[p.key] then
+         local dx, dy = p.x - px, p.y - py
+         if w and h then dx, dy = dx * w, dy * h else dx, dy = dx * 1000, dy * 700 end
+         local d = dx * dx + dy * dy
+         if not bestD or d < bestD then best, bestD = p, d end
+      end
+   end
+   return best
+end
+
+local function OnUpdate(self, elapsed)
+   self.t = (self.t or 0) + elapsed
+   if self.t < 0.1 then return end
+   self.t = 0
+
+   local zone = GetRealZoneText()
+   local hot = CBH.QuestWatcher.IsZoneHot and CBH.QuestWatcher.IsZoneHot(zone)
+   if not (hot and CBH.db and CBH.db.options.arrow) then frame:Hide() return end
+
+   local px, py = PlayerPos()
+   if not px then frame:Hide() return end
+
+   if not target or CBH.visited[target.key] then
+      target = PickTarget(zone, px, py)
+      if not target then
+         frame:Hide()
+         return
+      end
+      label:SetText(target.name)
+   end
+
+   local w, h = CBH.SpawnDB.GetZoneSize(zone)
+   local dx, dy = target.x - px, target.y - py
+   local yards
+   if w and h then
+      local yx, yy = dx * w, dy * h
+      yards = math.sqrt(yx * yx + yy * yy)
+   end
+
+   -- Visited when within ~30yd (or 0.02 normalized without dimensions)
+   if (yards and yards < 30) or (not yards and math.abs(dx) < 0.02 and math.abs(dy) < 0.02) then
+      CBH.visited[target.key] = true
+      target = nil
+      return
+   end
+
+   -- Bearing: 0 = north, pi/2 = west (matches GetPlayerFacing convention).
+   -- Calibration: if the arrow points away from targets in-game, negate `angle`.
+   local bearing = math.atan2(-dx, -dy)
+   local facing = GetPlayerFacing() or 0
+   local angle = bearing - facing
+   RotateTex(tex, angle)
+   distText:SetText(yards and (math.floor(yards) .. " yd") or "")
+end
+
+function Arrow.Init()
+   frame = CreateFrame("Frame", "CallboardHunterArrow", UIParent)
+   frame:SetWidth(64); frame:SetHeight(80)
+   frame:SetMovable(true); frame:EnableMouse(true)
+   frame:RegisterForDrag("LeftButton")
+   frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+   frame:SetScript("OnDragStop", function(self)
+      self:StopMovingOrSizing()
+      local _, _, _, x, y = self:GetPoint()
+      CBH.db.options.arrowPos = { x = x, y = y }
+   end)
+   local pos = CBH.db.options.arrowPos
+   if pos then frame:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
+   else frame:SetPoint("CENTER", UIParent, "CENTER", 0, 180) end
+
+   tex = frame:CreateTexture(nil, "ARTWORK")
+   tex:SetTexture("Interface\\Minimap\\ROTATING-MINIMAPARROW")
+   tex:SetPoint("TOP"); tex:SetWidth(48); tex:SetHeight(48)
+
+   label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+   label:SetPoint("TOP", tex, "BOTTOM", 0, -2)
+
+   distText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+   distText:SetPoint("TOP", label, "BOTTOM", 0, -1)
+
+   frame:SetScript("OnUpdate", OnUpdate)
+   frame:Hide()
+   Arrow.Refresh()
+end
+
+function Arrow.Refresh()
+   if not frame then return end
+   target = nil
+   local zone = GetRealZoneText()
+   local hot = CBH.QuestWatcher.IsZoneHot and CBH.QuestWatcher.IsZoneHot(zone)
+   if hot and CBH.db.options.arrow then
+      local points = CBH.SpawnDB.GetPoints(zone)
+      if #points == 0 then
+         if not Arrow.warnedZone or Arrow.warnedZone ~= zone then
+            Arrow.warnedZone = zone
+            CBH.print("No known spawns for " .. zone .. " yet - detection still active; found rares are learned.")
+         end
+         frame:Hide()
+         return
+      end
+      frame:Show()
+   else
+      frame:Hide()
+   end
+end
+
+function Arrow.MarkVisitedNear(name)
+   local zone = GetRealZoneText()
+   for _, p in ipairs(CBH.SpawnDB.GetPoints(zone)) do
+      if p.name == name then CBH.visited[p.key] = true end
+   end
+   if target and target.name == name then target = nil end
+end
