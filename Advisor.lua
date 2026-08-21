@@ -105,44 +105,65 @@ local function ReadTooltip(c)
    this = c
    local ok = pcall(onEnter, c)
    this = prevThis
+   -- Map elements in 3.3.5 use WorldMapTooltip, everything else GameTooltip.
    local l1 = GameTooltipTextLeft1 and GameTooltipTextLeft1:GetText() or ""
    local l2 = GameTooltipTextLeft2 and GameTooltipTextLeft2:GetText() or ""
+   if l1 == "" and l2 == "" and WorldMapTooltipTextLeft1 then
+      l1 = WorldMapTooltipTextLeft1:GetText() or ""
+      l2 = (WorldMapTooltipTextLeft2 and WorldMapTooltipTextLeft2:GetText()) or ""
+   end
    GameTooltip:Hide()
+   if WorldMapTooltip then WorldMapTooltip:Hide() end
    return l1, l2, ok
 end
 
 local function FindCheckpoints(diagnose)
    local out = {}
-   local stats = { unnamed = 0, withEnter = 0 }
-   if not WorldMapButton then return out, stats end
+   local stats = { unnamed = 0 }
+   if not (WorldMapFrame and WorldMapButton) then return out, stats end
    local w, h = WorldMapButton:GetWidth(), WorldMapButton:GetHeight()
    local left, top = WorldMapButton:GetLeft(), WorldMapButton:GetTop()
    if not (w and h and left and top) or w == 0 or h == 0 then return out, stats end
-   for i = 1, select("#", WorldMapButton:GetChildren()) do
-      local c = select(i, WorldMapButton:GetChildren())
-      if c and not c:GetName() and c:GetObjectType() == "Button" and c:IsShown() then
-         stats.unnamed = stats.unnamed + 1
-         local l1, l2, hadEnter = ReadTooltip(c)
-         if hadEnter ~= false and (l1 or l2) then stats.withEnter = stats.withEnter + 1 end
-         local combined = string.lower((l1 or "") .. " " .. (l2 or ""))
-         local label
-         if string.find(combined, "checkpoint", 1, true)
-            or string.find(combined, "travel", 1, true) then
-            label = (l1 and l1 ~= "") and l1 or "Checkpoint"
-         end
-         if diagnose then
-            CBH.print("  btn#" .. stats.unnamed .. " tooltip: '" .. tostring(l1) ..
-               "' / '" .. tostring(l2) .. "'" .. (label and " -> CHECKPOINT" or ""))
-         end
-         if label then
-            local cx, cy = c:GetCenter()
-            if cx and cy then
-               table.insert(out, { btn = c, name = label,
-                  x = (cx - left) / w, y = (top - cy) / h })
-            end
+
+   local function inspect(c, parentName)
+      stats.unnamed = stats.unnamed + 1
+      local l1, l2 = ReadTooltip(c)
+      local combined = string.lower((l1 or "") .. " " .. (l2 or ""))
+      local label
+      if string.find(combined, "checkpoint", 1, true)
+         or string.find(combined, "travel", 1, true) then
+         label = (l1 and l1 ~= "") and l1 or "Checkpoint"
+      end
+      if diagnose then
+         CBH.print("  btn#" .. stats.unnamed .. " [" .. parentName .. ", " ..
+            math.floor(c:GetWidth() or 0) .. "x" .. math.floor(c:GetHeight() or 0) ..
+            "] tooltip: '" .. tostring(l1) .. "' / '" .. tostring(l2) .. "'" ..
+            (label and " -> CHECKPOINT" or ""))
+      end
+      if label then
+         local cx, cy = c:GetCenter()
+         if cx and cy then
+            table.insert(out, { btn = c, name = label,
+               x = (cx - left) / w, y = (top - cy) / h })
          end
       end
    end
+
+   -- The server may parent its checkpoint buttons anywhere under the map;
+   -- walk the whole WorldMapFrame tree for unnamed, visible Buttons.
+   local function walk(f, depth)
+      if depth > 6 then return end
+      for i = 1, select("#", f:GetChildren()) do
+         local c = select(i, f:GetChildren())
+         if c and c.IsShown and c:IsShown() then
+            if not c:GetName() and c:GetObjectType() == "Button" then
+               inspect(c, tostring(f:GetName() or "?"))
+            end
+            walk(c, depth + 1)
+         end
+      end
+   end
+   walk(WorldMapFrame, 0)
    return out, stats
 end
 
@@ -187,7 +208,8 @@ function Advisor.Port()
    end
    if not WorldMapFrame:IsShown() then
       -- The server populates its map buttons on show; scan on a short delay.
-      ToggleWorldMap()
+      -- (ToggleWorldMap does not exist on this client.)
+      ShowUIPanel(WorldMapFrame)
       Advisor.portAt = GetTime() + 0.4
       return
    end
