@@ -1,46 +1,65 @@
 # CallboardHunter
 
-Companion addon for Project Ebonhold's rare-mob callboard quests (WoW 3.3.5a).
-Reads zone-scoped rare quests from your quest log ("Slay N rares in <Zone>"),
-points a HUD arrow at the nearest known rare spawn in that zone, announces
-rares when they are actually detected near you, and gives you a one-click
-Target button. Kills of counted rares advance the arrow and print progress.
+Companion addon for Project Ebonhold's callboard (Objectives Board) quests,
+WoW 3.3.5a. Reads your active callboard objectives and closes the whole loop:
 
-Detected rares (including Ebonhold's custom ones) have their positions
-**learned** into your SavedVariables, so the spawn database improves the more
-you hunt. Bundled data covers the classic Northrend and Outland silver-dragon
-rares (IDs matched to RareSpawnOverlay's list).
+**Board → annotated cards → one-click port to the objective → guidance arrow →
+detection/announce/targeting → kill learning → port back to the board.**
+
+## Features
+
+- **Quest watcher** — parses rare-trophy quests ("Rare Kill in <Zone>") and
+  kill objectives ("<Name> slain: n/m"), with `/cbh scan` diagnostics that show
+  a per-objective match verdict for pattern tuning.
+- **Guidance arrow** — draggable HUD arrow to the nearest relevant point:
+  bundled classic rare spawns, your learned camps, or the quest's own POI area.
+  Advances as spots are visited/killed; `/cbh next` skips a camped spot.
+- **Kill-location learning** — every counted kill records where it happened
+  (per objective, per zone, deduped 40yd). The addon gets smarter every grind.
+- **Card advisor** — annotates the Objectives Board cards: known camp (with
+  spot count), no-data-yet zone, dungeon/raid, or collection. Also harvests
+  each card's zone for routing, even for cards you don't pick.
+- **Port button / `/cbh port [zone]`** — one click from anywhere: resolves the
+  objective's zone (arrow waypoint → rare zone → learned camp → card zone →
+  quest-log text → POI map sweep), switches the map itself, and clicks the
+  unlocked checkpoint nearest the objective (locked "visit the meeting stone"
+  checkpoints are excluded). For kill objectives the current quest's POI
+  overrides old camps, since the server assigns a fresh area per quest. The
+  chat line says what it routed by. With no active callboard quest the button
+  becomes **Port: Callboard** back to a board you've used (locations are
+  self-learned when you open a board). Greyed out in combat.
+- **Detection & announce** — rares detected via mouseover/target/combat log:
+  toast + raid warning + sound + secure click-to-Target button (combat-safe,
+  click toast body to dismiss). Detected rares' positions are learned.
+- **Party announces** (`/cbh party`, off by default) — rare spotted, counted
+  kills' completion, and kill progress on rare deaths.
 
 ## Slash commands
 
 | Command | Effect |
 | --- | --- |
 | `/cbh` | help |
-| `/cbh scan` | dump quest log titles/objectives to chat (pattern tuning) |
-| `/cbh track <zone>` | force a zone hot without a quest |
-| `/cbh untrack` | clear forced zone + visited points |
-| `/cbh debug` | treat the current zone as hot |
-| `/cbh arrow` / `sound` / `party` | toggle arrow / sound / party announce |
-| `/cbh reset` | reset options (keeps learned spawns), then `/reload` |
+| `/cbh scan` | quest log dump with match verdicts |
+| `/cbh port [zone]` | port toward your objective (or an explicit zone) |
+| `/cbh next` | skip the current arrow waypoint |
+| `/cbh track <zone>` / `untrack` / `debug` | force/clear/test hot zones |
+| `/cbh arrow` / `sound` / `party` | toggles |
+| `/cbh frames [text|map]` / `portscan` | discovery/diagnostic tools for the server's custom UI |
+| `/cbh reset` | reset options (keeps learned data), then `/reload` |
 
-## First run
+## Server-UI integration notes (discovered via /cbh frames)
 
-1. Pick up a rare callboard quest, then run `/cbh scan`.
-2. If "Hot zones matched" is 0, the quest text doesn't contain both the word
-   "rare" and a zone name this addon knows — copy the printed quest lines and
-   report them so the match patterns can be extended
-   (`CallboardHunterDB.questPatterns` accepts custom lowercase substrings).
+- Objectives Board: `ObjectivesMainFrame` > `ObjectiveFrame1..3`.
+- Checkpoint tooltips: `ProjectEbonholdCheckpointTooltip` ("<Name>" / "Click to
+  travel to this checkpoint."); locked ones say "Not yet unlocked".
+- Checkpoint buttons: unnamed Buttons under `WorldMapButton`.
+- If a server patch breaks integration, re-run `/cbh frames` / `/cbh portscan`
+  and adjust `Advisor.lua`.
 
-## Calibration note
+## Development
 
-The arrow's rotation math is documented in `Arrow.lua` (`OnUpdate`). If the
-arrow points *away* from targets, negate the `angle` variable at the marked
-comment — one sign flip, done.
+Lua 5.1 syntax check (requires Node + `npm install luaparse` next to the
+script): `node tools/luacheck.js <addon folder>`. Run it before committing.
 
-## Notes
-
-- Targeting is a secure button you click; nothing is automated (Blizzard API
-  blocks that, and automating it would be bot behavior on a live server).
-- During combat the Target button shows "(in combat)" and re-arms itself when
-  combat ends.
-- Loads fine with or without RareSpawnOverlay.
+Data lives in SavedVariables `CallboardHunterDB`: `learned` (rare sightings),
+`learnedKills` (camp points), `cardZones`, `callboards` (board locations).
