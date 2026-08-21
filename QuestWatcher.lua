@@ -28,10 +28,14 @@ local function FindZoneIn(text)
 end
 
 local throttle = 0
-function QW.Update()
+function QW.Update(force)
    local now = GetTime()
-   if now - throttle < 0.5 then return end
+   if not force and (now - throttle < 0.5) then
+      QW.pending = true
+      return
+   end
    throttle = now
+   QW.pending = nil
 
    local hot = {}
    for i = 1, GetNumQuestLogEntries() do
@@ -54,6 +58,16 @@ function QW.Update()
    if CBH.Arrow.Refresh then CBH.Arrow.Refresh() end
 end
 
+-- Flush a throttled (deferred) update shortly after the burst ends.
+local ticker = CreateFrame("Frame")
+ticker.t = 0
+ticker:SetScript("OnUpdate", function(self, elapsed)
+   self.t = self.t + elapsed
+   if self.t < 0.6 then return end
+   self.t = 0
+   if QW.pending then QW.Update(true) end
+end)
+
 function QW.IsZoneHot(zoneKey)
    if CBH.forcedZone and string.lower(CBH.forcedZone) == string.lower(zoneKey or "") then
       return true, nil, nil
@@ -64,15 +78,42 @@ function QW.IsZoneHot(zoneKey)
 end
 
 function QW.Scan()
-   CBH.print("Quest log dump (for pattern tuning):")
+   -- Force a fresh parse first, surfacing any hidden error.
+   local ok, err = pcall(QW.Update, true)
+   if not ok then
+      CBH.print("|cffff3333ERROR in Update():|r " .. tostring(err))
+   end
+
+   local zonesKnown = 0
+   if CBH.SpawnDB and CBH.SpawnDB.ZONES then
+      for _ in pairs(CBH.SpawnDB.ZONES) do zonesKnown = zonesKnown + 1 end
+   end
+   CBH.print("Quest log dump (for pattern tuning). Zones known: " .. zonesKnown)
+
    for i = 1, GetNumQuestLogEntries() do
       local title, _, _, _, isHeader = GetQuestLogTitle(i)
       if not isHeader and title then
          DEFAULT_CHAT_FRAME:AddMessage("  [" .. i .. "] " .. title)
          for j = 1, GetNumQuestLeaderBoards(i) do
             local text, otype, done = GetQuestLogLeaderBoard(j, i)
+            local mOk, marker = pcall(function()
+               return TextMentionsRares(text) or TextMentionsRares(title)
+            end)
+            local zOk, zone = pcall(function()
+               return FindZoneIn(text) or FindZoneIn(title)
+            end)
+            local verdict
+            if not (mOk and zOk) then
+               verdict = "|cffff3333match ERROR: " .. tostring(mOk and zone or marker) .. "|r"
+            elseif marker and zone then
+               verdict = "|cff30ff00MATCH -> " .. zone .. "|r"
+            elseif marker then
+               verdict = "|cffffff00marker hit, no zone found|r"
+            else
+               verdict = "no marker"
+            end
             DEFAULT_CHAT_FRAME:AddMessage("      - " .. tostring(text) ..
-               " (type=" .. tostring(otype) .. ", done=" .. tostring(done) .. ")")
+               " (type=" .. tostring(otype) .. ", done=" .. tostring(done) .. ") [" .. verdict .. "]")
          end
       end
    end

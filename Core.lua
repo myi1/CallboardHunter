@@ -30,6 +30,18 @@ function CBH.print(msg)
    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99CallboardHunter|r: " .. tostring(msg))
 end
 
+-- Run a module function, printing each unique error once (WoW hides Lua errors
+-- by default, which makes silent failures invisible without this).
+local seenErrors = {}
+function CBH.safeCall(fn, ...)
+   if not fn then return end
+   local ok, err = pcall(fn, ...)
+   if not ok and not seenErrors[tostring(err)] then
+      seenErrors[tostring(err)] = true
+      CBH.print("|cffff3333ERROR:|r " .. tostring(err))
+   end
+end
+
 local function OnEvent(self, event, ...)
    if event == "ADDON_LOADED" then
       local name = ...
@@ -43,22 +55,22 @@ local function OnEvent(self, event, ...)
          CBH.db = CallboardHunterDB
       end
    elseif event == "PLAYER_LOGIN" then
-      if CBH.Announce.Init then CBH.Announce.Init() end
-      if CBH.Arrow.Init then CBH.Arrow.Init() end
-      if CBH.QuestWatcher.Update then CBH.QuestWatcher.Update() end
+      CBH.safeCall(CBH.Announce.Init)
+      CBH.safeCall(CBH.Arrow.Init)
+      CBH.safeCall(CBH.QuestWatcher.Update, true)
    elseif event == "QUEST_LOG_UPDATE" then
-      if CBH.QuestWatcher.Update then CBH.QuestWatcher.Update() end
+      CBH.safeCall(CBH.QuestWatcher.Update)
    elseif event == "ZONE_CHANGED_NEW_AREA" then
       CBH.visited = {}
-      if CBH.Arrow.Refresh then CBH.Arrow.Refresh() end
+      CBH.safeCall(CBH.Arrow.Refresh)
    elseif event == "UPDATE_MOUSEOVER_UNIT" then
-      if CBH.Detector.OnMouseover then CBH.Detector.OnMouseover() end
+      CBH.safeCall(CBH.Detector.OnMouseover)
    elseif event == "PLAYER_TARGET_CHANGED" then
-      if CBH.Detector.OnTargetChanged then CBH.Detector.OnTargetChanged() end
+      CBH.safeCall(CBH.Detector.OnTargetChanged)
    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-      if CBH.Detector.OnCombatLog then CBH.Detector.OnCombatLog(...) end
+      CBH.safeCall(CBH.Detector.OnCombatLog, ...)
    elseif event == "PLAYER_REGEN_ENABLED" then
-      if CBH.Announce.OnRegenEnabled then CBH.Announce.OnRegenEnabled() end
+      CBH.safeCall(CBH.Announce.OnRegenEnabled)
    end
 end
 
