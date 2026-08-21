@@ -132,6 +132,17 @@ function Arrow.Refresh()
    end
 end
 
+-- /cbh next: skip the current waypoint (e.g. the spawn spot is camped).
+function Arrow.Next()
+   if not target then
+      CBH.print("No active waypoint to skip.")
+      return
+   end
+   CBH.print("Skipping waypoint at " .. target.name .. ", advancing to the next.")
+   CBH.visited[target.key] = true
+   target = nil
+end
+
 function Arrow.MarkVisitedNear(name)
    local zone = GetRealZoneText()
    for _, p in ipairs(CBH.SpawnDB.GetPoints(zone)) do

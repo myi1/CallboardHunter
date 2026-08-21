@@ -111,10 +111,12 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
    elseif cmd == "party" then
       CBH.db.options.partyAnnounce = not CBH.db.options.partyAnnounce
       CBH.print("Party announce " .. (CBH.db.options.partyAnnounce and "ON" or "OFF"))
+   elseif cmd == "next" then
+      if CBH.Arrow.Next then CBH.Arrow.Next() end
    elseif cmd == "reset" then
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | track <zone> | untrack | debug | arrow | sound | party | reset")
+      CBH.print("/cbh scan | track <zone> | untrack | debug | next | arrow | sound | party | reset")
    end
 end

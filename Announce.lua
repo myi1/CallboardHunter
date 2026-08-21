@@ -27,6 +27,15 @@ function Announce.Init()
    targetBtn:SetText("Target")
    targetBtn:SetAttribute("type", "macro")
 
+   -- Click anywhere on the toast (outside the button) to dismiss it.
+   toast:EnableMouse(true)
+   toast:SetScript("OnMouseDown", function(self)
+      if not InCombatLockdown() then
+         self.expired = nil
+         self:Hide()
+      end
+   end)
+
    toast:Hide()
 end
 
@@ -47,6 +56,12 @@ function Announce.OnRegenEnabled()
       targetBtn:SetText("Target")
       pendingMacro = nil
    end
+   -- The toast cannot be hidden during combat (secure child); if it expired
+   -- mid-fight, hide it now that combat is over.
+   if toast and toast.expired then
+      toast.expired = nil
+      toast:Hide()
+   end
 end
 
 function Announce.Show(name, npcID)
@@ -62,11 +77,19 @@ function Announce.Show(name, npcID)
    end
 
    toast.elapsed = 0
+   toast.expired = nil
    toast:SetScript("OnUpdate", function(self, e)
       self.elapsed = self.elapsed + e
       if self.elapsed > 8 then
          self:SetScript("OnUpdate", nil)
-         if not InCombatLockdown() then self:Hide() else self:SetAlpha(0.4) end
+         if not InCombatLockdown() then
+            self:Hide()
+         else
+            -- Cannot hide a secure button's parent in combat; dim it and let
+            -- OnRegenEnabled hide it when the fight ends.
+            self.expired = true
+            self:SetAlpha(0.4)
+         end
       end
    end)
    toast:SetAlpha(1)

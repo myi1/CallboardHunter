@@ -47,11 +47,18 @@ function Detector.OnCombatLog(timestamp, event, srcGUID, srcName, srcFlags,
          local zone = GetRealZoneText()
          local hot, have, need = CBH.QuestWatcher.IsZoneHot(zone)
          if hot then
+            local progress
             if have and need then
+               progress = (have + 1) .. "/" .. need
                CBH.print(dstName .. " slain! Callboard progress: " ..
-                  (have + 1) .. "/" .. need .. " (log updates on next quest tick)")
+                  progress .. " (log updates on next quest tick)")
             else
                CBH.print(dstName .. " slain!")
+            end
+            if CBH.db.options.partyAnnounce and GetNumPartyMembers() > 0 then
+               local msg = dstName .. " down"
+               if progress then msg = msg .. " - callboard " .. progress end
+               SendChatMessage(msg .. " (" .. zone .. ")", "PARTY")
             end
             CBH.Arrow.MarkVisitedNear(dstName)
          end
