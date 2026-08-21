@@ -22,7 +22,11 @@ local function PlayerPos()
 end
 
 local function PickTarget(zone, px, py)
-   local points = CBH.SpawnDB.GetPoints(zone)
+   local hot = CBH.QuestWatcher.IsZoneHot and CBH.QuestWatcher.IsZoneHot(zone)
+   local points = hot and CBH.SpawnDB.GetPoints(zone) or {}
+   for _, p in ipairs(CBH.SpawnDB.GetFarmPoints(zone)) do
+      table.insert(points, p)
+   end
    local w, h = CBH.SpawnDB.GetZoneSize(zone)
    local best, bestD
    for _, p in ipairs(points) do
@@ -43,7 +47,8 @@ local function OnUpdate(self, elapsed)
 
    local zone = GetRealZoneText()
    local hot = CBH.QuestWatcher.IsZoneHot and CBH.QuestWatcher.IsZoneHot(zone)
-   if not (hot and CBH.db and CBH.db.options.arrow) then frame:Hide() return end
+   local active = hot or Arrow.farmActive
+   if not (active and CBH.db and CBH.db.options.arrow) then frame:Hide() return end
 
    local px, py = PlayerPos()
    if not px then frame:Hide() return end
@@ -54,7 +59,7 @@ local function OnUpdate(self, elapsed)
          frame:Hide()
          return
       end
-      label:SetText(target.name)
+      label:SetText(target.farm and ("Farm: " .. target.name) or target.name)
    end
 
    local w, h = CBH.SpawnDB.GetZoneSize(zone)
@@ -65,8 +70,11 @@ local function OnUpdate(self, elapsed)
       yards = math.sqrt(yx * yx + yy * yy)
    end
 
-   -- Visited when within ~30yd (or 0.02 normalized without dimensions)
-   if (yards and yards < 30) or (not yards and math.abs(dx) < 0.02 and math.abs(dy) < 0.02) then
+   -- Visited when within ~30yd (or 0.02 normalized without dimensions).
+   -- Farm hotspots stay live (you keep killing there); only rare spawn
+   -- points advance automatically. /cbh next skips either kind.
+   if not target.farm and
+      ((yards and yards < 30) or (not yards and math.abs(dx) < 0.02 and math.abs(dy) < 0.02)) then
       CBH.visited[target.key] = true
       target = nil
       return
@@ -116,9 +124,11 @@ function Arrow.Refresh()
    target = nil
    local zone = GetRealZoneText()
    local hot = CBH.QuestWatcher.IsZoneHot and CBH.QuestWatcher.IsZoneHot(zone)
-   if hot and CBH.db.options.arrow then
-      local points = CBH.SpawnDB.GetPoints(zone)
-      if #points == 0 then
+   local farm = CBH.SpawnDB.GetFarmPoints and CBH.SpawnDB.GetFarmPoints(zone) or {}
+   Arrow.farmActive = #farm > 0
+   if (hot or Arrow.farmActive) and CBH.db.options.arrow then
+      local points = hot and CBH.SpawnDB.GetPoints(zone) or {}
+      if #points == 0 and not Arrow.farmActive then
          if not Arrow.warnedZone or Arrow.warnedZone ~= zone then
             Arrow.warnedZone = zone
             CBH.print("No known spawns for " .. zone .. " yet - detection still active; found rares are learned.")

@@ -37,7 +37,7 @@ function QW.Update(force)
    throttle = now
    QW.pending = nil
 
-   local hot = {}
+   local hot, kills = {}, {}
    for i = 1, GetNumQuestLogEntries() do
       local title, _, _, _, isHeader = GetQuestLogTitle(i)
       if not isHeader and title then
@@ -51,11 +51,40 @@ function QW.Update(force)
                   hot[zone] = { have = tonumber(have), need = tonumber(need), questIndex = i }
                end
             end
+            -- Kill objectives ("Azure Scalebane slain: 3/10", "Beasts slain: 22/75"):
+            -- track progress and learn WHERE counted kills happen.
+            local _, _, mobName, kHave, kNeed =
+               string.find(text or "", "^(.-)%s+[Ss]lain:%s*(%d+)%s*/%s*(%d+)")
+            if mobName and mobName ~= "" and not string.find(string.lower(mobName), "rare") then
+               kHave, kNeed = tonumber(kHave), tonumber(kNeed)
+               kills[mobName] = { have = kHave, need = kNeed, questIndex = i }
+               local prev = QW.lastCounts[mobName]
+               if prev and kHave > prev then
+                  CBH.print("Callboard: " .. mobName .. " " .. kHave .. "/" .. kNeed)
+                  QW.LearnKillHere(mobName)
+                  if kHave >= kNeed and CBH.db and CBH.db.options.partyAnnounce
+                     and GetNumPartyMembers() > 0 then
+                     SendChatMessage("Callboard complete: " .. mobName .. " " ..
+                        kHave .. "/" .. kNeed, "PARTY")
+                  end
+               end
+               QW.lastCounts[mobName] = kHave
+            end
          end
       end
    end
    CBH.hotZones = hot
+   CBH.killObjectives = kills
    if CBH.Arrow.Refresh then CBH.Arrow.Refresh() end
+end
+
+QW.lastCounts = {}
+
+function QW.LearnKillHere(name)
+   if not WorldMapFrame:IsShown() then SetMapToCurrentZone() end
+   local x, y = GetPlayerMapPosition("player")
+   if not x or (x == 0 and y == 0) then return end -- instance or unknown map
+   CBH.SpawnDB.LearnKill(GetRealZoneText(), name, x, y)
 end
 
 -- Flush a throttled (deferred) update shortly after the burst ends.

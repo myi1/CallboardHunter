@@ -145,6 +145,41 @@ function SpawnDB.Learn(zoneKey, name, npcID, x, y)
    table.insert(entry.points, { x, y })
 end
 
+-- Record where a counted callboard kill happened (dedup 40yd, keep last 30).
+function SpawnDB.LearnKill(zoneKey, name, x, y)
+   if not (zoneKey and name and x and y) or not CBH.db then return end
+   local lk = CBH.db.learnedKills
+   lk[zoneKey] = lk[zoneKey] or {}
+   local list = lk[zoneKey][name]
+   if not list then list = {}; lk[zoneKey][name] = list end
+   local w, h = SpawnDB.GetZoneSize(zoneKey)
+   for _, p in ipairs(list) do
+      local dx, dy = (p[1] - x), (p[2] - y)
+      if w and h then dx, dy = dx * w, dy * h else dx, dy = dx * 1000, dy * 700 end
+      if (dx * dx + dy * dy) < 1600 then return end -- within 40yd of a known point
+   end
+   table.insert(list, { x, y })
+   if #list > 30 then table.remove(list, 1) end
+end
+
+-- Learned hotspots in this zone for objectives that are still incomplete.
+function SpawnDB.GetFarmPoints(zoneKey)
+   local out = {}
+   local mobs = CBH.db and CBH.db.learnedKills and CBH.db.learnedKills[zoneKey]
+   if not mobs then return out end
+   local kos = CBH.killObjectives or {}
+   for name, list in pairs(mobs) do
+      local ko = kos[name]
+      if ko and (not ko.need or (ko.have or 0) < ko.need) then
+         for i, p in ipairs(list) do
+            table.insert(out, { x = p[1], y = p[2], name = name, farm = true,
+               key = "farm:" .. zoneKey .. ":" .. name .. ":" .. i })
+         end
+      end
+   end
+   return out
+end
+
 function SpawnDB.GetPoints(zoneKey)
    local out = {}
    local function addFrom(src)

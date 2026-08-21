@@ -11,7 +11,8 @@ local DB_VERSION = 1
 local DEFAULTS = {
    version = DB_VERSION,
    options = { arrow = true, sound = true, partyAnnounce = false, arrowPos = nil },
-   learned = {},
+   learned = {},      -- rare sightings: [zone][npcID/name] = {points}
+   learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
    questPatterns = nil,
 }
 
@@ -113,6 +114,30 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CBH.print("Party announce " .. (CBH.db.options.partyAnnounce and "ON" or "OFF"))
    elseif cmd == "next" then
       if CBH.Arrow.Next then CBH.Arrow.Next() end
+   elseif cmd == "frames" then
+      -- Discovery tool: dump visible frames carrying text, to identify the
+      -- server's custom callboard/teleport UI. Open that window first.
+      CBH.print("Visible frames with text (open the target window first):")
+      local f, shown = EnumerateFrames(), 0
+      while f and shown < 80 do
+         if f.IsVisible and f:IsVisible() and f.GetRegions then
+            local texts = {}
+            for i = 1, select("#", f:GetRegions()) do
+               local r = select(i, f:GetRegions())
+               if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+                  local t = r:GetText()
+                  if t and t ~= "" then table.insert(texts, t) end
+               end
+            end
+            if #texts > 0 then
+               shown = shown + 1
+               DEFAULT_CHAT_FRAME:AddMessage("  " .. tostring(f:GetName()) .. ": " ..
+                  string.sub(table.concat(texts, " | "), 1, 150))
+            end
+         end
+         f = EnumerateFrames(f)
+      end
+      CBH.print("Dumped " .. shown .. " frames (cap 80). Screenshot this for the card advisor.")
    elseif cmd == "reset" then
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
