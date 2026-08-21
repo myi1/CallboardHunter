@@ -117,6 +117,8 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       if CBH.Arrow.Next then CBH.Arrow.Next() end
    elseif cmd == "port" then
       if CBH.Advisor and CBH.Advisor.Port then CBH.safeCall(CBH.Advisor.Port) end
+   elseif cmd == "portscan" then
+      if CBH.Advisor and CBH.Advisor.PortScan then CBH.safeCall(CBH.Advisor.PortScan) end
    elseif cmd == "frames" then
       -- Discovery tool for the server's custom UI.
       --   /cbh frames <text>  -> only frames whose text contains <text>, with parent chain

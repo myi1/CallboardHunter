@@ -67,8 +67,8 @@ local function RefreshCards()
          end
          if not card.cbhNote then
             card.cbhNote = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            card.cbhNote:SetPoint("BOTTOM", card, "BOTTOM", 0, 44)
-            card.cbhNote:SetWidth(card:GetWidth() - 30)
+            card.cbhNote:SetPoint("BOTTOM", card, "BOTTOM", 0, 92) -- clear of the Select button
+            card.cbhNote:SetWidth(card:GetWidth() - 50)
          end
          card.cbhNote:SetText(note or "")
       end
@@ -88,31 +88,51 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
    if board and board:IsShown() then
       CBH.safeCall(RefreshCards)
    end
+   if Advisor.portAt and GetTime() >= Advisor.portAt then
+      Advisor.portAt = nil
+      CBH.safeCall(Advisor.DoPort)
+   end
 end)
 
 -- ------------------------------------------------------------- checkpoint port
 
-local function FindCheckpoints()
+-- Invoke a button's OnEnter to populate its tooltip. 3.3.5-era scripts often
+-- read the legacy global `this` instead of self, so set it for the call.
+local function ReadTooltip(c)
+   local onEnter = c:GetScript("OnEnter")
+   if not onEnter then return nil, nil, false end
+   local prevThis = this
+   this = c
+   local ok = pcall(onEnter, c)
+   this = prevThis
+   local l1 = GameTooltipTextLeft1 and GameTooltipTextLeft1:GetText() or ""
+   local l2 = GameTooltipTextLeft2 and GameTooltipTextLeft2:GetText() or ""
+   GameTooltip:Hide()
+   return l1, l2, ok
+end
+
+local function FindCheckpoints(diagnose)
    local out = {}
-   if not WorldMapButton then return out end
+   local stats = { unnamed = 0, withEnter = 0 }
+   if not WorldMapButton then return out, stats end
    local w, h = WorldMapButton:GetWidth(), WorldMapButton:GetHeight()
    local left, top = WorldMapButton:GetLeft(), WorldMapButton:GetTop()
-   if not (w and h and left and top) or w == 0 or h == 0 then return out end
+   if not (w and h and left and top) or w == 0 or h == 0 then return out, stats end
    for i = 1, select("#", WorldMapButton:GetChildren()) do
       local c = select(i, WorldMapButton:GetChildren())
       if c and not c:GetName() and c:GetObjectType() == "Button" and c:IsShown() then
+         stats.unnamed = stats.unnamed + 1
+         local l1, l2, hadEnter = ReadTooltip(c)
+         if hadEnter ~= false and (l1 or l2) then stats.withEnter = stats.withEnter + 1 end
+         local combined = string.lower((l1 or "") .. " " .. (l2 or ""))
          local label
-         local onEnter = c:GetScript("OnEnter")
-         if onEnter then
-            pcall(onEnter, c)
-            local l1 = GameTooltipTextLeft1 and GameTooltipTextLeft1:GetText() or ""
-            local l2 = GameTooltipTextLeft2 and GameTooltipTextLeft2:GetText() or ""
-            GameTooltip:Hide()
-            local combined = string.lower(l1 .. " " .. l2)
-            if string.find(combined, "checkpoint", 1, true)
-               or string.find(combined, "travel", 1, true) then
-               label = l1 ~= "" and l1 or "Checkpoint"
-            end
+         if string.find(combined, "checkpoint", 1, true)
+            or string.find(combined, "travel", 1, true) then
+            label = (l1 and l1 ~= "") and l1 or "Checkpoint"
+         end
+         if diagnose then
+            CBH.print("  btn#" .. stats.unnamed .. " tooltip: '" .. tostring(l1) ..
+               "' / '" .. tostring(l2) .. "'" .. (label and " -> CHECKPOINT" or ""))
          end
          if label then
             local cx, cy = c:GetCenter()
@@ -123,18 +143,25 @@ local function FindCheckpoints()
          end
       end
    end
-   return out
+   return out, stats
 end
 
-function Advisor.Port()
-   if InCombatLockdown() then
-      CBH.print("Cannot travel while in combat.")
+-- Diagnostic: /cbh portscan with the map open.
+function Advisor.PortScan()
+   if not WorldMapFrame:IsShown() then
+      CBH.print("Open the world map first, then run /cbh portscan.")
       return
    end
-   if not WorldMapFrame:IsShown() then ToggleWorldMap() end
-   local cps = FindCheckpoints()
+   CBH.print("Scanning unnamed map buttons:")
+   local cps, stats = FindCheckpoints(true)
+   CBH.print("Candidates: " .. stats.unnamed .. ", validated checkpoints: " .. #cps)
+end
+
+local function DoPort()
+   local cps, stats = FindCheckpoints(false)
    if #cps == 0 then
-      CBH.print("No checkpoints found on this map view. Open the zone map that has your discovered checkpoints.")
+      CBH.print("No checkpoints found (unnamed map buttons: " .. stats.unnamed ..
+         "). Run /cbh portscan with the map open and report the output.")
       return
    end
    -- Aim for the current arrow waypoint if there is one, else the player.
@@ -150,4 +177,19 @@ function Advisor.Port()
    end
    CBH.print("Traveling to nearest checkpoint: " .. tostring(best.name))
    best.btn:Click()
+end
+Advisor.DoPort = DoPort
+
+function Advisor.Port()
+   if InCombatLockdown() then
+      CBH.print("Cannot travel while in combat.")
+      return
+   end
+   if not WorldMapFrame:IsShown() then
+      -- The server populates its map buttons on show; scan on a short delay.
+      ToggleWorldMap()
+      Advisor.portAt = GetTime() + 0.4
+      return
+   end
+   DoPort()
 end
