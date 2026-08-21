@@ -147,6 +147,24 @@ local function ReadTooltip(c)
       l1 = WorldMapTooltipTextLeft1:GetText() or ""
       l2 = (WorldMapTooltipTextLeft2 and WorldMapTooltipTextLeft2:GetText()) or ""
    end
+   -- Ebonhold's checkpoints use their own tooltip frame (found via /cbh frames):
+   -- ProjectEbonholdCheckpointTooltip holds "<Name>" / "Click to travel...".
+   if l1 == "" and l2 == "" then
+      local cpt = _G["ProjectEbonholdCheckpointTooltip"]
+      if cpt then
+         local texts = {}
+         for i = 1, select("#", cpt:GetRegions()) do
+            local r = select(i, cpt:GetRegions())
+            if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+               local t = r:GetText()
+               if t and t ~= "" then table.insert(texts, t) end
+            end
+         end
+         l1 = texts[1] or ""
+         l2 = texts[2] or ""
+         cpt:Hide()
+      end
+   end
    GameTooltip:Hide()
    if WorldMapTooltip then WorldMapTooltip:Hide() end
    return l1, l2, ok
