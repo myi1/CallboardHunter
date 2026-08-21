@@ -115,29 +115,62 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
    elseif cmd == "next" then
       if CBH.Arrow.Next then CBH.Arrow.Next() end
    elseif cmd == "frames" then
-      -- Discovery tool: dump visible frames carrying text, to identify the
-      -- server's custom callboard/teleport UI. Open that window first.
-      CBH.print("Visible frames with text (open the target window first):")
-      local f, shown = EnumerateFrames(), 0
-      while f and shown < 80 do
-         if f.IsVisible and f:IsVisible() and f.GetRegions then
-            local texts = {}
-            for i = 1, select("#", f:GetRegions()) do
-               local r = select(i, f:GetRegions())
-               if r and r.GetObjectType and r:GetObjectType() == "FontString" then
-                  local t = r:GetText()
-                  if t and t ~= "" then table.insert(texts, t) end
+      -- Discovery tool for the server's custom UI.
+      --   /cbh frames <text>  -> only frames whose text contains <text>, with parent chain
+      --   /cbh frames map     -> tree of visible frames under WorldMapFrame (checkpoint POIs)
+      local function ParentChain(f)
+         local names, p, depth = {}, f, 0
+         while p and depth < 6 do
+            table.insert(names, tostring(p.GetName and p:GetName() or "?"))
+            p = p.GetParent and p:GetParent() or nil
+            depth = depth + 1
+         end
+         return table.concat(names, " < ")
+      end
+      if string.lower(arg or "") == "map" then
+         CBH.print("WorldMapFrame child tree (open the map first):")
+         local out = { n = 0 }
+         local function walk(f, depth)
+            if depth > 5 or out.n > 120 then return end
+            for i = 1, select("#", f:GetChildren()) do
+               local c = select(i, f:GetChildren())
+               if c and c.IsShown and c:IsShown() then
+                  out.n = out.n + 1
+                  DEFAULT_CHAT_FRAME:AddMessage(string.rep("--", depth) ..
+                     tostring(c:GetName()) .. " (" .. c:GetObjectType() .. ")")
+                  walk(c, depth + 1)
                end
             end
-            if #texts > 0 then
-               shown = shown + 1
-               DEFAULT_CHAT_FRAME:AddMessage("  " .. tostring(f:GetName()) .. ": " ..
-                  string.sub(table.concat(texts, " | "), 1, 150))
-            end
          end
-         f = EnumerateFrames(f)
+         walk(WorldMapFrame, 0)
+         CBH.print("Dumped " .. out.n .. " map frames.")
+      else
+         local filter = (arg and arg ~= "") and string.lower(arg) or nil
+         CBH.print("Visible frames with text" ..
+            (filter and (" matching '" .. filter .. "'") or "") .. ":")
+         local f, shown = EnumerateFrames(), 0
+         local cap = filter and 200 or 80
+         while f and shown < cap do
+            if f.IsVisible and f:IsVisible() and f.GetRegions then
+               local texts = {}
+               for i = 1, select("#", f:GetRegions()) do
+                  local r = select(i, f:GetRegions())
+                  if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+                     local t = r:GetText()
+                     if t and t ~= "" then table.insert(texts, t) end
+                  end
+               end
+               local joined = table.concat(texts, " | ")
+               if #texts > 0 and (not filter or string.find(string.lower(joined), filter, 1, true)) then
+                  shown = shown + 1
+                  DEFAULT_CHAT_FRAME:AddMessage("  [" .. ParentChain(f) .. "] " ..
+                     string.sub(joined, 1, 150))
+               end
+            end
+            f = EnumerateFrames(f)
+         end
+         CBH.print("Dumped " .. shown .. " frames.")
       end
-      CBH.print("Dumped " .. shown .. " frames (cap 80). Screenshot this for the card advisor.")
    elseif cmd == "reset" then
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
