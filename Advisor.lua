@@ -440,17 +440,64 @@ local function SetMapByZoneName(zoneName)
    return false
 end
 
+-- Read quest POI buttons (the numbered map blobs) directly off the map, for
+-- clients where QuestPOIGetIconInfo yields nothing.
+local function HarvestQuestPOIButtons()
+   local out = {}
+   local w, h = WorldMapButton:GetWidth(), WorldMapButton:GetHeight()
+   local left, top = WorldMapButton:GetLeft(), WorldMapButton:GetTop()
+   if not (w and h and left and top) or w == 0 then return out end
+   local function walk(f, depth)
+      if depth > 6 then return end
+      for i = 1, select("#", f:GetChildren()) do
+         local c = select(i, f:GetChildren())
+         if c and c.IsShown and c:IsShown() then
+            if c:GetObjectType() == "Button" then
+               for r = 1, select("#", c:GetRegions()) do
+                  local reg = select(r, c:GetRegions())
+                  if reg and reg.GetObjectType and reg:GetObjectType() == "FontString" then
+                     local t = reg:GetText()
+                     if t and string.find(t, "^%d+$") then
+                        local cx, cy = c:GetCenter()
+                        if cx then
+                           table.insert(out, { x = (cx - left) / w, y = (top - cy) / h })
+                        end
+                     end
+                  end
+               end
+            end
+            walk(c, depth + 1)
+         end
+      end
+   end
+   walk(WorldMapFrame, 0)
+   return out
+end
+
 local function DoPort()
    local cps, stats = FindCheckpoints(false)
    local pts = Advisor.portPoints
    Advisor.portPoints = nil
+   local routedBy = (pts and #pts > 0) and "camp/waypoint" or "your position"
    -- The quest's own POI marks the CURRENT assignment area. For kill
    -- objectives it overrides learned camps (the server can assign a different
    -- part of the zone each time); otherwise it fills in when no points exist.
    if Advisor.portQuestID then
+      if QuestMapUpdateAllQuests then pcall(QuestMapUpdateAllQuests) end
+      if QuestPOIUpdateIcons then pcall(QuestPOIUpdateIcons) end
       local px, py = CBH.GetQuestPOI(Advisor.portQuestID)
+      local src = "quest area"
+      if not px and Advisor.portPreferPOI then
+         -- API gave nothing: read the numbered POI button off the map itself.
+         local btns = HarvestQuestPOIButtons()
+         if #btns > 0 then
+            px, py = btns[1].x, btns[1].y
+            src = "quest area (map marker)"
+         end
+      end
       if px and (Advisor.portPreferPOI or not pts or #pts == 0) then
          pts = { { x = px, y = py } }
+         routedBy = src
       end
    end
    Advisor.portQuestID = nil
@@ -483,7 +530,8 @@ local function DoPort()
       end
       if not bestD or d < bestD then best, bestD = cp, d end
    end
-   CBH.print("Traveling to nearest checkpoint: " .. tostring(best.name))
+   CBH.print("Traveling to nearest checkpoint: " .. tostring(best.name) ..
+      " (routed by " .. routedBy .. ")")
    best.btn:Click()
 end
 Advisor.DoPort = DoPort
