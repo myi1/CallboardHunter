@@ -239,27 +239,34 @@ local function FindCheckpoints(diagnose)
       stats.unnamed = stats.unnamed + 1
       local l1, l2 = ReadTooltip(c)
       local combined = string.lower((l1 or "") .. " " .. (l2 or ""))
+      -- Locked checkpoints also render, with "Not yet unlocked, visit the
+      -- meeting stone..." - only "Click to travel" buttons actually teleport.
+      local locked = string.find(combined, "not yet unlocked", 1, true)
+         or string.find(combined, "unlock this checkpoint", 1, true)
       local label
-      if string.find(combined, "checkpoint", 1, true)
-         or string.find(combined, "travel", 1, true) then
+      if not locked and string.find(combined, "click to travel", 1, true) then
          label = (l1 and l1 ~= "") and l1 or "Checkpoint"
       end
+      if locked then stats.locked = (stats.locked or 0) + 1 end
       -- Custom buttons usually carry their data as Lua fields; if the tooltip
       -- route failed, look for checkpoint-ish strings on the button itself.
       local nameField
-      if not label then
+      if not label and not locked then
+         local fieldHit
          for k, v in pairs(c) do
             if type(v) == "string" then
                local lv = string.lower(v)
-               if string.find(lv, "checkpoint", 1, true)
-                  or string.find(lv, "travel", 1, true) then
-                  label = v
+               if string.find(lv, "not yet unlocked", 1, true) then
+                  fieldHit = nil
+                  break
+               elseif string.find(lv, "click to travel", 1, true) then
+                  fieldHit = v
                elseif k == "name" or k == "Name" or k == "label" then
                   nameField = v
                end
             end
          end
-         if label and nameField then label = nameField end
+         if fieldHit then label = nameField or fieldHit end
       end
       if diagnose then
          CBH.print("  btn#" .. stats.unnamed .. " [" .. parentName .. ", " ..
@@ -386,8 +393,13 @@ local function DoPort()
    local pts = Advisor.portPoints
    Advisor.portPoints = nil
    if #cps == 0 then
-      CBH.print("No checkpoints found (unnamed map buttons: " .. stats.unnamed ..
-         "). Run /cbh portscan with the map open and report the output.")
+      if (stats.locked or 0) > 0 then
+         CBH.print("No unlocked checkpoints on this map (" .. stats.locked ..
+            " locked). Visit a meeting stone there to unlock one first.")
+      else
+         CBH.print("No checkpoints found (unnamed map buttons: " .. stats.unnamed ..
+            "). Run /cbh portscan with the map open and report the output.")
+      end
       return
    end
    local best, bestD
