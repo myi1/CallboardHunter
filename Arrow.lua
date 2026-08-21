@@ -27,6 +27,17 @@ local function PickTarget(zone, px, py)
    for _, p in ipairs(CBH.SpawnDB.GetFarmPoints(zone)) do
       table.insert(points, p)
    end
+   -- The quest's own POI marks the CURRENT assignment area (Ebonhold can
+   -- assign different areas per quest instance) - always a candidate.
+   for name, ko in pairs(CBH.killObjectives or {}) do
+      if (not ko.need or (ko.have or 0) < ko.need) and ko.questID then
+         local qx, qy = CBH.GetQuestPOI(ko.questID)
+         if qx then
+            table.insert(points, { x = qx, y = qy, name = name, farm = true,
+               key = "poi:" .. name })
+         end
+      end
+   end
    local w, h = CBH.SpawnDB.GetZoneSize(zone)
    local best, bestD
    for _, p in ipairs(points) do
@@ -153,9 +164,10 @@ function Arrow.Next()
    target = nil
 end
 
--- Current waypoint coordinates (normalized), for the checkpoint port.
+-- Current waypoint (normalized coords, farm flag, objective name), for the
+-- checkpoint port.
 function Arrow.GetTargetXY()
-   if target then return target.x, target.y end
+   if target then return target.x, target.y, target.farm, target.name end
 end
 
 function Arrow.MarkVisitedNear(name)

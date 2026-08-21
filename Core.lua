@@ -33,6 +33,20 @@ function CBH.print(msg)
    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99CallboardHunter|r: " .. tostring(msg))
 end
 
+-- Quest POI position on the currently displayed map, handling both known
+-- QuestPOIGetIconInfo signatures.
+function CBH.GetQuestPOI(questID)
+   if not (questID and QuestPOIGetIconInfo) then return end
+   local a, b, c = QuestPOIGetIconInfo(questID)
+   if type(a) == "number" and type(b) == "number"
+      and a > 0 and a <= 1 and b > 0 and b <= 1 then
+      return a, b            -- (posX, posY, ...)
+   elseif type(b) == "number" and type(c) == "number"
+      and b > 0 and b <= 1 and c > 0 and c <= 1 then
+      return b, c            -- (completed, posX, posY)
+   end
+end
+
 -- Run a module function, printing each unique error once (WoW hides Lua errors
 -- by default, which makes silent failures invisible without this).
 local seenErrors = {}
