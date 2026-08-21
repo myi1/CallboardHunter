@@ -27,8 +27,8 @@ local function CountPoints(zone, name)
 end
 
 local function BuildNote(desc)
-   -- "Kill 10 Azure Manashaper in Crystalsong Forest."
-   local _, _, n, mob, zone = string.find(desc, "^Kill (%d+) (.-) in (.+)%.$")
+   -- "Kill 10 Azure Manashaper in Crystalsong Forest." (period sometimes absent)
+   local _, _, n, mob, zone = string.find(desc, "^Kill (%d+) (.-) in (.-)%.?$")
    if mob then
       if CBH.db then CBH.db.cardZones[mob] = zone end
       local pts = CountPoints(zone, mob)
@@ -40,12 +40,12 @@ local function BuildNote(desc)
       return "|cffffff00No camp data yet - " .. zone .. here .. "|r"
    end
    -- "Slay Kelthuzad in Naxxramas."
-   local _, _, boss, place = string.find(desc, "^Slay (.-) in (.+)%.$")
+   local _, _, boss, place = string.find(desc, "^Slay (.-) in (.-)%.?$")
    if boss then
       return "|cffaaaaaaDungeon/raid: " .. place .. "|r"
    end
    -- "Collect 40 Icethorn."
-   local _, _, cn, item = string.find(desc, "^Collect (%d+) (.+)%.$")
+   local _, _, cn, item = string.find(desc, "^Collect (%d+) (.-)%.?$")
    if item then
       return "|cffaaaaaaCollection: " .. item .. "|r"
    end
@@ -350,41 +350,74 @@ end
 
 -- Decide which zone to travel to: explicit arg > current arrow waypoint >
 -- active rare zone > zone of a learned camp > zone harvested from a card.
-local function ResolveDestination(zoneArg)
-   Advisor.portQuestID = nil
-   Advisor.portPreferPOI = false
+-- Find a zone name mentioned in the quest's title or objective text.
+local function ZoneFromQuestText(ko)
+   if not ko.questIndex then return end
+   local texts = { (GetQuestLogTitle(ko.questIndex)) }
+   for j = 1, GetNumQuestLeaderBoards(ko.questIndex) do
+      table.insert(texts, (GetQuestLogLeaderBoard(j, ko.questIndex)))
+   end
+   for _, t in ipairs(texts) do
+      if t then
+         local lt = string.lower(t)
+         for zone in pairs(CBH.SpawnDB.ZONES) do
+            if string.find(lt, string.lower(zone), 1, true) then return zone end
+         end
+      end
+   end
+end
+
+-- Last resort: sweep every zone map looking for the quest's POI marker.
+-- Changes the displayed map, so only used on an actual Port click (which is
+-- about to set the map anyway).
+local function FindQuestZoneByPOI(questID)
+   if not (questID and QuestPOIGetIconInfo) then return end
+   for c = 1, select("#", GetMapContinents()) do
+      local zones = { GetMapZones(c) }
+      for z, zn in ipairs(zones) do
+         SetMapZoom(c, z)
+         if QuestMapUpdateAllQuests then pcall(QuestMapUpdateAllQuests) end
+         local x, y = CBH.GetQuestPOI(questID)
+         if x then return zn, x, y end
+      end
+   end
+end
+
+-- Pure resolver: returns destZone, points, questID, preferPOI. Callers store
+-- what they need; the label ticker must not mutate in-flight port state.
+local function ResolveDestination(zoneArg, allowSweep)
    if zoneArg and zoneArg ~= "" then return zoneArg, PointsForZone(zoneArg) end
    if CBH.Arrow.GetTargetXY then
       local tx, ty, isFarm, tname = CBH.Arrow.GetTargetXY()
       if tx then
+         local qid, prefer
          if isFarm and tname then
             local ko = (CBH.killObjectives or {})[tname]
-            if ko then
-               Advisor.portQuestID = ko.questID
-               Advisor.portPreferPOI = true
-            end
+            if ko then qid, prefer = ko.questID, true end
          end
-         return GetRealZoneText(), { { x = tx, y = ty } }
+         return GetRealZoneText(), { { x = tx, y = ty } }, qid, prefer
       end
    end
    for zone, info in pairs(CBH.hotZones or {}) do
-      Advisor.portQuestID = info.questID
-      return zone, PointsForZone(zone)
+      return zone, PointsForZone(zone), info.questID, false
    end
    for name, ko in pairs(CBH.killObjectives or {}) do
       if not ko.need or (ko.have or 0) < ko.need then
          for zone, mobs in pairs((CBH.db and CBH.db.learnedKills) or {}) do
             if mobs[name] and #mobs[name] > 0 then
-               Advisor.portQuestID = ko.questID
-               Advisor.portPreferPOI = true
-               return zone, PointsForZone(zone)
+               return zone, PointsForZone(zone), ko.questID, true
             end
          end
          local zone = CBH.db and CBH.db.cardZones and CBH.db.cardZones[name]
+         if not zone then zone = ZoneFromQuestText(ko) end
          if zone then
-            Advisor.portQuestID = ko.questID
-            Advisor.portPreferPOI = true
-            return zone, PointsForZone(zone)
+            return zone, PointsForZone(zone), ko.questID, true
+         end
+         if allowSweep then
+            local zn, qx, qy = FindQuestZoneByPOI(ko.questID)
+            if zn then
+               return zn, { { x = qx, y = qy } }, ko.questID, true
+            end
          end
       end
    end
@@ -460,8 +493,10 @@ function Advisor.Port(zoneArg)
       CBH.print("Cannot travel while in combat.")
       return
    end
-   local destZone, pts = ResolveDestination(zoneArg)
+   local destZone, pts, qid, prefer = ResolveDestination(zoneArg, true)
    Advisor.portPoints = pts
+   Advisor.portQuestID = qid
+   Advisor.portPreferPOI = prefer or false
    if not WorldMapFrame:IsShown() then
       -- (ToggleWorldMap does not exist on this client.)
       ShowUIPanel(WorldMapFrame)
@@ -496,6 +531,8 @@ function Advisor.PortToCallboard()
    end
    pick = pick or list[1]
    Advisor.portPoints = { { x = pick.x, y = pick.y } }
+   Advisor.portQuestID = nil
+   Advisor.portPreferPOI = false
    if not WorldMapFrame:IsShown() then ShowUIPanel(WorldMapFrame) end
    if not SetMapByZoneName(pick.zone) then SetMapToCurrentZone() end
    Advisor.portAt = GetTime() + 0.4
