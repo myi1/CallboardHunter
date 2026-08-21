@@ -15,6 +15,7 @@ local DEFAULTS = {
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
    cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
    callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }
+   portOverrides = {},-- [objectiveZone] = checkpointZone to route via instead
    questPatterns = nil,
 }
 
@@ -136,6 +137,8 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       if CBH.Advisor and CBH.Advisor.PortScan then CBH.safeCall(CBH.Advisor.PortScan) end
    elseif cmd == "obj" then
       if CBH.Advisor and CBH.Advisor.DumpObjectives then CBH.safeCall(CBH.Advisor.DumpObjectives) end
+   elseif cmd == "portvia" then
+      if CBH.Advisor and CBH.Advisor.PortVia then CBH.safeCall(CBH.Advisor.PortVia, arg) end
    elseif cmd == "frames" then
       -- Discovery tool for the server's custom UI.
       --   /cbh frames <text>  -> only frames whose text contains <text>, with parent chain
@@ -197,6 +200,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | track <zone> | untrack | debug | next | port | arrow | sound | party | reset")
+      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | reset")
    end
 end

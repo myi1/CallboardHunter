@@ -167,6 +167,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
          mode = "objective"
          local destZone
          if Advisor.ResolveDestination then destZone = Advisor.ResolveDestination() end
+         if destZone then Advisor.lastDestZone = destZone end
          label = destZone and ("Port: " .. destZone) or "Port: objective"
       elseif CBH.db and CBH.db.callboards and #CBH.db.callboards > 0 then
          mode = "board"
@@ -383,6 +384,19 @@ local function FindQuestZoneByPOI(questID)
    end
 end
 
+-- Some zones are reached better via an adjacent zone's checkpoint (e.g.
+-- Dalaran floats over Crystalsong Forest). Built-in defaults; user overrides win.
+local DEFAULT_PORT_VIA = {
+   ["Crystalsong Forest"] = "Dalaran",
+}
+local function PortViaFor(zone)
+   if not zone then return nil end
+   local u = CBH.db and CBH.db.portOverrides and CBH.db.portOverrides[zone]
+   if u == "" then return nil end          -- explicitly cleared
+   return u or DEFAULT_PORT_VIA[zone]
+end
+Advisor.PortViaFor = PortViaFor
+
 local function IsWatched(questIndex)
    if not questIndex or not GetNumQuestWatches then return false end
    for w = 1, GetNumQuestWatches() do
@@ -449,6 +463,40 @@ local function ResolveDestination(zoneArg, allowSweep)
    return nil, nil
 end
 Advisor.ResolveDestination = ResolveDestination
+
+-- /cbh portvia [zone|none] - route the current objective's zone via another
+-- zone's checkpoint. No arg lists overrides; "none" clears the current one.
+function Advisor.PortVia(arg)
+   arg = arg and (arg:gsub("^%s+", ""):gsub("%s+$", "")) or ""
+   if arg == "" then
+      CBH.print("Port-via overrides:")
+      local any = false
+      for z, v in pairs((CBH.db and CBH.db.portOverrides) or {}) do
+         if v ~= "" then any = true; CBH.print("  " .. z .. " -> " .. v) end
+      end
+      for z, v in pairs(DEFAULT_PORT_VIA) do
+         local u = CBH.db and CBH.db.portOverrides and CBH.db.portOverrides[z]
+         if u == nil then any = true; CBH.print("  " .. z .. " -> " .. v .. " (default)") end
+      end
+      if not any then CBH.print("  (none)") end
+      CBH.print("Usage: /cbh portvia <checkpoint zone>  (applies to your current objective zone: " ..
+         tostring(Advisor.lastDestZone) .. "). /cbh portvia none to clear.")
+      return
+   end
+   local objZone = Advisor.lastDestZone
+   if not objZone then
+      CBH.print("No current objective zone known - open the board or accept a callboard quest first.")
+      return
+   end
+   CBH.db.portOverrides = CBH.db.portOverrides or {}
+   if string.lower(arg) == "none" or string.lower(arg) == "off" then
+      CBH.db.portOverrides[objZone] = ""  -- suppress default too
+      CBH.print("Cleared port-via for " .. objZone .. ".")
+   else
+      CBH.db.portOverrides[objZone] = arg
+      CBH.print(objZone .. " will now port via " .. arg .. "'s checkpoint.")
+   end
+end
 
 -- Diagnostic: /cbh obj - ground truth on every active objective and how it resolves.
 function Advisor.DumpObjectives()
@@ -580,8 +628,10 @@ local function DoPort()
       end
       if not bestD or d < bestD then best, bestD = cp, d end
    end
+   local note = Advisor.portViaNote and (Advisor.portViaNote) or ("routed by " .. routedBy)
+   Advisor.portViaNote = nil
    CBH.print("Traveling to nearest checkpoint: " .. tostring(best.name) ..
-      " (routed by " .. routedBy .. ")")
+      " (" .. note .. ")")
    best.btn:Click()
 end
 Advisor.DoPort = DoPort
@@ -592,16 +642,30 @@ function Advisor.Port(zoneArg)
       return
    end
    local destZone, pts, qid, prefer = ResolveDestination(zoneArg, true)
+   Advisor.lastDestZone = destZone
    Advisor.portPoints = pts
    Advisor.portQuestID = qid
    Advisor.portPreferPOI = prefer or false
+   Advisor.portViaNote = nil
+   -- Route via an adjacent zone's checkpoint when configured. Objective points
+   -- are in the destination zone's coordinates and don't translate, so drop
+   -- them and pick the nearest unlocked checkpoint in the via-zone.
+   local mapZone = destZone
+   local via = PortViaFor(destZone)
+   if via and via ~= destZone then
+      mapZone = via
+      Advisor.portPoints = nil
+      Advisor.portQuestID = nil
+      Advisor.portPreferPOI = false
+      Advisor.portViaNote = destZone .. " via " .. via
+   end
    if not WorldMapFrame:IsShown() then
       -- (ToggleWorldMap does not exist on this client.)
       ShowUIPanel(WorldMapFrame)
    end
-   if destZone then
-      if not SetMapByZoneName(destZone) then
-         CBH.print("No map found for zone '" .. tostring(destZone) .. "' - using current map.")
+   if mapZone then
+      if not SetMapByZoneName(mapZone) then
+         CBH.print("No map found for zone '" .. tostring(mapZone) .. "' - using current map.")
          SetMapToCurrentZone()
       end
    else
