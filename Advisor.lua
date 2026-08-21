@@ -75,6 +75,37 @@ local function RefreshCards()
    end
 end
 
+-- ------------------------------------------------------------- port button
+
+local portBtn
+local function EnsurePortButton()
+   if portBtn or not (CBH.db and CBH.db.options) then return end
+   portBtn = CreateFrame("Button", "CallboardHunterPortButton", UIParent, "UIPanelButtonTemplate")
+   portBtn:SetWidth(120); portBtn:SetHeight(22)
+   portBtn:SetText("Port: checkpoint")
+   portBtn:SetMovable(true)
+   portBtn:RegisterForDrag("RightButton") -- right-drag moves, left-click ports
+   portBtn:SetScript("OnDragStart", function(self) self:StartMoving() end)
+   portBtn:SetScript("OnDragStop", function(self)
+      self:StopMovingOrSizing()
+      local _, _, _, x, y = self:GetPoint()
+      CBH.db.options.portBtnPos = { x = x, y = y }
+   end)
+   local pos = CBH.db.options.portBtnPos
+   if pos then portBtn:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
+   else portBtn:SetPoint("CENTER", UIParent, "CENTER", 0, 130) end
+   portBtn:SetScript("OnClick", function() CBH.safeCall(Advisor.Port) end)
+   portBtn:Hide()
+end
+
+local function AnyObjectiveActive()
+   if CBH.hotZones and next(CBH.hotZones) then return true end
+   for _, ko in pairs(CBH.killObjectives or {}) do
+      if not ko.need or (ko.have or 0) < ko.need then return true end
+   end
+   return false
+end
+
 -- Poll for the server frame (created by the ProjectEbonhold addon at its own
 -- pace) and keep card notes fresh while the board is open (reroll swaps text
 -- without hiding the frame).
@@ -91,6 +122,10 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
    if Advisor.portAt and GetTime() >= Advisor.portAt then
       Advisor.portAt = nil
       CBH.safeCall(Advisor.DoPort)
+   end
+   CBH.safeCall(EnsurePortButton)
+   if portBtn then
+      if AnyObjectiveActive() then portBtn:Show() else portBtn:Hide() end
    end
 end)
 
@@ -134,11 +169,43 @@ local function FindCheckpoints(diagnose)
          or string.find(combined, "travel", 1, true) then
          label = (l1 and l1 ~= "") and l1 or "Checkpoint"
       end
+      -- Custom buttons usually carry their data as Lua fields; if the tooltip
+      -- route failed, look for checkpoint-ish strings on the button itself.
+      local nameField
+      if not label then
+         for k, v in pairs(c) do
+            if type(v) == "string" then
+               local lv = string.lower(v)
+               if string.find(lv, "checkpoint", 1, true)
+                  or string.find(lv, "travel", 1, true) then
+                  label = v
+               elseif k == "name" or k == "Name" or k == "label" then
+                  nameField = v
+               end
+            end
+         end
+         if label and nameField then label = nameField end
+      end
       if diagnose then
          CBH.print("  btn#" .. stats.unnamed .. " [" .. parentName .. ", " ..
             math.floor(c:GetWidth() or 0) .. "x" .. math.floor(c:GetHeight() or 0) ..
             "] tooltip: '" .. tostring(l1) .. "' / '" .. tostring(l2) .. "'" ..
             (label and " -> CHECKPOINT" or ""))
+         local fields = {}
+         for k, v in pairs(c) do
+            local tv = type(v)
+            if tv == "string" or tv == "number" or tv == "boolean" then
+               table.insert(fields, tostring(k) .. "=" .. tostring(v))
+            else
+               table.insert(fields, tostring(k) .. ":" .. tv)
+            end
+         end
+         if #fields > 0 then
+            CBH.print("    fields: " .. string.sub(table.concat(fields, ", "), 1, 220))
+         end
+         local nt = c.GetNormalTexture and c:GetNormalTexture()
+         local tex = nt and nt:GetTexture()
+         if tex then CBH.print("    texture: " .. tostring(tex)) end
       end
       if label then
          local cx, cy = c:GetCenter()
