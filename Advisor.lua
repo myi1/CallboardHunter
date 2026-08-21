@@ -94,8 +94,44 @@ local function EnsurePortButton()
    local pos = CBH.db.options.portBtnPos
    if pos then portBtn:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
    else portBtn:SetPoint("CENTER", UIParent, "CENTER", 0, 130) end
-   portBtn:SetScript("OnClick", function() CBH.safeCall(Advisor.Port) end)
+   portBtn:SetScript("OnClick", function(self)
+      if self.mode == "board" then
+         CBH.safeCall(Advisor.PortToCallboard)
+      else
+         CBH.safeCall(Advisor.Port)
+      end
+   end)
+   portBtn:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      if self.mode == "board" then
+         GameTooltip:AddLine("Travel to the callboard")
+         GameTooltip:AddLine("Left-click: port to the checkpoint nearest a callboard you have used.", 1, 1, 1, true)
+      else
+         GameTooltip:AddLine("Travel to your objective")
+         GameTooltip:AddLine("Left-click: port to the checkpoint nearest your callboard objective.", 1, 1, 1, true)
+      end
+      GameTooltip:AddLine("Right-click drag: move this button.", 0.7, 0.7, 0.7, true)
+      GameTooltip:Show()
+   end)
+   portBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
    portBtn:Hide()
+end
+
+-- Remember where callboards are: called while an Objectives Board is open.
+local function LearnCallboard()
+   if not (CBH.db and CBH.db.callboards) then return end
+   if not WorldMapFrame:IsShown() then SetMapToCurrentZone() end
+   local x, y = GetPlayerMapPosition("player")
+   if not x or (x == 0 and y == 0) then return end
+   local zone = GetRealZoneText()
+   for _, b in ipairs(CBH.db.callboards) do
+      if b.zone == zone then
+         local dx, dy = b.x - x, b.y - y
+         if (dx * dx + dy * dy) < 0.0009 then return end -- same board
+      end
+   end
+   table.insert(CBH.db.callboards, { zone = zone, x = x, y = y })
+   CBH.print("Callboard location learned: " .. zone .. ". The port button can bring you back here.")
 end
 
 local function AnyObjectiveActive()
@@ -118,6 +154,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
    local board = _G["ObjectivesMainFrame"]
    if board and board:IsShown() then
       CBH.safeCall(RefreshCards)
+      CBH.safeCall(LearnCallboard)
    end
    if Advisor.portAt and GetTime() >= Advisor.portAt then
       Advisor.portAt = nil
@@ -125,7 +162,27 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
    end
    CBH.safeCall(EnsurePortButton)
    if portBtn then
-      if AnyObjectiveActive() then portBtn:Show() else portBtn:Hide() end
+      local label, mode
+      if AnyObjectiveActive() then
+         mode = "objective"
+         local destZone
+         if Advisor.ResolveDestination then destZone = Advisor.ResolveDestination() end
+         label = destZone and ("Port: " .. destZone) or "Port: objective"
+      elseif CBH.db and CBH.db.callboards and #CBH.db.callboards > 0 then
+         mode = "board"
+         label = "Port: Callboard"
+      end
+      if label then
+         portBtn.mode = mode
+         if portBtn:GetText() ~= label then
+            portBtn:SetText(label)
+            local fs = portBtn:GetFontString()
+            portBtn:SetWidth(math.max(110, ((fs and fs:GetStringWidth()) or 0) + 26))
+         end
+         portBtn:Show()
+      else
+         portBtn:Hide()
+      end
    end
 end)
 
@@ -307,6 +364,7 @@ local function ResolveDestination(zoneArg)
    end
    return nil, nil
 end
+Advisor.ResolveDestination = ResolveDestination
 
 -- Point the world map at a zone by name (case-insensitive).
 local function SetMapByZoneName(zoneName)
@@ -375,5 +433,28 @@ function Advisor.Port(zoneArg)
       SetMapToCurrentZone()
    end
    -- Checkpoint buttons repopulate when the displayed map changes; scan shortly.
+   Advisor.portAt = GetTime() + 0.4
+end
+
+-- Travel back to a callboard you have used (prefers one in the current zone).
+function Advisor.PortToCallboard()
+   if InCombatLockdown() then
+      CBH.print("Cannot travel while in combat.")
+      return
+   end
+   local list = (CBH.db and CBH.db.callboards) or {}
+   if #list == 0 then
+      CBH.print("No callboard location learned yet - open an Objectives Board once.")
+      return
+   end
+   local zone = GetRealZoneText()
+   local pick
+   for _, b in ipairs(list) do
+      if b.zone == zone then pick = b break end
+   end
+   pick = pick or list[1]
+   Advisor.portPoints = { { x = pick.x, y = pick.y } }
+   if not WorldMapFrame:IsShown() then ShowUIPanel(WorldMapFrame) end
+   if not SetMapByZoneName(pick.zone) then SetMapToCurrentZone() end
    Advisor.portAt = GetTime() + 0.4
 end

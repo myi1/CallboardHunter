@@ -14,6 +14,7 @@ local DEFAULTS = {
    learned = {},      -- rare sightings: [zone][npcID/name] = {points}
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
    cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
+   callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }
    questPatterns = nil,
 }
 
