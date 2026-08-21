@@ -263,22 +263,91 @@ function Advisor.PortScan()
    CBH.print("Candidates: " .. stats.unnamed .. ", validated checkpoints: " .. #cps)
 end
 
+-- All interesting points (rare spawns + learned camps of active objectives)
+-- for a given zone, in that zone's normalized coordinates.
+local function PointsForZone(zone)
+   local pts = {}
+   local hot = CBH.QuestWatcher.IsZoneHot and CBH.QuestWatcher.IsZoneHot(zone)
+   if hot then
+      for _, p in ipairs(CBH.SpawnDB.GetPoints(zone)) do table.insert(pts, p) end
+   end
+   local mobs = CBH.db and CBH.db.learnedKills and CBH.db.learnedKills[zone]
+   if mobs then
+      for name, list in pairs(mobs) do
+         local ko = (CBH.killObjectives or {})[name]
+         if ko and (not ko.need or (ko.have or 0) < ko.need) then
+            for _, p in ipairs(list) do table.insert(pts, { x = p[1], y = p[2] }) end
+         end
+      end
+   end
+   return pts
+end
+
+-- Decide which zone to travel to: explicit arg > current arrow waypoint >
+-- active rare zone > zone of a learned camp > zone harvested from a card.
+local function ResolveDestination(zoneArg)
+   if zoneArg and zoneArg ~= "" then return zoneArg, PointsForZone(zoneArg) end
+   if CBH.Arrow.GetTargetXY then
+      local tx, ty = CBH.Arrow.GetTargetXY()
+      if tx then return GetRealZoneText(), { { x = tx, y = ty } } end
+   end
+   for zone in pairs(CBH.hotZones or {}) do
+      return zone, PointsForZone(zone)
+   end
+   for name, ko in pairs(CBH.killObjectives or {}) do
+      if not ko.need or (ko.have or 0) < ko.need then
+         for zone, mobs in pairs((CBH.db and CBH.db.learnedKills) or {}) do
+            if mobs[name] and #mobs[name] > 0 then
+               return zone, PointsForZone(zone)
+            end
+         end
+         local zone = CBH.db and CBH.db.cardZones and CBH.db.cardZones[name]
+         if zone then return zone, PointsForZone(zone) end
+      end
+   end
+   return nil, nil
+end
+
+-- Point the world map at a zone by name (case-insensitive).
+local function SetMapByZoneName(zoneName)
+   local want = string.lower(zoneName)
+   for c = 1, select("#", GetMapContinents()) do
+      local zones = { GetMapZones(c) }
+      for z, zn in ipairs(zones) do
+         if string.lower(zn) == want then
+            SetMapZoom(c, z)
+            return true
+         end
+      end
+   end
+   return false
+end
+
 local function DoPort()
    local cps, stats = FindCheckpoints(false)
+   local pts = Advisor.portPoints
+   Advisor.portPoints = nil
    if #cps == 0 then
       CBH.print("No checkpoints found (unnamed map buttons: " .. stats.unnamed ..
          "). Run /cbh portscan with the map open and report the output.")
       return
    end
-   -- Aim for the current arrow waypoint if there is one, else the player.
-   local rx, ry
-   if CBH.Arrow.GetTargetXY then rx, ry = CBH.Arrow.GetTargetXY() end
-   if not rx then rx, ry = GetPlayerMapPosition("player") end
-   if not rx or (rx == 0 and ry == 0) then rx, ry = 0.5, 0.5 end
    local best, bestD
    for _, cp in ipairs(cps) do
-      local dx, dy = cp.x - rx, cp.y - ry
-      local d = dx * dx + dy * dy
+      local d
+      if pts and #pts > 0 then
+         -- Closest checkpoint to ANY objective point in the destination zone.
+         for _, p in ipairs(pts) do
+            local dx, dy = cp.x - p.x, cp.y - p.y
+            local dd = dx * dx + dy * dy
+            if not d or dd < d then d = dd end
+         end
+      else
+         local rx, ry = GetPlayerMapPosition("player")
+         if not rx or (rx == 0 and ry == 0) then rx, ry = 0.5, 0.5 end
+         local dx, dy = cp.x - rx, cp.y - ry
+         d = dx * dx + dy * dy
+      end
       if not bestD or d < bestD then best, bestD = cp, d end
    end
    CBH.print("Traveling to nearest checkpoint: " .. tostring(best.name))
@@ -286,17 +355,25 @@ local function DoPort()
 end
 Advisor.DoPort = DoPort
 
-function Advisor.Port()
+function Advisor.Port(zoneArg)
    if InCombatLockdown() then
       CBH.print("Cannot travel while in combat.")
       return
    end
+   local destZone, pts = ResolveDestination(zoneArg)
+   Advisor.portPoints = pts
    if not WorldMapFrame:IsShown() then
-      -- The server populates its map buttons on show; scan on a short delay.
       -- (ToggleWorldMap does not exist on this client.)
       ShowUIPanel(WorldMapFrame)
-      Advisor.portAt = GetTime() + 0.4
-      return
    end
-   DoPort()
+   if destZone then
+      if not SetMapByZoneName(destZone) then
+         CBH.print("No map found for zone '" .. tostring(destZone) .. "' - using current map.")
+         SetMapToCurrentZone()
+      end
+   else
+      SetMapToCurrentZone()
+   end
+   -- Checkpoint buttons repopulate when the displayed map changes; scan shortly.
+   Advisor.portAt = GetTime() + 0.4
 end

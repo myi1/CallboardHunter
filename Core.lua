@@ -116,7 +116,7 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
    elseif cmd == "next" then
       if CBH.Arrow.Next then CBH.Arrow.Next() end
    elseif cmd == "port" then
-      if CBH.Advisor and CBH.Advisor.Port then CBH.safeCall(CBH.Advisor.Port) end
+      if CBH.Advisor and CBH.Advisor.Port then CBH.safeCall(CBH.Advisor.Port, arg) end
    elseif cmd == "portscan" then
       if CBH.Advisor and CBH.Advisor.PortScan then CBH.safeCall(CBH.Advisor.PortScan) end
    elseif cmd == "frames" then
