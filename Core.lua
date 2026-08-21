@@ -13,6 +13,7 @@ local DEFAULTS = {
    options = { arrow = true, sound = true, partyAnnounce = false, arrowPos = nil },
    learned = {},      -- rare sightings: [zone][npcID/name] = {points}
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
+   cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
    questPatterns = nil,
 }
 
@@ -114,6 +115,8 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CBH.print("Party announce " .. (CBH.db.options.partyAnnounce and "ON" or "OFF"))
    elseif cmd == "next" then
       if CBH.Arrow.Next then CBH.Arrow.Next() end
+   elseif cmd == "port" then
+      if CBH.Advisor and CBH.Advisor.Port then CBH.safeCall(CBH.Advisor.Port) end
    elseif cmd == "frames" then
       -- Discovery tool for the server's custom UI.
       --   /cbh frames <text>  -> only frames whose text contains <text>, with parent chain
@@ -175,6 +178,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | track <zone> | untrack | debug | next | arrow | sound | party | reset")
+      CBH.print("/cbh scan | track <zone> | untrack | debug | next | port | arrow | sound | party | reset")
    end
 end

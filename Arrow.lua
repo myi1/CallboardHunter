@@ -153,6 +153,11 @@ function Arrow.Next()
    target = nil
 end
 
+-- Current waypoint coordinates (normalized), for the checkpoint port.
+function Arrow.GetTargetXY()
+   if target then return target.x, target.y end
+end
+
 function Arrow.MarkVisitedNear(name)
    local zone = GetRealZoneText()
    for _, p in ipairs(CBH.SpawnDB.GetPoints(zone)) do
