@@ -39,7 +39,7 @@ function QW.Update(force)
 
    local hot, kills = {}, {}
    for i = 1, GetNumQuestLogEntries() do
-      local title, _, _, _, isHeader = GetQuestLogTitle(i)
+      local title, _, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(i)
       if not isHeader and title then
          local numObj = GetNumQuestLeaderBoards(i)
          for j = 1, numObj do
@@ -48,7 +48,8 @@ function QW.Update(force)
                local zone = FindZoneIn(text) or FindZoneIn(title)
                local _, _, have, need = string.find(text or "", "(%d+)%s*/%s*(%d+)")
                if zone then
-                  hot[zone] = { have = tonumber(have), need = tonumber(need), questIndex = i }
+                  hot[zone] = { have = tonumber(have), need = tonumber(need),
+                     questIndex = i, questID = questID }
                end
             end
             -- Kill objectives ("Azure Scalebane slain: 3/10", "Beasts slain: 22/75"):
@@ -57,7 +58,8 @@ function QW.Update(force)
                string.find(text or "", "^(.-)%s+[Ss]lain:%s*(%d+)%s*/%s*(%d+)")
             if mobName and mobName ~= "" and not string.find(string.lower(mobName), "rare") then
                kHave, kNeed = tonumber(kHave), tonumber(kNeed)
-               kills[mobName] = { have = kHave, need = kNeed, questIndex = i }
+               kills[mobName] = { have = kHave, need = kNeed,
+                  questIndex = i, questID = questID }
                local prev = QW.lastCounts[mobName]
                if prev and kHave > prev then
                   CBH.print("Callboard: " .. mobName .. " " .. kHave .. "/" .. kNeed)

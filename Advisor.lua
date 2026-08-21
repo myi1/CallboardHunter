@@ -350,23 +350,29 @@ end
 -- Decide which zone to travel to: explicit arg > current arrow waypoint >
 -- active rare zone > zone of a learned camp > zone harvested from a card.
 local function ResolveDestination(zoneArg)
+   Advisor.portQuestID = nil
    if zoneArg and zoneArg ~= "" then return zoneArg, PointsForZone(zoneArg) end
    if CBH.Arrow.GetTargetXY then
       local tx, ty = CBH.Arrow.GetTargetXY()
       if tx then return GetRealZoneText(), { { x = tx, y = ty } } end
    end
-   for zone in pairs(CBH.hotZones or {}) do
+   for zone, info in pairs(CBH.hotZones or {}) do
+      Advisor.portQuestID = info.questID
       return zone, PointsForZone(zone)
    end
    for name, ko in pairs(CBH.killObjectives or {}) do
       if not ko.need or (ko.have or 0) < ko.need then
          for zone, mobs in pairs((CBH.db and CBH.db.learnedKills) or {}) do
             if mobs[name] and #mobs[name] > 0 then
+               Advisor.portQuestID = ko.questID
                return zone, PointsForZone(zone)
             end
          end
          local zone = CBH.db and CBH.db.cardZones and CBH.db.cardZones[name]
-         if zone then return zone, PointsForZone(zone) end
+         if zone then
+            Advisor.portQuestID = ko.questID
+            return zone, PointsForZone(zone)
+         end
       end
    end
    return nil, nil
@@ -392,6 +398,20 @@ local function DoPort()
    local cps, stats = FindCheckpoints(false)
    local pts = Advisor.portPoints
    Advisor.portPoints = nil
+   -- No learned points for this objective yet? The quest's own POI marker on
+   -- the (now displayed) map tells us exactly where the objective area is.
+   if (not pts or #pts == 0) and Advisor.portQuestID and QuestPOIGetIconInfo then
+      local a, b, c = QuestPOIGetIconInfo(Advisor.portQuestID)
+      local px, py
+      if type(a) == "number" and type(b) == "number"
+         and a > 0 and a <= 1 and b > 0 and b <= 1 then
+         px, py = a, b            -- (posX, posY, ...) signature
+      elseif type(b) == "number" and type(c) == "number" then
+         px, py = b, c            -- (completed, posX, posY) signature
+      end
+      if px then pts = { { x = px, y = py } } end
+   end
+   Advisor.portQuestID = nil
    if #cps == 0 then
       if (stats.locked or 0) > 0 then
          CBH.print("No unlocked checkpoints on this map (" .. stats.locked ..
