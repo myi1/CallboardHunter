@@ -134,6 +134,8 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       if CBH.Advisor and CBH.Advisor.Port then CBH.safeCall(CBH.Advisor.Port, arg) end
    elseif cmd == "portscan" then
       if CBH.Advisor and CBH.Advisor.PortScan then CBH.safeCall(CBH.Advisor.PortScan) end
+   elseif cmd == "obj" then
+      if CBH.Advisor and CBH.Advisor.DumpObjectives then CBH.safeCall(CBH.Advisor.DumpObjectives) end
    elseif cmd == "frames" then
       -- Discovery tool for the server's custom UI.
       --   /cbh frames <text>  -> only frames whose text contains <text>, with parent chain

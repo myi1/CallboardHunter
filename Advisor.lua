@@ -383,6 +383,37 @@ local function FindQuestZoneByPOI(questID)
    end
 end
 
+local function IsWatched(questIndex)
+   if not questIndex or not GetNumQuestWatches then return false end
+   for w = 1, GetNumQuestWatches() do
+      if GetQuestIndexForWatch(w) == questIndex then return true end
+   end
+   return false
+end
+Advisor.IsWatched = IsWatched
+
+-- Resolve one kill objective to (zone, points). On an actual port (allowSweep)
+-- the quest's live POI is authoritative - the server can move an objective's
+-- area between quests, so it overrides stale learned camps and saved cardZones,
+-- and self-heals cardZones for future labels.
+local function ResolveKill(name, ko, allowSweep)
+   if allowSweep and ko.questID then
+      local zn, qx, qy = FindQuestZoneByPOI(ko.questID)
+      if zn then
+         if CBH.db and CBH.db.cardZones then CBH.db.cardZones[name] = zn end
+         return zn, { { x = qx, y = qy } }
+      end
+   end
+   if CBH.db and CBH.db.learnedKills then
+      for zone, mobs in pairs(CBH.db.learnedKills) do
+         if mobs[name] and #mobs[name] > 0 then return zone, PointsForZone(zone) end
+      end
+   end
+   local zone = (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
+      or ZoneFromQuestText(ko)
+   if zone then return zone, PointsForZone(zone) end
+end
+
 -- Pure resolver: returns destZone, points, questID, preferPOI. Callers store
 -- what they need; the label ticker must not mutate in-flight port state.
 local function ResolveDestination(zoneArg, allowSweep)
@@ -401,29 +432,48 @@ local function ResolveDestination(zoneArg, allowSweep)
    for zone, info in pairs(CBH.hotZones or {}) do
       return zone, PointsForZone(zone), info.questID, false
    end
+   -- Active kill objectives, the tracked (watched) quest first - so with
+   -- several active, we route to the one the player is actually following.
+   local active = {}
    for name, ko in pairs(CBH.killObjectives or {}) do
       if not ko.need or (ko.have or 0) < ko.need then
-         for zone, mobs in pairs((CBH.db and CBH.db.learnedKills) or {}) do
-            if mobs[name] and #mobs[name] > 0 then
-               return zone, PointsForZone(zone), ko.questID, true
-            end
-         end
-         local zone = CBH.db and CBH.db.cardZones and CBH.db.cardZones[name]
-         if not zone then zone = ZoneFromQuestText(ko) end
-         if zone then
-            return zone, PointsForZone(zone), ko.questID, true
-         end
-         if allowSweep then
-            local zn, qx, qy = FindQuestZoneByPOI(ko.questID)
-            if zn then
-               return zn, { { x = qx, y = qy } }, ko.questID, true
-            end
-         end
+         table.insert(active, { name = name, ko = ko,
+            w = IsWatched(ko.questIndex) and 1 or 0 })
       end
+   end
+   table.sort(active, function(a, b) return a.w > b.w end)
+   for _, e in ipairs(active) do
+      local zone, pts = ResolveKill(e.name, e.ko, allowSweep)
+      if zone then return zone, pts, e.ko.questID, true end
    end
    return nil, nil
 end
 Advisor.ResolveDestination = ResolveDestination
+
+-- Diagnostic: /cbh obj - ground truth on every active objective and how it resolves.
+function Advisor.DumpObjectives()
+   CBH.print("Active objectives:")
+   for zone, info in pairs(CBH.hotZones or {}) do
+      CBH.print("  RARE zone=" .. zone .. " qid=" .. tostring(info.questID))
+   end
+   local any = false
+   for name, ko in pairs(CBH.killObjectives or {}) do
+      any = true
+      local done = ko.need and (ko.have or 0) >= ko.need
+      local cz = CBH.db and CBH.db.cardZones and CBH.db.cardZones[name]
+      local camp
+      for z, mobs in pairs((CBH.db and CBH.db.learnedKills) or {}) do
+         if mobs[name] and #mobs[name] > 0 then camp = z break end
+      end
+      CBH.print("  KILL '" .. name .. "' " .. tostring(ko.have) .. "/" ..
+         tostring(ko.need) .. (done and " |cffff5050[done]|r" or "") ..
+         " watched=" .. tostring(IsWatched(ko.questIndex)))
+      CBH.print("     cardZone=" .. tostring(cz) .. " textZone=" ..
+         tostring(ZoneFromQuestText(ko)) .. " camp=" .. tostring(camp))
+   end
+   if not any then CBH.print("  (no kill objectives)") end
+   CBH.print("Open the map & /cbh port to route by live POI (overrides the above).")
+end
 
 -- Point the world map at a zone by name (case-insensitive).
 local function SetMapByZoneName(zoneName)
