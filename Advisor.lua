@@ -239,63 +239,39 @@ local function FindCheckpoints(diagnose)
 
    local function inspect(c, parentName)
       stats.unnamed = stats.unnamed + 1
-      local l1, l2 = ReadTooltip(c)
-      local combined = string.lower((l1 or "") .. " " .. (l2 or ""))
-      -- Locked checkpoints also render, with "Not yet unlocked, visit the
-      -- meeting stone..." - only "Click to travel" buttons actually teleport.
-      local locked = string.find(combined, "not yet unlocked", 1, true)
-         or string.find(combined, "unlock this checkpoint", 1, true)
-      local label
-      if not locked and string.find(combined, "click to travel", 1, true) then
-         label = (l1 and l1 ~= "") and l1 or "Checkpoint"
-      end
-      if locked then stats.locked = (stats.locked or 0) + 1 end
-      -- Custom buttons usually carry their data as Lua fields; if the tooltip
-      -- route failed, look for checkpoint-ish strings on the button itself.
-      local nameField
-      if not label and not locked then
-         local fieldHit
-         for k, v in pairs(c) do
-            if type(v) == "string" then
-               local lv = string.lower(v)
-               if string.find(lv, "not yet unlocked", 1, true) then
-                  fieldHit = nil
-                  break
-               elseif string.find(lv, "click to travel", 1, true) then
-                  fieldHit = v
-               elseif k == "name" or k == "Name" or k == "label" then
-                  nameField = v
-               end
-            end
+      -- Ebonhold checkpoint buttons carry clean fields (found via /cbh portscan):
+      -- checkpointId, nodeName, isUnlocked, isFactionAllowed.
+      local cpId = rawget(c, "checkpointId")
+      local nodeName = rawget(c, "nodeName")
+      local unlocked = rawget(c, "isUnlocked")
+      local faction = rawget(c, "isFactionAllowed")
+      local isCP = (cpId ~= nil) or (nodeName ~= nil and unlocked ~= nil)
+      if not isCP then
+         -- Fallback for builds without those fields: tooltip scrape.
+         local l1, l2 = ReadTooltip(c)
+         local combined = string.lower((l1 or "") .. " " .. (l2 or ""))
+         if string.find(combined, "not yet unlocked", 1, true) then
+            isCP, unlocked, nodeName = true, false, (l1 ~= "" and l1) or "Checkpoint"
+         elseif string.find(combined, "click to travel", 1, true) then
+            isCP, unlocked, nodeName = true, true, (l1 ~= "" and l1) or "Checkpoint"
          end
-         if fieldHit then label = nameField or fieldHit end
       end
       if diagnose then
-         CBH.print("  btn#" .. stats.unnamed .. " [" .. parentName .. ", " ..
-            math.floor(c:GetWidth() or 0) .. "x" .. math.floor(c:GetHeight() or 0) ..
-            "] tooltip: '" .. tostring(l1) .. "' / '" .. tostring(l2) .. "'" ..
-            (label and " -> CHECKPOINT" or ""))
-         local fields = {}
-         for k, v in pairs(c) do
-            local tv = type(v)
-            if tv == "string" or tv == "number" or tv == "boolean" then
-               table.insert(fields, tostring(k) .. "=" .. tostring(v))
-            else
-               table.insert(fields, tostring(k) .. ":" .. tv)
-            end
-         end
-         if #fields > 0 then
-            CBH.print("    fields: " .. string.sub(table.concat(fields, ", "), 1, 220))
-         end
-         local nt = c.GetNormalTexture and c:GetNormalTexture()
-         local tex = nt and nt:GetTexture()
-         if tex then CBH.print("    texture: " .. tostring(tex)) end
+         CBH.print("  btn#" .. stats.unnamed .. " [" .. parentName .. "] cp=" ..
+            tostring(cpId) .. " name=" .. tostring(nodeName) .. " unlocked=" ..
+            tostring(unlocked) .. " faction=" .. tostring(faction) ..
+            (isCP and (unlocked ~= false and (faction ~= false and " -> USE" or " -> WRONG FACTION")
+            or " -> LOCKED") or ""))
       end
-      if label then
-         local cx, cy = c:GetCenter()
-         if cx and cy then
-            table.insert(out, { btn = c, name = label,
-               x = (cx - left) / w, y = (top - cy) / h })
+      if isCP then
+         if unlocked == false then
+            stats.locked = (stats.locked or 0) + 1
+         elseif faction ~= false then
+            local cx, cy = c:GetCenter()
+            if cx and cy then
+               table.insert(out, { btn = c, name = nodeName or "Checkpoint",
+                  x = (cx - left) / w, y = (top - cy) / h })
+            end
          end
       end
    end
@@ -610,28 +586,40 @@ local function DoPort()
       end
       return
    end
-   local best, bestD
-   for _, cp in ipairs(cps) do
-      local d
-      if pts and #pts > 0 then
-         -- Closest checkpoint to ANY objective point in the destination zone.
-         for _, p in ipairs(pts) do
-            local dx, dy = cp.x - p.x, cp.y - p.y
-            local dd = dx * dx + dy * dy
-            if not d or dd < d then d = dd end
+   local best, bestD, viaHit
+   -- Port-via override: force the checkpoint whose name matches, if present.
+   if Advisor.portViaName then
+      local want = string.lower(Advisor.portViaName)
+      for _, cp in ipairs(cps) do
+         if cp.name and string.find(string.lower(cp.name), want, 1, true) then
+            best, viaHit = cp, true
+            break
          end
-      else
-         local rx, ry = GetPlayerMapPosition("player")
-         if not rx or (rx == 0 and ry == 0) then rx, ry = 0.5, 0.5 end
-         local dx, dy = cp.x - rx, cp.y - ry
-         d = dx * dx + dy * dy
       end
-      if not bestD or d < bestD then best, bestD = cp, d end
    end
-   local note = Advisor.portViaNote and (Advisor.portViaNote) or ("routed by " .. routedBy)
+   if not best then
+      for _, cp in ipairs(cps) do
+         local d
+         if pts and #pts > 0 then
+            -- Closest checkpoint to ANY objective point in the destination zone.
+            for _, p in ipairs(pts) do
+               local dx, dy = cp.x - p.x, cp.y - p.y
+               local dd = dx * dx + dy * dy
+               if not d or dd < d then d = dd end
+            end
+         else
+            local rx, ry = GetPlayerMapPosition("player")
+            if not rx or (rx == 0 and ry == 0) then rx, ry = 0.5, 0.5 end
+            local dx, dy = cp.x - rx, cp.y - ry
+            d = dx * dx + dy * dy
+         end
+         if not bestD or d < bestD then best, bestD = cp, d end
+      end
+   end
+   local note = (viaHit and Advisor.portViaNote) or ("routed by " .. routedBy)
    Advisor.portViaNote = nil
-   CBH.print("Traveling to nearest checkpoint: " .. tostring(best.name) ..
-      " (" .. note .. ")")
+   Advisor.portViaName = nil
+   CBH.print("Traveling to checkpoint: " .. tostring(best.name) .. " (" .. note .. ")")
    best.btn:Click()
 end
 Advisor.DoPort = DoPort
@@ -646,26 +634,19 @@ function Advisor.Port(zoneArg)
    Advisor.portPoints = pts
    Advisor.portQuestID = qid
    Advisor.portPreferPOI = prefer or false
-   Advisor.portViaNote = nil
-   -- Route via an adjacent zone's checkpoint when configured. Objective points
-   -- are in the destination zone's coordinates and don't translate, so drop
-   -- them and pick the nearest unlocked checkpoint in the via-zone.
-   local mapZone = destZone
+   -- Port-via: a zone's map can carry a checkpoint named for another zone
+   -- (Crystalsong's map has a Dalaran checkpoint). Prefer that named checkpoint
+   -- on THIS map rather than switching maps.
    local via = PortViaFor(destZone)
-   if via and via ~= destZone then
-      mapZone = via
-      Advisor.portPoints = nil
-      Advisor.portQuestID = nil
-      Advisor.portPreferPOI = false
-      Advisor.portViaNote = destZone .. " via " .. via
-   end
+   Advisor.portViaName = (via and via ~= destZone) and via or nil
+   Advisor.portViaNote = Advisor.portViaName and (destZone .. " via " .. Advisor.portViaName) or nil
    if not WorldMapFrame:IsShown() then
       -- (ToggleWorldMap does not exist on this client.)
       ShowUIPanel(WorldMapFrame)
    end
-   if mapZone then
-      if not SetMapByZoneName(mapZone) then
-         CBH.print("No map found for zone '" .. tostring(mapZone) .. "' - using current map.")
+   if destZone then
+      if not SetMapByZoneName(destZone) then
+         CBH.print("No map found for zone '" .. tostring(destZone) .. "' - using current map.")
          SetMapToCurrentZone()
       end
    else
