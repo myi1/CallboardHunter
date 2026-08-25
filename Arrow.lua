@@ -56,6 +56,23 @@ local function OnUpdate(self, elapsed)
    if self.t < 0.1 then return end
    self.t = 0
 
+   -- Custom waypoint mode (driven by PallyPilot raid routes and friends):
+   -- while set, the arrow just points at the given normalized map coords.
+   -- The caller owns arrival detection and chain advancement.
+   if Arrow.custom then
+      local c = Arrow.custom
+      local px, py = PlayerPos()
+      if not px then frame:Hide() return end
+      frame:Show()
+      label:SetText(c.name or "Waypoint")
+      local dx, dy = c.x - px, c.y - py
+      local bearing = math.atan2(-dx, -dy)
+      local facing = GetPlayerFacing() or 0
+      RotateTex(tex, bearing - facing)
+      distText:SetText(string.format("%.1f", math.sqrt(dx * dx + dy * dy) * 100))
+      return
+   end
+
    local zone = GetRealZoneText()
    local hot = CBH.QuestWatcher.IsZoneHot and CBH.QuestWatcher.IsZoneHot(zone)
    local active = hot or Arrow.farmActive
@@ -168,6 +185,17 @@ end
 -- checkpoint port.
 function Arrow.GetTargetXY()
    if target then return target.x, target.y, target.farm, target.name end
+end
+
+-- Public custom-target API (used by PallyPilot raid waypoints).
+function Arrow.SetCustom(x, y, name)
+   Arrow.custom = { x = x, y = y, name = name }
+   if frame then frame:Show() end
+end
+
+function Arrow.ClearCustom()
+   Arrow.custom = nil
+   if frame then frame:Hide() end
 end
 
 function Arrow.MarkVisitedNear(name)
