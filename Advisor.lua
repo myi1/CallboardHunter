@@ -8,6 +8,17 @@ CBH.Advisor = Advisor
 
 -- ---------------------------------------------------------------- card advisor
 
+-- Usage log: every port decision writes to SavedVariables so bugs can be
+-- analyzed offline from a whole session at once (/cbh log to view in-game).
+function CBH.Log(cat, msg)
+   if not CBH.db then return end
+   CBH.db.log = CBH.db.log or {}
+   local l = CBH.db.log
+   l[#l + 1] = { t = time(), when = date("%H:%M:%S"),
+                 zone = GetRealZoneText(), cat = cat, msg = msg }
+   while #l > 500 do table.remove(l, 1) end
+end
+
 local function CardTexts(card)
    local texts = {}
    for i = 1, select("#", card:GetRegions()) do
@@ -576,11 +587,17 @@ local function DoPort()
    end
    Advisor.portQuestID = nil
    Advisor.portPreferPOI = false
+   CBH.Log("port", "scan: map=" .. tostring(GetMapInfo()) .. " cps=" .. #cps
+      .. " locked=" .. (stats.locked or 0) .. " unnamed=" .. (stats.unnamed or 0)
+      .. " basis=" .. routedBy .. " pts=" .. ((pts and #pts) or 0)
+      .. (pts and pts[1] and string.format(" pt1=%.2f/%.2f", pts[1].x, pts[1].y) or ""))
    if #cps == 0 then
       if (stats.locked or 0) > 0 then
+         CBH.Log("port", "FAIL: 0 unlocked checkpoints (" .. stats.locked .. " locked)")
          CBH.print("No unlocked checkpoints on this map (" .. stats.locked ..
             " locked). Visit a meeting stone there to unlock one first.")
       else
+         CBH.Log("port", "FAIL: 0 checkpoints, " .. (stats.unnamed or 0) .. " unnamed buttons")
          CBH.print("No checkpoints found (unnamed map buttons: " .. stats.unnamed ..
             "). Run /cbh portscan with the map open and report the output.")
       end
@@ -620,6 +637,29 @@ local function DoPort()
    Advisor.portViaNote = nil
    Advisor.portViaName = nil
    CBH.print("Traveling to checkpoint: " .. tostring(best.name) .. " (" .. note .. ")")
+   local names = {}
+   for i = 1, math.min(#cps, 6) do names[i] = tostring(cps[i].name) end
+   CBH.Log("port", "CLICK '" .. tostring(best.name) .. "' (" .. note
+      .. (bestD and string.format(", d2=%.4f", bestD) or "")
+      .. ") candidates: " .. table.concat(names, ", "))
+   -- Arrival verification: did the click actually move us within 6s?
+   local w = Advisor.portWatch or CreateFrame("Frame")
+   Advisor.portWatch = w
+   w.t0 = GetTime()
+   w.from = tostring(GetRealZoneText()) .. "/" .. tostring(GetSubZoneText())
+   w.cp = tostring(best.name)
+   w:SetScript("OnUpdate", function(self)
+      local now = tostring(GetRealZoneText()) .. "/" .. tostring(GetSubZoneText())
+      if now ~= self.from then
+         CBH.Log("port", "OK: " .. self.from .. " -> " .. now
+            .. " via '" .. self.cp .. "'")
+         self:SetScript("OnUpdate", nil)
+      elseif GetTime() - self.t0 > 6 then
+         CBH.Log("port", "NO-MOVE: still at " .. now .. " 6s after clicking '"
+            .. self.cp .. "'")
+         self:SetScript("OnUpdate", nil)
+      end
+   end)
    best.btn:Click()
 end
 Advisor.DoPort = DoPort
@@ -634,6 +674,9 @@ function Advisor.Port(zoneArg)
    Advisor.portPoints = pts
    Advisor.portQuestID = qid
    Advisor.portPreferPOI = prefer or false
+   CBH.Log("port", "REQUEST arg='" .. tostring(zoneArg) .. "' -> dest="
+      .. tostring(destZone) .. " pts=" .. ((pts and #pts) or 0)
+      .. " qid=" .. tostring(qid) .. " prefPOI=" .. tostring(prefer or false))
    -- Port-via: a zone's map can carry a checkpoint named for another zone
    -- (Crystalsong's map has a Dalaran checkpoint). Prefer that named checkpoint
    -- on THIS map rather than switching maps.
@@ -646,6 +689,8 @@ function Advisor.Port(zoneArg)
    end
    if destZone then
       if not SetMapByZoneName(destZone) then
+         CBH.Log("port", "MAP-MISS: no map for '" .. tostring(destZone)
+            .. "', falling back to current zone map")
          CBH.print("No map found for zone '" .. tostring(destZone) .. "' - using current map.")
          SetMapToCurrentZone()
       end
@@ -673,6 +718,8 @@ function Advisor.PortToCallboard()
       if b.zone == zone then pick = b break end
    end
    pick = pick or list[1]
+   CBH.Log("port", "CALLBOARD request -> " .. tostring(pick.zone)
+      .. string.format(" %.2f/%.2f", pick.x or 0, pick.y or 0))
    Advisor.portPoints = { { x = pick.x, y = pick.y } }
    Advisor.portQuestID = nil
    Advisor.portPreferPOI = false

@@ -196,6 +196,20 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
          end
          CBH.print("Dumped " .. shown .. " frames.")
       end
+   elseif cmd == "log" then
+      if arg == "clear" then
+         CBH.db.log = {}
+         CBH.print("Usage log cleared.")
+      else
+         local n = tonumber(arg) or 15
+         local l = CBH.db.log or {}
+         CBH.print("Usage log (" .. #l .. " entries; full log saves to disk on /reload):")
+         for i = math.max(1, #l - n + 1), #l do
+            local e = l[i]
+            DEFAULT_CHAT_FRAME:AddMessage("  " .. (e.when or "?") .. " ["
+               .. (e.zone or "?") .. "] " .. tostring(e.msg))
+         end
+      end
    elseif cmd == "reset" then
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
