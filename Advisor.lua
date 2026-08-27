@@ -698,7 +698,17 @@ local function DoPort()
          stopWatch(self)
       end
    end)
-   best.btn:Click()
+   -- Fire every handler the checkpoint button might use: some teleport on
+   -- OnClick, others on OnMouseUp — :Click() alone was a silent no-op on many
+   -- (no error, no cast in the logs), so cover all of them.
+   local b = best.btn
+   if b.Click then pcall(b.Click, b) end
+   local down = b.GetScript and b:GetScript("OnMouseDown")
+   if down then pcall(down, b, "LeftButton") end
+   local up = b.GetScript and b:GetScript("OnMouseUp")
+   if up then pcall(up, b, "LeftButton") end
+   local oc = b.GetScript and b:GetScript("OnClick")
+   if oc then pcall(oc, b, "LeftButton") end
 end
 Advisor.DoPort = DoPort
 
@@ -743,7 +753,7 @@ function Advisor.Port(zoneArg)
       SetMapToCurrentZone()
    end
    -- Checkpoint buttons repopulate when the displayed map changes; scan shortly.
-   Advisor.portAt = GetTime() + 0.4
+   Advisor.portAt = GetTime() + 0.7
 end
 
 -- Travel back to a callboard you have used (prefers one in the current zone).
@@ -770,5 +780,5 @@ function Advisor.PortToCallboard()
    Advisor.portPreferPOI = false
    if not WorldMapFrame:IsShown() then ShowUIPanel(WorldMapFrame) end
    if not SetMapByZoneName(pick.zone) then SetMapToCurrentZone() end
-   Advisor.portAt = GetTime() + 0.4
+   Advisor.portAt = GetTime() + 0.7
 end
