@@ -16,6 +16,7 @@ local DEFAULTS = {
    cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
    callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }
    portOverrides = {},-- [objectiveZone] = checkpointZone to route via instead
+   checkpointBlock = {}, -- [lowercase name] = true: never route/port to this
    questPatterns = nil,
 }
 
@@ -32,6 +33,20 @@ end
 
 function CBH.print(msg)
    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99CallboardHunter|r: " .. tostring(msg))
+end
+
+-- A checkpoint the player has blocked (e.g. one that drops you INSIDE an
+-- instance, like Azjol-Nerub, vs an entrance you can mount at, like Ulduar).
+-- Substring match so "azjol" blocks "Azjol-Nerub". FindCheckpoints skips these.
+function CBH.IsBlockedCheckpoint(name)
+   if not name then return false end
+   local blocked = CBH.db and CBH.db.checkpointBlock
+   if not blocked then return false end
+   local low = string.lower(name)
+   for key in pairs(blocked) do
+      if key ~= "" and string.find(low, key, 1, true) then return true end
+   end
+   return false
 end
 
 -- Quest POI position on the currently displayed map, handling both known
@@ -139,6 +154,34 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       if CBH.Advisor and CBH.Advisor.DumpObjectives then CBH.safeCall(CBH.Advisor.DumpObjectives) end
    elseif cmd == "portvia" then
       if CBH.Advisor and CBH.Advisor.PortVia then CBH.safeCall(CBH.Advisor.PortVia, arg) end
+   elseif cmd == "block" then
+      CBH.db.checkpointBlock = CBH.db.checkpointBlock or {}
+      if arg == "" then
+         CBH.print("Usage: /cbh block <checkpoint name>  (e.g. /cbh block Azjol-Nerub)."
+            .. " Blocks a checkpoint from being routed/ported to - use it for ones"
+            .. " that drop you INSIDE an instance.")
+      else
+         CBH.db.checkpointBlock[string.lower(arg)] = true
+         CBH.print("Blocked checkpoint '" .. arg .. "'. It won't be chosen for ports."
+            .. " (/cbh unblock " .. arg .. " to undo, /cbh blocked to list.)")
+      end
+   elseif cmd == "unblock" then
+      CBH.db.checkpointBlock = CBH.db.checkpointBlock or {}
+      if CBH.db.checkpointBlock[string.lower(arg)] then
+         CBH.db.checkpointBlock[string.lower(arg)] = nil
+         CBH.print("Unblocked '" .. arg .. "'.")
+      else
+         CBH.print("'" .. tostring(arg) .. "' wasn't blocked. /cbh blocked to list.")
+      end
+   elseif cmd == "blocked" then
+      local list = {}
+      for k in pairs(CBH.db.checkpointBlock or {}) do list[#list + 1] = k end
+      if #list == 0 then
+         CBH.print("No checkpoints blocked. /cbh block <name> to block one.")
+      else
+         table.sort(list)
+         CBH.print("Blocked checkpoints: " .. table.concat(list, ", "))
+      end
    elseif cmd == "frames" then
       -- Discovery tool for the server's custom UI.
       --   /cbh frames <text>  -> only frames whose text contains <text>, with parent chain

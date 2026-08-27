@@ -277,6 +277,9 @@ local function FindCheckpoints(diagnose)
       if isCP then
          if unlocked == false then
             stats.locked = (stats.locked or 0) + 1
+         elseif faction ~= false and CBH.IsBlockedCheckpoint
+                and CBH.IsBlockedCheckpoint(nodeName) then
+            stats.blocked = (stats.blocked or 0) + 1
          elseif faction ~= false then
             local cx, cy = c:GetCenter()
             if cx and cy then
