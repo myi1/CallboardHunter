@@ -648,6 +648,23 @@ local function DoPort()
    w.t0 = GetTime()
    w.from = tostring(GetRealZoneText()) .. "/" .. tostring(GetSubZoneText())
    w.cp = tostring(best.name)
+   -- Already-there guard: if the destination is our current zone and the chosen
+   -- checkpoint sits essentially where we stand, the click is a no-op (this was
+   -- the largest share of NO-MOVE logs). Report instead of firing a dead click.
+   local curZone = GetRealZoneText()
+   if curZone and Advisor.lastDestZone and curZone == Advisor.lastDestZone then
+      local rx, ry = GetPlayerMapPosition("player")
+      if rx and ry and (rx ~= 0 or ry ~= 0) then
+         local dx, dy = best.x - rx, best.y - ry
+         if (dx * dx + dy * dy) < 0.0016 then -- ~0.04 map units
+            CBH.print("Already at the nearest checkpoint in " .. curZone
+               .. " (" .. tostring(best.name) .. ") - fly or walk from here.")
+            CBH.Log("port", "SKIP: already at '" .. tostring(best.name)
+               .. "' in " .. curZone)
+            return
+         end
+      end
+   end
    w:SetScript("OnUpdate", function(self)
       local now = tostring(GetRealZoneText()) .. "/" .. tostring(GetSubZoneText())
       if now ~= self.from then
