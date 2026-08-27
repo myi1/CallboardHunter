@@ -35,6 +35,26 @@ function CBH.print(msg)
    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99CallboardHunter|r: " .. tostring(msg))
 end
 
+-- Set/clear the home callboard (the checkpoint nearest where you stand).
+function CBH.SetHomeHere()
+   SetMapToCurrentZone()
+   local x, y = GetPlayerMapPosition("player")
+   if not x or (x == 0 and y == 0) then
+      CBH.print("Can't read your position here - stand at your preferred callboard"
+         .. " / flight point (outdoors) and try again.")
+      return false
+   end
+   CBH.db.home = { zone = GetRealZoneText(), x = x, y = y }
+   CBH.print("Home set: " .. GetRealZoneText() .. ". The Callboard port button"
+      .. " (and /cbh home) now bring you to the checkpoint nearest here.")
+   return true
+end
+
+function CBH.ClearHome()
+   CBH.db.home = nil
+   CBH.print("Home cleared - Callboard port uses the nearest learned board again.")
+end
+
 -- A checkpoint the player has blocked (e.g. one that drops you INSIDE an
 -- instance, like Azjol-Nerub, vs an entrance you can mount at, like Ulduar).
 -- Substring match so "azjol" blocks "Azjol-Nerub". FindCheckpoints skips these.
@@ -187,16 +207,9 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
          CBH.print("'" .. tostring(arg) .. "' wasn't blocked. /cbh blocked to list.")
       end
    elseif cmd == "sethome" then
-      SetMapToCurrentZone()
-      local x, y = GetPlayerMapPosition("player")
-      if not x or (x == 0 and y == 0) then
-         CBH.print("Can't read your position here - stand at your preferred callboard"
-            .. " / flight point (outdoors) and run /cbh sethome again.")
-      else
-         CBH.db.home = { zone = GetRealZoneText(), x = x, y = y }
-         CBH.print("Home set: " .. GetRealZoneText() .. ". The Callboard port button"
-            .. " (and /cbh home) now bring you to the checkpoint nearest here.")
-      end
+      CBH.SetHomeHere()
+   elseif cmd == "config" or cmd == "options" then
+      if CBH.OpenConfig then CBH.OpenConfig() else CBH.print("Config panel unavailable.") end
    elseif cmd == "home" then
       if arg == "off" then
          CBH.db.home = nil
