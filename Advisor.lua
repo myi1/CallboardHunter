@@ -393,11 +393,25 @@ local function IsWatched(questIndex)
 end
 Advisor.IsWatched = IsWatched
 
--- Resolve one kill objective to (zone, points). On an actual port (allowSweep)
--- the quest's live POI is authoritative - the server can move an objective's
--- area between quests, so it overrides stale learned camps and saved cardZones,
--- and self-heals cardZones for future labels.
+-- Resolve one kill objective to (zone, points). The zone named in the quest
+-- TEXT is the reliable source ("Kill N X in <Zone>") and needs no map sweep, so
+-- it comes first. DoPort then reads the quest's live POI on THAT zone's map for
+-- precise checkpoint routing. The POI *sweep* is a last resort only: right after
+-- SetMapZoom the POI data is stale, so it false-positived on the first zone in
+-- the list (Alterac Mountains) for many unrelated quests.
 local function ResolveKill(name, ko, allowSweep)
+   local zone = ZoneFromQuestText(ko)
+      or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
+   if not zone and CBH.db and CBH.db.learnedKills then
+      for z, mobs in pairs(CBH.db.learnedKills) do
+         if mobs[name] and #mobs[name] > 0 then zone = z; break end
+      end
+   end
+   if zone then
+      if CBH.db and CBH.db.cardZones then CBH.db.cardZones[name] = zone end
+      return zone, PointsForZone(zone)
+   end
+   -- Nothing named it: fall back to the (fragile) POI sweep.
    if allowSweep and ko.questID then
       local zn, qx, qy = FindQuestZoneByPOI(ko.questID)
       if zn then
@@ -405,14 +419,6 @@ local function ResolveKill(name, ko, allowSweep)
          return zn, { { x = qx, y = qy } }
       end
    end
-   if CBH.db and CBH.db.learnedKills then
-      for zone, mobs in pairs(CBH.db.learnedKills) do
-         if mobs[name] and #mobs[name] > 0 then return zone, PointsForZone(zone) end
-      end
-   end
-   local zone = (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
-      or ZoneFromQuestText(ko)
-   if zone then return zone, PointsForZone(zone) end
 end
 
 -- Pure resolver: returns destZone, points, questID, preferPOI. Callers store
