@@ -430,22 +430,35 @@ local function ResolveDestination(zoneArg, allowSweep)
          return GetRealZoneText(), { { x = tx, y = ty } }, qid, prefer
       end
    end
+   -- Multiple active objectives: choose DETERMINISTICALLY, preferring the quest
+   -- you're actually tracking (watched). A plain pairs() over hotZones returned
+   -- a random one each click — that's why heading to Crystalsong sometimes
+   -- tried to port to Alterac and needed a re-click. Now: watched first, then a
+   -- stable tie-break (questIndex, then name), so the same click always resolves
+   -- the same way and the port button label shows where it will send you.
+   local cands = {}
    for zone, info in pairs(CBH.hotZones or {}) do
-      return zone, PointsForZone(zone), info.questID, false
+      cands[#cands + 1] = { kind = "hot", zone = zone, qi = info.questIndex,
+         w = IsWatched(info.questIndex) and 1 or 0 }
    end
-   -- Active kill objectives, the tracked (watched) quest first - so with
-   -- several active, we route to the one the player is actually following.
-   local active = {}
    for name, ko in pairs(CBH.killObjectives or {}) do
       if not ko.need or (ko.have or 0) < ko.need then
-         table.insert(active, { name = name, ko = ko,
-            w = IsWatched(ko.questIndex) and 1 or 0 })
+         cands[#cands + 1] = { kind = "kill", name = name, ko = ko,
+            qi = ko.questIndex, w = IsWatched(ko.questIndex) and 1 or 0 }
       end
    end
-   table.sort(active, function(a, b) return a.w > b.w end)
-   for _, e in ipairs(active) do
-      local zone, pts = ResolveKill(e.name, e.ko, allowSweep)
-      if zone then return zone, pts, e.ko.questID, true end
+   table.sort(cands, function(a, b)
+      if a.w ~= b.w then return a.w > b.w end
+      if (a.qi or 9999) ~= (b.qi or 9999) then return (a.qi or 9999) < (b.qi or 9999) end
+      return tostring(a.zone or a.name) < tostring(b.zone or b.name)
+   end)
+   for _, c in ipairs(cands) do
+      if c.kind == "hot" then
+         return c.zone, PointsForZone(c.zone), nil, false
+      else
+         local zone, pts = ResolveKill(c.name, c.ko, allowSweep)
+         if zone then return zone, pts, c.ko.questID, true end
+      end
    end
    return nil, nil
 end
