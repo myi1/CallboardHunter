@@ -117,9 +117,11 @@ for zone in pairs(ZONE_SIZE) do SpawnDB.ZONES[zone] = true end
 -- an instance boss to chase, so the port routes by zone (nearest checkpoint)
 -- rather than trying to read a POI that lives inside the instance. Dungeons
 -- whose name already contains their zone (e.g. "Icecrown Citadel" contains
--- "Icecrown") need no entry - the zone scan catches those first. Boss names
--- shared across instances (e.g. Anub'arak: Azjol-Nerub AND Trial of the
--- Crusader) are intentionally omitted to avoid mis-routing.
+-- "Icecrown") need no entry - the zone scan catches those first. A few boss
+-- names are shared with a raid (e.g.Anub'arak: Azjol-Nerub AND Trial of the
+-- Crusader; Prince Taldaram: Ahn'kahet AND Icecrown Citadel) - these map to
+-- their 5-man dungeon, the far likelier callboard source; if you ever get the
+-- raid version, "/cbh portvia <zone>" overrides it for that objective.
 local DUNGEON_ZONE = {
    -- Howling Fjord: Utgarde Keep / Utgarde Pinnacle
    ["utgarde keep"] = "Howling Fjord", ["utgarde pinnacle"] = "Howling Fjord",
@@ -138,7 +140,7 @@ local DUNGEON_ZONE = {
    ["the old kingdom"] = "Dragonblight", ["krik'thir"] = "Dragonblight",
    ["hadronox"] = "Dragonblight", ["elder nadox"] = "Dragonblight",
    ["prince taldaram"] = "Dragonblight", ["jedoga shadowseeker"] = "Dragonblight",
-   ["herald volazj"] = "Dragonblight",
+   ["herald volazj"] = "Dragonblight", ["anub'arak"] = "Dragonblight",
    -- Grizzly Hills: Drak'Tharon Keep (sits on the Grizzly Hills/Zul'Drak border;
    -- its entrance is on the Grizzly Hills side)
    ["drak'tharon keep"] = "Grizzly Hills", ["trollgore"] = "Grizzly Hills",
@@ -154,18 +156,28 @@ local DUNGEON_ZONE = {
    ["sjonnir the ironshaper"] = "The Storm Peaks", ["general bjarngrim"] = "The Storm Peaks",
    ["volkhan"] = "The Storm Peaks", ["ionar"] = "The Storm Peaks",
    ["loken"] = "The Storm Peaks",
-   -- Dalaran: The Violet Hold
+   -- Dalaran: The Violet Hold (Cyanigosa is always the finale; the other six are
+   -- a random pair of mini-bosses per run, so list all six)
    ["the violet hold"] = "Dalaran", ["cyanigosa"] = "Dalaran",
    ["erekem"] = "Dalaran", ["xevozz"] = "Dalaran", ["zuramat"] = "Dalaran",
-   ["ichoron"] = "Dalaran",
+   ["ichoron"] = "Dalaran", ["moragg"] = "Dalaran", ["lavanthor"] = "Dalaran",
    -- Icecrown: Trial of the Champion + the ICC 5-man wings (the raid "Icecrown
    -- Citadel" text already contains "Icecrown" and is caught by the zone scan)
    ["trial of the champion"] = "Icecrown", ["the forge of souls"] = "Icecrown",
    ["pit of saron"] = "Icecrown", ["halls of reflection"] = "Icecrown",
    ["bronjahm"] = "Icecrown", ["devourer of souls"] = "Icecrown",
    ["scourgelord tyrannus"] = "Icecrown", ["forgemaster garfrost"] = "Icecrown",
+   ["krick"] = "Icecrown", -- Pit of Saron's "Ick and Krick" ("ick" alone is too short)
    ["eadric the pure"] = "Icecrown", ["argent confessor paletress"] = "Icecrown",
    ["the black knight"] = "Icecrown", ["falric"] = "Icecrown", ["marwyn"] = "Icecrown",
+   -- Tanaris (Caverns of Time): The Culling of Stratholme. Keyed on the full
+   -- instance name, NOT bare "Stratholme", so the classic Stratholme (Eastern
+   -- Plaguelands) isn't pulled here. If Ebonhold has no Caverns of Time
+   -- checkpoint the port just reports "no checkpoints" - still better than a
+   -- wrong zone.
+   ["culling of stratholme"] = "Tanaris", ["salramm the fleshcrafter"] = "Tanaris",
+   ["chrono-lord epoch"] = "Tanaris", ["mal'ganis"] = "Tanaris",
+   ["meathook"] = "Tanaris", ["infinite corruptor"] = "Tanaris",
 }
 
 -- Outdoor callboard targets whose quest text names neither an outdoor zone nor a

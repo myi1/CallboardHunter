@@ -4,6 +4,16 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.5.1] - 2026-08-28
+### Added
+- **Full WotLK 5-man boss coverage** for dungeon routing — completing the map
+  added in 1.5.0. Now covers every boss you can be sent after: Azjol-Nerub's
+  Anub'arak, the Violet Hold's Moragg and Lavanthor, Pit of Saron's Krick, and
+  the whole Culling of Stratholme (Salramm, Chrono-Lord Epoch, Mal'Ganis,
+  Meathook, the Infinite Corruptor) → Tanaris. Bosses shared with a raid
+  (Anub'arak, Prince Taldaram) route to their 5-man dungeon; override with
+  `/cbh portvia <zone>` if you get the raid version.
+
 ## [1.5.0] - 2026-08-28
 ### Added
 - **Dungeon & named-target routing** — kill objectives whose text names no
