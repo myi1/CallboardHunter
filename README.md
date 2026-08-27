@@ -20,14 +20,18 @@ detection/announce/targeting → kill learning → port back to the board.**
   spot count), no-data-yet zone, dungeon/raid, or collection. Also harvests
   each card's zone for routing, even for cards you don't pick.
 - **Port button / `/cbh port [zone]`** — one click from anywhere: resolves the
-  objective's zone (arrow waypoint → rare zone → learned camp → card zone →
-  quest-log text → POI map sweep), switches the map itself, and clicks the
-  unlocked checkpoint nearest the objective (locked "visit the meeting stone"
-  checkpoints are excluded). For kill objectives the current quest's POI
-  overrides old camps, since the server assigns a fresh area per quest. The
-  chat line says what it routed by. With no active callboard quest the button
-  becomes **Port: Callboard** back to a board you've used (locations are
-  self-learned when you open a board). Greyed out in combat.
+  objective's zone (arrow waypoint → rare zone → quest-log text → card zone →
+  dungeon/known-target map → learned camp → POI map sweep), switches the map
+  itself, and clicks the unlocked checkpoint nearest the objective (locked "visit
+  the meeting stone" checkpoints are excluded). Dungeon-boss objectives (e.g.
+  *Ingvar the Plunderer*, the Utgarde Keep end boss) route to their containing
+  zone (Howling Fjord); named outdoor targets route to theirs (e.g. *Banthar* →
+  Nagrand). If it genuinely can't work out a zone it says so rather than porting
+  you somewhere wrong. For kill objectives the current quest's POI overrides old
+  camps, since the server assigns a fresh area per quest. The chat line says what
+  it routed by. With no active callboard quest the button becomes **Port:
+  Callboard** back to a board you've used (locations are self-learned when you
+  open a board). Greyed out in combat.
 - **Detection & announce** — rares detected via mouseover/target/combat log:
   toast + raid warning + sound + secure click-to-Target button (combat-safe,
   click toast body to dismiss). Detected rares' positions are learned.

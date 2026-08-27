@@ -102,6 +102,117 @@ SpawnDB.ZONES = {}
 for zone in pairs(STATIC) do SpawnDB.ZONES[zone] = true end
 for zone in pairs(ZONE_SIZE) do SpawnDB.ZONES[zone] = true end
 
+-- Named kill targets whose quest text does NOT name an outdoor zone, mapped to
+-- the outdoor zone the port should route to. A callboard kill like "Ingvar the
+-- Plunderer slain: 0/1" (the Utgarde Keep end boss, in Howling Fjord) or
+-- "Banthar slain: 0/1" (Nagrand) names neither its zone nor a rare we already
+-- have points for, so ZoneFromQuestText/cardZones/learnedKills all miss and it
+-- used to fall through to a stale POI sweep that confidently mis-picked the
+-- wrong zone ("Alterac Mountains" for Ingvar; the current zone for Banthar).
+-- Mapping the dungeon/boss/target name to its zone routes to that zone's
+-- nearest unlocked checkpoint instead. Keys are matched as lowercase substrings
+-- of the quest title/objective text.
+--
+-- DUNGEON_ZONE flags its zone as "isDungeon": there is no OUTDOOR quest POI for
+-- an instance boss to chase, so the port routes by zone (nearest checkpoint)
+-- rather than trying to read a POI that lives inside the instance. Dungeons
+-- whose name already contains their zone (e.g. "Icecrown Citadel" contains
+-- "Icecrown") need no entry - the zone scan catches those first. Boss names
+-- shared across instances (e.g. Anub'arak: Azjol-Nerub AND Trial of the
+-- Crusader) are intentionally omitted to avoid mis-routing.
+local DUNGEON_ZONE = {
+   -- Howling Fjord: Utgarde Keep / Utgarde Pinnacle
+   ["utgarde keep"] = "Howling Fjord", ["utgarde pinnacle"] = "Howling Fjord",
+   ["prince keleseth"] = "Howling Fjord", ["skarvald"] = "Howling Fjord",
+   ["dalronn"] = "Howling Fjord", ["ingvar the plunderer"] = "Howling Fjord",
+   ["svala sorrowgrave"] = "Howling Fjord", ["gortok palehoof"] = "Howling Fjord",
+   ["skadi the ruthless"] = "Howling Fjord", ["king ymiron"] = "Howling Fjord",
+   -- Borean Tundra: The Nexus / The Oculus (Coldarra)
+   ["the nexus"] = "Borean Tundra", ["the oculus"] = "Borean Tundra",
+   ["grand magus telestra"] = "Borean Tundra", ["anomalus"] = "Borean Tundra",
+   ["ormorok"] = "Borean Tundra", ["keristrasza"] = "Borean Tundra",
+   ["drakos"] = "Borean Tundra", ["varos cloudstrider"] = "Borean Tundra",
+   ["mage-lord urom"] = "Borean Tundra", ["ley-guardian eregos"] = "Borean Tundra",
+   -- Dragonblight: Azjol-Nerub / Ahn'kahet: The Old Kingdom
+   ["azjol-nerub"] = "Dragonblight", ["ahn'kahet"] = "Dragonblight",
+   ["the old kingdom"] = "Dragonblight", ["krik'thir"] = "Dragonblight",
+   ["hadronox"] = "Dragonblight", ["elder nadox"] = "Dragonblight",
+   ["prince taldaram"] = "Dragonblight", ["jedoga shadowseeker"] = "Dragonblight",
+   ["herald volazj"] = "Dragonblight",
+   -- Grizzly Hills: Drak'Tharon Keep (sits on the Grizzly Hills/Zul'Drak border;
+   -- its entrance is on the Grizzly Hills side)
+   ["drak'tharon keep"] = "Grizzly Hills", ["trollgore"] = "Grizzly Hills",
+   ["novos the summoner"] = "Grizzly Hills", ["king dred"] = "Grizzly Hills",
+   ["the prophet tharon'ja"] = "Grizzly Hills",
+   -- Zul'Drak: Gundrak
+   ["gundrak"] = "Zul'Drak", ["slad'ran"] = "Zul'Drak",
+   ["drakkari colossus"] = "Zul'Drak", ["moorabi"] = "Zul'Drak",
+   ["gal'darah"] = "Zul'Drak", ["eck the ferocious"] = "Zul'Drak",
+   -- The Storm Peaks: Halls of Stone / Halls of Lightning
+   ["halls of stone"] = "The Storm Peaks", ["halls of lightning"] = "The Storm Peaks",
+   ["krystallus"] = "The Storm Peaks", ["maiden of grief"] = "The Storm Peaks",
+   ["sjonnir the ironshaper"] = "The Storm Peaks", ["general bjarngrim"] = "The Storm Peaks",
+   ["volkhan"] = "The Storm Peaks", ["ionar"] = "The Storm Peaks",
+   ["loken"] = "The Storm Peaks",
+   -- Dalaran: The Violet Hold
+   ["the violet hold"] = "Dalaran", ["cyanigosa"] = "Dalaran",
+   ["erekem"] = "Dalaran", ["xevozz"] = "Dalaran", ["zuramat"] = "Dalaran",
+   ["ichoron"] = "Dalaran",
+   -- Icecrown: Trial of the Champion + the ICC 5-man wings (the raid "Icecrown
+   -- Citadel" text already contains "Icecrown" and is caught by the zone scan)
+   ["trial of the champion"] = "Icecrown", ["the forge of souls"] = "Icecrown",
+   ["pit of saron"] = "Icecrown", ["halls of reflection"] = "Icecrown",
+   ["bronjahm"] = "Icecrown", ["devourer of souls"] = "Icecrown",
+   ["scourgelord tyrannus"] = "Icecrown", ["forgemaster garfrost"] = "Icecrown",
+   ["eadric the pure"] = "Icecrown", ["argent confessor paletress"] = "Icecrown",
+   ["the black knight"] = "Icecrown", ["falric"] = "Icecrown", ["marwyn"] = "Icecrown",
+}
+
+-- Outdoor callboard targets whose quest text names neither an outdoor zone nor a
+-- rare we already have points for. Extend as new ones are reported.
+local TARGET_ZONE = {
+   ["banthar"] = "Nagrand", -- "Steel Yourself: Banthar" (reported 2026-08-28)
+}
+
+-- Every rare we have static points for, keyed by lowercase name, so an objective
+-- that only says "<Rare> slain: n/m" resolves to its zone without a card.
+local MOB_ZONE = {}
+for zone, mobs in pairs(STATIC) do
+   for _, mob in pairs(mobs) do
+      if mob.name then MOB_ZONE[string.lower(mob.name)] = zone end
+   end
+end
+
+SpawnDB.DUNGEON_ZONE = DUNGEON_ZONE
+
+-- Resolve a quest's title/objective text to a routing zone by the dungeon/boss,
+-- callboard target, or known rare it names. Returns (zone, isDungeon) or nil.
+-- The outdoor-zone scan in ZoneFromQuestText runs first and wins; this is the
+-- fallback for text that names only an instance/target, not a zone.
+function SpawnDB.ZoneForTargetText(text)
+   if not text then return end
+   local lt = string.lower(text)
+   for key, zone in pairs(DUNGEON_ZONE) do
+      if string.find(lt, key, 1, true) then return zone, true end
+   end
+   for key, zone in pairs(TARGET_ZONE) do
+      if string.find(lt, key, 1, true) then return zone, false end
+   end
+   for key, zone in pairs(MOB_ZONE) do
+      if string.find(lt, key, 1, true) then return zone, false end
+   end
+   -- Rares learned by the detector over time (name-keyed or npcID-keyed).
+   local learned = CBH.db and CBH.db.learned
+   if learned then
+      for zone, mobs in pairs(learned) do
+         for mobKey, mob in pairs(mobs) do
+            local nm = (type(mobKey) == "string" and mobKey) or (mob and mob.name)
+            if nm and string.find(lt, string.lower(nm), 1, true) then return zone, false end
+         end
+      end
+   end
+end
+
 function SpawnDB.GetZoneSize(zoneKey)
    local s = ZONE_SIZE[zoneKey]
    if s then return s[1], s[2] end

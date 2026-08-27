@@ -4,6 +4,27 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.5.0] - 2026-08-28
+### Added
+- **Dungeon & named-target routing** — kill objectives whose text names no
+  outdoor zone now route to the right zone. A dungeon boss (e.g. *Bring Down
+  Ingvar the Plunderer*, the Utgarde Keep end boss) routes to its containing
+  zone's checkpoint (Howling Fjord); known outdoor targets do too (e.g. *Steel
+  Yourself: Banthar* → Nagrand). Covers the WotLK 5-man dungeons and their
+  bosses, every rare CallboardHunter has spawn data for, and an extensible list
+  of reported callboard targets.
+### Fixed
+- **Phantom "Port: Alterac Mountains"** — a dungeon objective used to fall
+  through to a map POI sweep that mis-guessed a zone and then *cached* that guess,
+  so the wrong destination stuck in the port button across sessions. The sweep's
+  guess is no longer cached, and dungeon/target objectives now resolve before it
+  ever runs.
+- **Port sending you to the zone you're already in** — when no zone could be
+  worked out, Port fell back to the current zone's map and teleported you within
+  it (e.g. standing in Western Plaguelands, it ported to Chillwind Camp instead
+  of the objective's real zone). It now declines with guidance (open the
+  callboard, or `/cbh port <zone>`) rather than porting somewhere wrong.
+
 ## [1.4.0] - 2026-08-27
 ### Added
 - **Config panel** (`/cbh config`) — a dark, colorblind-safe panel to toggle the

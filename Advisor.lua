@@ -348,6 +348,7 @@ local function ZoneFromQuestText(ko)
    for j = 1, GetNumQuestLeaderBoards(ko.questIndex) do
       table.insert(texts, (GetQuestLogLeaderBoard(j, ko.questIndex)))
    end
+   -- An explicit outdoor zone named in the text is the most reliable source.
    for _, t in ipairs(texts) do
       if t then
          local lt = string.lower(t)
@@ -355,6 +356,17 @@ local function ZoneFromQuestText(ko)
             if string.find(lt, string.lower(zone), 1, true) then return zone end
          end
       end
+   end
+   -- Otherwise, a dungeon/boss or known target named in the text resolves to the
+   -- outdoor zone we route to (see SpawnDB.ZoneForTargetText). Example: "Bring
+   -- Down Ingvar the Plunderer" / "Ingvar the Plunderer slain: 0/1" names the
+   -- Utgarde Keep end boss but no outdoor zone -> Howling Fjord (isDungeon=true,
+   -- so DoPort routes by zone and doesn't chase an outdoor POI that doesn't
+   -- exist). Before this, the name matched nothing and the fragile POI sweep
+   -- confidently mis-picked "Alterac Mountains".
+   for _, t in ipairs(texts) do
+      local zone, isDungeon = CBH.SpawnDB.ZoneForTargetText(t)
+      if zone then return zone, isDungeon end
    end
 end
 
@@ -403,8 +415,8 @@ Advisor.IsWatched = IsWatched
 -- SetMapZoom the POI data is stale, so it false-positived on the first zone in
 -- the list (Alterac Mountains) for many unrelated quests.
 local function ResolveKill(name, ko, allowSweep)
-   local zone = ZoneFromQuestText(ko)
-      or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
+   local zone, isDungeon = ZoneFromQuestText(ko)
+   zone = zone or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
    if not zone and CBH.db and CBH.db.learnedKills then
       for z, mobs in pairs(CBH.db.learnedKills) do
          if mobs[name] and #mobs[name] > 0 then zone = z; break end
@@ -412,15 +424,17 @@ local function ResolveKill(name, ko, allowSweep)
    end
    if zone then
       if CBH.db and CBH.db.cardZones then CBH.db.cardZones[name] = zone end
-      return zone, PointsForZone(zone)
+      return zone, PointsForZone(zone), isDungeon
    end
-   -- Nothing named it: fall back to the (fragile) POI sweep.
+   -- Nothing named it: fall back to the (fragile) POI sweep. Its guess is used
+   -- for THIS port only and is deliberately NOT cached into cardZones - caching
+   -- a stale-POI guess is exactly what pinned the phantom "Alterac Mountains"
+   -- onto Utgarde Keep's Ingvar the Plunderer and made the wrong port label
+   -- stick across sessions. (Dungeon/known targets now resolve above, so the
+   -- sweep is a genuine last resort.)
    if allowSweep and ko.questID then
       local zn, qx, qy = FindQuestZoneByPOI(ko.questID)
-      if zn then
-         if CBH.db and CBH.db.cardZones then CBH.db.cardZones[name] = zn end
-         return zn, { { x = qx, y = qy } }
-      end
+      if zn then return zn, { { x = qx, y = qy } } end
    end
 end
 
@@ -465,8 +479,14 @@ local function ResolveDestination(zoneArg, allowSweep)
       if c.kind == "hot" then
          return c.zone, PointsForZone(c.zone), nil, false
       else
-         local zone, pts = ResolveKill(c.name, c.ko, allowSweep)
-         if zone then return zone, pts, c.ko.questID, true end
+         local zone, pts, isDungeon = ResolveKill(c.name, c.ko, allowSweep)
+         if zone then
+            -- A dungeon objective has no outdoor quest POI to chase: route to
+            -- the containing zone's checkpoint by position, don't prefer/prefetch
+            -- a POI that lives inside the instance.
+            if isDungeon then return zone, pts, nil, false end
+            return zone, pts, c.ko.questID, true
+         end
       end
    end
    return nil, nil
@@ -810,6 +830,19 @@ function Advisor.Port(zoneArg)
       return
    end
    local destZone, pts, qid, prefer = ResolveDestination(zoneArg, true)
+   -- Couldn't work out a zone for any active objective. DON'T fall back to the
+   -- current zone's map (below) - that ports you to a checkpoint in the zone you
+   -- already stand in, which is never the right answer for an objective that's
+   -- elsewhere. (This was the "Steel Yourself: Banthar" symptom: standing in
+   -- Western Plaguelands, Port sent you to Chillwind Camp instead of Nagrand.)
+   -- Decline with guidance instead.
+   if not destZone then
+      CBH.print("Couldn't work out a zone for your active objective(s) - open the"
+         .. " callboard so its card can teach me the zone, or use /cbh port <zone>.")
+      CBH.Log("port", "REQUEST arg='" .. tostring(zoneArg)
+         .. "' -> UNRESOLVED, declined (would have ported inside the current zone)")
+      return
+   end
    -- Already in the destination zone: the checkpoint network doesn't hop you
    -- around within a zone, so this would be a dead click. Say so instead.
    if destZone and GetRealZoneText() == destZone then
