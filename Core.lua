@@ -86,12 +86,18 @@ local function OnEvent(self, event, ...)
          end
          CopyDefaults(DEFAULTS, CallboardHunterDB)
          CBH.db = CallboardHunterDB
-         -- Seed Azjol-Nerub as blocked ONCE: its checkpoint drops you inside the
-         -- dungeon (useless for outdoor travel). Guarded so /cbh unblock sticks.
+         -- Seed dungeon checkpoints that drop you INSIDE (useless for outdoor
+         -- travel) as blocked, ONCE each. Auto-routing skips them unless the
+         -- active quest is for that dungeon; manual map-clicks are unaffected.
+         -- Per-flag guards so a later /cbh unblock sticks across reloads.
+         CBH.db.checkpointBlock = CBH.db.checkpointBlock or {}
          if not CBH.db.seededBlocks then
-            CBH.db.checkpointBlock = CBH.db.checkpointBlock or {}
             CBH.db.checkpointBlock["azjol-nerub"] = true
             CBH.db.seededBlocks = true
+         end
+         if not CBH.db.seededBlocks2 then
+            CBH.db.checkpointBlock["ahn'kahet"] = true
+            CBH.db.seededBlocks2 = true
          end
       end
    elseif event == "PLAYER_LOGIN" then
@@ -179,6 +185,28 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
          CBH.print("Unblocked '" .. arg .. "'.")
       else
          CBH.print("'" .. tostring(arg) .. "' wasn't blocked. /cbh blocked to list.")
+      end
+   elseif cmd == "sethome" then
+      SetMapToCurrentZone()
+      local x, y = GetPlayerMapPosition("player")
+      if not x or (x == 0 and y == 0) then
+         CBH.print("Can't read your position here - stand at your preferred callboard"
+            .. " / flight point (outdoors) and run /cbh sethome again.")
+      else
+         CBH.db.home = { zone = GetRealZoneText(), x = x, y = y }
+         CBH.print("Home set: " .. GetRealZoneText() .. ". The Callboard port button"
+            .. " (and /cbh home) now bring you to the checkpoint nearest here.")
+      end
+   elseif cmd == "home" then
+      if arg == "off" then
+         CBH.db.home = nil
+         CBH.print("Home cleared - Callboard port uses the nearest learned board again.")
+      elseif CBH.db.home then
+         if CBH.Advisor and CBH.Advisor.PortToCallboard then
+            CBH.safeCall(CBH.Advisor.PortToCallboard)
+         end
+      else
+         CBH.print("No home set. Stand at your preferred callboard and run /cbh sethome.")
       end
    elseif cmd == "blocked" then
       local list = {}

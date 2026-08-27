@@ -180,6 +180,9 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
          if Advisor.ResolveDestination then destZone = Advisor.ResolveDestination() end
          if destZone then Advisor.lastDestZone = destZone end
          label = destZone and ("Port: " .. destZone) or "Port: objective"
+      elseif CBH.db and CBH.db.home then
+         mode = "board"
+         label = "Port: Home"
       elseif CBH.db and CBH.db.callboards and #CBH.db.callboards > 0 then
          mode = "board"
          label = "Port: Callboard"
@@ -277,9 +280,6 @@ local function FindCheckpoints(diagnose)
       if isCP then
          if unlocked == false then
             stats.locked = (stats.locked or 0) + 1
-         elseif faction ~= false and CBH.IsBlockedCheckpoint
-                and CBH.IsBlockedCheckpoint(nodeName) then
-            stats.blocked = (stats.blocked or 0) + 1
          elseif faction ~= false then
             local cx, cy = c:GetCenter()
             if cx and cy then
@@ -582,6 +582,27 @@ local function HarvestQuestPOIButtons()
 end
 
 local function DoPort()
+   -- Make sure the DESTINATION zone's map is actually displayed before scanning.
+   -- The world map can revert to the player's current zone between Advisor.Port
+   -- and here, which made an Icecrown objective scan the Dragonblight map and
+   -- pick Moa'ki. Re-assert the map and retry a few times before giving up.
+   if Advisor.lastDestZone then
+      local want = string.gsub(string.lower(Advisor.lastDestZone), "%s", "")
+      local cur = string.lower(tostring(GetMapInfo() or ""))
+      if want ~= "" and cur ~= ""
+         and not (string.find(cur, want, 1, true) or string.find(want, cur, 1, true)) then
+         if (Advisor.portMapTries or 0) < 4 then
+            Advisor.portMapTries = (Advisor.portMapTries or 0) + 1
+            if not WorldMapFrame:IsShown() then ShowUIPanel(WorldMapFrame) end
+            SetMapByZoneName(Advisor.lastDestZone)
+            Advisor.portAt = GetTime() + 0.4 -- rescan once the map settles
+            return
+         end
+         CBH.Log("port", "MAP-STUCK: wanted " .. tostring(Advisor.lastDestZone)
+            .. " but map is " .. tostring(GetMapInfo()) .. " - scanning anyway")
+      end
+   end
+   Advisor.portMapTries = nil
    local cps, stats = FindCheckpoints(false)
    local pts = Advisor.portPoints
    Advisor.portPoints = nil
@@ -636,7 +657,35 @@ local function DoPort()
          end
       end
    end
+   -- A blocked checkpoint (e.g. Azjol-Nerub, which drops you INSIDE the dungeon)
+   -- is skipped by auto-routing UNLESS you're actually going there — the
+   -- destination zone or an active objective's quest text names it. Only affects
+   -- CBH's auto-pick; the game's own map checkpoint stays clickable by hand.
+   local function usable(cpName)
+      if not (CBH.IsBlockedCheckpoint and CBH.IsBlockedCheckpoint(cpName)) then
+         return true
+      end
+      local low = string.lower(cpName or "")
+      local dest = Advisor.lastDestZone
+      if dest then
+         local dl = string.lower(dest)
+         if string.find(dl, low, 1, true) or string.find(low, dl, 1, true) then return true end
+      end
+      for _, ko in pairs(CBH.killObjectives or {}) do
+         local qi = ko.questIndex
+         if qi and GetQuestLogTitle then
+            local title = GetQuestLogTitle(qi)
+            if title and string.find(string.lower(title), low, 1, true) then return true end
+            for j = 1, (GetNumQuestLeaderBoards and GetNumQuestLeaderBoards(qi) or 0) do
+               local t = GetQuestLogLeaderBoard(j, qi)
+               if t and string.find(string.lower(t), low, 1, true) then return true end
+            end
+         end
+      end
+      return false
+   end
    if not best then
+      local anyBest, anyD
       for _, cp in ipairs(cps) do
          local d
          if pts and #pts > 0 then
@@ -652,8 +701,10 @@ local function DoPort()
             local dx, dy = cp.x - rx, cp.y - ry
             d = dx * dx + dy * dy
          end
-         if not bestD or d < bestD then best, bestD = cp, d end
+         if not anyD or d < anyD then anyBest, anyD = cp, d end
+         if usable(cp.name) and (not bestD or d < bestD) then best, bestD = cp, d end
       end
+      if not best then best = anyBest end -- everything blocked: better than nothing
    end
    local note = (viaHit and Advisor.portViaNote) or ("routed by " .. routedBy)
    Advisor.portViaNote = nil
@@ -767,6 +818,7 @@ function Advisor.Port(zoneArg)
       return
    end
    Advisor.lastDestZone = destZone
+   Advisor.portMapTries = nil
    Advisor.portPoints = pts
    Advisor.portQuestID = qid
    Advisor.portPreferPOI = prefer or false
@@ -803,22 +855,29 @@ function Advisor.PortToCallboard()
       CBH.print("Cannot travel while in combat.")
       return
    end
-   local list = (CBH.db and CBH.db.callboards) or {}
-   if #list == 0 then
-      CBH.print("No callboard location learned yet - open an Objectives Board once.")
-      return
+   -- A set home callboard wins (a point in a zone; we port to the checkpoint
+   -- nearest it, e.g. Stars' Rest). Otherwise the nearest learned board.
+   local pick = CBH.db and CBH.db.home
+   if not (pick and pick.zone) then
+      local list = (CBH.db and CBH.db.callboards) or {}
+      if #list == 0 then
+         CBH.print("No callboard location learned yet - open an Objectives Board once,"
+            .. " or /cbh sethome where you want your home.")
+         return
+      end
+      local zone = GetRealZoneText()
+      for _, b in ipairs(list) do
+         if b.zone == zone then pick = b break end
+      end
+      pick = pick or list[1]
    end
-   local zone = GetRealZoneText()
-   local pick
-   for _, b in ipairs(list) do
-      if b.zone == zone then pick = b break end
-   end
-   pick = pick or list[1]
    CBH.Log("port", "CALLBOARD request -> " .. tostring(pick.zone)
       .. string.format(" %.2f/%.2f", pick.x or 0, pick.y or 0))
    Advisor.portPoints = { { x = pick.x, y = pick.y } }
    Advisor.portQuestID = nil
    Advisor.portPreferPOI = false
+   Advisor.lastDestZone = pick.zone
+   Advisor.portMapTries = nil
    if not WorldMapFrame:IsShown() then ShowUIPanel(WorldMapFrame) end
    if not SetMapByZoneName(pick.zone) then SetMapToCurrentZone() end
    Advisor.portAt = GetTime() + 0.7
