@@ -665,16 +665,37 @@ local function DoPort()
          end
       end
    end
+   -- Capture whatever the game says at click time (error, cast, confirm) so a
+   -- NO-MOVE finally has a reason attached in the log.
+   local function stopWatch(self)
+      self:SetScript("OnUpdate", nil)
+      self:SetScript("OnEvent", nil)
+      self:UnregisterEvent("UI_ERROR_MESSAGE")
+      self:UnregisterEvent("UNIT_SPELLCAST_START")
+      self:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+   end
+   w:UnregisterAllEvents()
+   w:RegisterEvent("UI_ERROR_MESSAGE")
+   w:RegisterEvent("UNIT_SPELLCAST_START")
+   w:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+   w:SetScript("OnEvent", function(self, event, a1, a2)
+      if GetTime() - self.t0 > 6 then return end
+      if event == "UI_ERROR_MESSAGE" then
+         CBH.Log("port", "ERROR at click: " .. tostring(a1))
+      elseif a1 == "player" then
+         CBH.Log("port", event .. ": " .. tostring(a2))
+      end
+   end)
    w:SetScript("OnUpdate", function(self)
       local now = tostring(GetRealZoneText()) .. "/" .. tostring(GetSubZoneText())
       if now ~= self.from then
          CBH.Log("port", "OK: " .. self.from .. " -> " .. now
             .. " via '" .. self.cp .. "'")
-         self:SetScript("OnUpdate", nil)
+         stopWatch(self)
       elseif GetTime() - self.t0 > 6 then
          CBH.Log("port", "NO-MOVE: still at " .. now .. " 6s after clicking '"
             .. self.cp .. "'")
-         self:SetScript("OnUpdate", nil)
+         stopWatch(self)
       end
    end)
    best.btn:Click()
@@ -687,6 +708,13 @@ function Advisor.Port(zoneArg)
       return
    end
    local destZone, pts, qid, prefer = ResolveDestination(zoneArg, true)
+   -- Already in the destination zone: the checkpoint network doesn't hop you
+   -- around within a zone, so this would be a dead click. Say so instead.
+   if destZone and GetRealZoneText() == destZone then
+      CBH.print("You're already in " .. destZone .. " - fly or walk to the spot.")
+      CBH.Log("port", "SKIP: already in dest zone " .. destZone)
+      return
+   end
    Advisor.lastDestZone = destZone
    Advisor.portPoints = pts
    Advisor.portQuestID = qid
