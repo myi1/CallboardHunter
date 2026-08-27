@@ -86,6 +86,13 @@ local function OnEvent(self, event, ...)
          end
          CopyDefaults(DEFAULTS, CallboardHunterDB)
          CBH.db = CallboardHunterDB
+         -- Seed Azjol-Nerub as blocked ONCE: its checkpoint drops you inside the
+         -- dungeon (useless for outdoor travel). Guarded so /cbh unblock sticks.
+         if not CBH.db.seededBlocks then
+            CBH.db.checkpointBlock = CBH.db.checkpointBlock or {}
+            CBH.db.checkpointBlock["azjol-nerub"] = true
+            CBH.db.seededBlocks = true
+         end
       end
    elseif event == "PLAYER_LOGIN" then
       CBH.safeCall(CBH.Announce.Init)
