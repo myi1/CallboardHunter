@@ -665,23 +665,42 @@ local function DoPort()
          end
       end
    end
-   -- Capture whatever the game says at click time (error, cast, confirm) so a
-   -- NO-MOVE finally has a reason attached in the log.
+   -- The checkpoint casts a spell ("Rapid Transit") with a cast time AND a
+   -- cooldown. Never fire while it's already casting — re-firing interrupts our
+   -- own cast (the START -> Interrupted -> START churn in the logs).
+   if UnitCastingInfo and UnitCastingInfo("player") then
+      CBH.Log("port", "SKIP: teleport already casting")
+      CBH.print("Teleport already casting - hold still, don't re-click.")
+      return
+   end
+
+   -- Watch ~12s (cast + travel), confirm arrival, and turn the spell's errors
+   -- into plain guidance (on cooldown / interrupted by moving).
+   local WATCH = 12
    local function stopWatch(self)
       self:SetScript("OnUpdate", nil)
       self:SetScript("OnEvent", nil)
       self:UnregisterEvent("UI_ERROR_MESSAGE")
       self:UnregisterEvent("UNIT_SPELLCAST_START")
       self:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+      Advisor.portBusy = false
    end
    w:UnregisterAllEvents()
    w:RegisterEvent("UI_ERROR_MESSAGE")
    w:RegisterEvent("UNIT_SPELLCAST_START")
    w:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
    w:SetScript("OnEvent", function(self, event, a1, a2)
-      if GetTime() - self.t0 > 6 then return end
+      if GetTime() - self.t0 > WATCH then return end
       if event == "UI_ERROR_MESSAGE" then
-         CBH.Log("port", "ERROR at click: " .. tostring(a1))
+         local msg = tostring(a1)
+         CBH.Log("port", "ERROR at click: " .. msg)
+         if string.find(msg, "not ready") then
+            CBH.print("Checkpoint teleport is on cooldown - wait a moment, then try again.")
+            stopWatch(self)
+         elseif string.find(msg, "nterrupt") or string.find(msg, "moving") then
+            CBH.print("Teleport was interrupted - stand still (don't move) and click Port again.")
+            stopWatch(self)
+         end
       elseif a1 == "player" then
          CBH.Log("port", event .. ": " .. tostring(a2))
       end
@@ -692,29 +711,29 @@ local function DoPort()
          CBH.Log("port", "OK: " .. self.from .. " -> " .. now
             .. " via '" .. self.cp .. "'")
          stopWatch(self)
-      elseif GetTime() - self.t0 > 6 then
-         CBH.Log("port", "NO-MOVE: still at " .. now .. " 6s after clicking '"
-            .. self.cp .. "'")
+      elseif GetTime() - self.t0 > WATCH then
+         CBH.Log("port", "NO-MOVE: still at " .. now .. " "
+            .. WATCH .. "s after clicking '" .. self.cp .. "'")
          stopWatch(self)
       end
    end)
-   -- Fire every handler the checkpoint button might use: some teleport on
-   -- OnClick, others on OnMouseUp — :Click() alone was a silent no-op on many
-   -- (no error, no cast in the logs), so cover all of them.
-   local b = best.btn
-   if b.Click then pcall(b.Click, b) end
-   local down = b.GetScript and b:GetScript("OnMouseDown")
-   if down then pcall(down, b, "LeftButton") end
-   local up = b.GetScript and b:GetScript("OnMouseUp")
-   if up then pcall(up, b, "LeftButton") end
-   local oc = b.GetScript and b:GetScript("OnClick")
-   if oc then pcall(oc, b, "LeftButton") end
+   -- Fire ONCE. Firing multiple handlers double-casts Rapid Transit and each
+   -- interrupts the last, which is what broke this in 1.3.3.
+   Advisor.portBusy = true
+   CBH.print("Traveling to " .. tostring(best.name) .. " - hold still until the teleport finishes.")
+   best.btn:Click()
 end
 Advisor.DoPort = DoPort
 
 function Advisor.Port(zoneArg)
    if InCombatLockdown() then
       CBH.print("Cannot travel while in combat.")
+      return
+   end
+   -- A teleport already in flight (casting or being verified): don't re-fire —
+   -- re-clicking interrupts the Rapid Transit cast.
+   if Advisor.portBusy or (UnitCastingInfo and UnitCastingInfo("player")) then
+      CBH.print("A teleport is already in progress - hold still until it finishes.")
       return
    end
    local destZone, pts, qid, prefer = ResolveDestination(zoneArg, true)
