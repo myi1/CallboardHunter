@@ -33,14 +33,22 @@ detection/announce/targeting → kill learning → port back to the board.**
   click toast body to dismiss). Detected rares' positions are learned.
 - **Party announces** (`/cbh party`, off by default) — rare spotted, counted
   kills' completion, and kill progress on rare deaths.
+- **Config panel** (`/cbh config`) — dark, colorblind-safe panel for all
+  toggles, your **home callboard** (`/cbh sethome`), and **blocked checkpoints**
+  (ones that drop you inside a dungeon are skipped in auto-routing).
+
+See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 
 ## Slash commands
 
 | Command | Effect |
 | --- | --- |
 | `/cbh` | help |
+| `/cbh config` | open the config panel (all toggles, home board, blocked checkpoints) |
 | `/cbh scan` | quest log dump with match verdicts |
 | `/cbh port [zone]` | port toward your objective (or an explicit zone) |
+| `/cbh sethome` / `home` / `clearhome` | set the Callboard-port home to where you stand / go there / clear it |
+| `/cbh block <name>` / `unblock <name>` / `blocked` | exclude checkpoints that drop you inside an instance from auto-routing |
 | `/cbh next` | skip the current arrow waypoint |
 | `/cbh track <zone>` / `untrack` / `debug` | force/clear/test hot zones |
 | `/cbh arrow` / `sound` / `party` | toggles |
