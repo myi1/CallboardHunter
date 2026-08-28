@@ -95,12 +95,31 @@ These are requirements, not implementation details:
 
 ## Results
 
-_To be filled in after testing. Record: server, date, both testers' characters,
-which transports arrived, and any error messages._
+**Tested 2026-08-29 (keepsy, two accounts on one machine, Ebonhold). Verdict:
+channel sync is NOT viable on this server.**
 
-- [ ] Transport 1 (addon message over channel):
-- [ ] Transport 2 (chat message over channel):
-- [ ] Notes:
+- [x] **Transport 1 (addon message over channel): refused by the client.**
+      `SendAddonMessage(..., "CHANNEL", idx)` returned `ok=false`. `CHANNEL` is
+      not a valid distribution type for `SendAddonMessage` on 3.3.5 - the client
+      rejects the call before anything reaches the server. Supported types are
+      PARTY / RAID / GUILD / BATTLEGROUND / WHISPER.
+- [x] **Transport 2 (chat over channel): no delivery.** Both clients joined
+      `cbh` successfully (channel indexes 7 and 5), but a message sent from
+      client 1 never arrived at client 2 - including a plain, visible message
+      typed after `/join cbh`, which takes the addon out of the equation
+      entirely.
+- **Notes:** the failure is in the channel itself, not the addon. One residual
+  caveat: the second account was newly created, and some servers restrict new or
+  low-level accounts from custom channels. A confirmation with an established
+  third-party account would close that gap, but it is not worth blocking on -
+  transport 1 is dead regardless, and transport 2 showed no delivery even for
+  ordinary chat.
+
+### Consequence
+
+Live sync and live rare alerts are **shelved**. The file export (`/cbh export`,
+shipped in 1.6.0) is the data-sharing path. The probe stays in the addon: it is
+opt-in, inert, and cheap to re-run if Ebonhold ever changes its channel handling.
 
 ## Follow-up (out of scope here)
 

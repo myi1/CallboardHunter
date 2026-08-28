@@ -71,6 +71,22 @@ function QW.Update(force)
             -- track progress and learn WHERE counted kills happen.
             local _, _, mobName, kHave, kNeed =
                string.find(text or "", "^(.-)%s+[Ss]lain:%s*(%d+)%s*/%s*(%d+)")
+            if not mobName then
+               -- The callboard also phrases objectives as "<what> in <Zone>: n/m"
+               -- (e.g. "Beast Kill in Howling Fjord: 0/75"), which the "slain:"
+               -- pattern misses completely. The objective then registered
+               -- NOWHERE, so the addon saw no active objective at all and the
+               -- Port button fell back to "Port: Home". Accept the generic
+               -- "<label>: n/m" form, but only when the label names a zone we
+               -- can actually travel to - an objective CBH can't locate is not
+               -- something it should claim it can route to. ZoneFromQuestText
+               -- then resolves it like any other kill objective.
+               local _, _, label, gHave, gNeed =
+                  string.find(text or "", "^(.-):%s*(%d+)%s*/%s*(%d+)%s*$")
+               if label and label ~= "" and FindZoneIn(label) then
+                  mobName, kHave, kNeed = label, gHave, gNeed
+               end
+            end
             if mobName and mobName ~= "" and not string.find(string.lower(mobName), "rare") then
                kHave, kNeed = tonumber(kHave), tonumber(kNeed)
                kills[mobName] = { have = kHave, need = kNeed,

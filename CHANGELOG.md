@@ -4,6 +4,26 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.6.3] - 2026-08-29
+### Fixed
+- **Objectives phrased `<what> in <Zone>: n/m` were ignored entirely.** CBH only
+  understood `<name> slain: n/m`, so an objective like *"Beast Kill in Howling
+  Fjord: 0/75"* registered nowhere — the addon believed you had no active
+  objective at all and the Port button fell back to `Port: Home`. The generic
+  form is now accepted whenever its label names a zone that can be travelled to,
+  and routes like any other kill objective (this one → Howling Fjord).
+  Objectives with no locatable zone (`Primordial Saronite: 0/25`, `SI:7 Insignia
+  (Rutger): 0/1`) are deliberately still ignored, so the button doesn't claim a
+  destination it can't deliver.
+### Changed
+- **Live channel sync is shelved — the probe came back negative.**
+  `SendAddonMessage` over a custom channel is refused outright by the 3.3.5
+  client (`CHANNEL` isn't a valid distribution type), and plain chat on a shared
+  channel didn't cross between two clients either. `/cbh export` is the
+  data-sharing path. The probe stays in the addon — it's opt-in and inert — in
+  case the server's channel handling ever changes. Full results are recorded in
+  `docs/superpowers/specs/2026-08-29-comm-channel-probe-design.md`.
+
 ## [1.6.2] - 2026-08-29
 ### Changed
 - **The probe now tells a peer message apart from your own echo.** Custom
