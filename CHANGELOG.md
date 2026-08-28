@@ -4,6 +4,24 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.6.1] - 2026-08-29
+### Fixed
+- **Quests that name no zone in their text now route by the quest log's own zone
+  header.** "Bring Me the Head of Ragemane" (a Zul'Drak quest) resolved to
+  nothing, fell through to the map POI sweep, and got back the zone the player
+  happened to be standing in — Dragonblight. The quest log already groups quests
+  under zone headers, which is the game's own answer to "where is this quest?",
+  so CBH now reads that. Headers that aren't places (e.g. "Dungeons", or a
+  server's custom grouping) are ignored rather than trusted.
+- **The POI sweep can no longer return the zone you're standing in.** Its data is
+  stale right after the map changes, which is how it produced "Alterac Mountains"
+  in 1.3.x and "Dragonblight" here. That result is now recognised as the artifact
+  it is and discarded, and any surviving sweep result is logged so a wrong one
+  can be reported.
+
+Resolution order is now: zone named in the text → curated dungeon/target entries
+→ **quest log zone header** → card zone → learned camp → POI sweep (last resort).
+
 ## [1.6.0] - 2026-08-29
 ### Added
 - **`/cbh probe` — channel transport probe.** Groundwork for live rare alerts and

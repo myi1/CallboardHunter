@@ -184,6 +184,10 @@ local DUNGEON_ZONE = {
 -- rare we already have points for. Extend as new ones are reported.
 local TARGET_ZONE = {
    ["banthar"] = "Nagrand", -- "Steel Yourself: Banthar" (reported 2026-08-28)
+   -- "Bring Me the Head of Ragemane" (reported 2026-08-29). The quest-log zone
+   -- header resolves this on its own now, but keep the entry as a backstop in
+   -- case a server groups its quests under a custom (non-zone) header.
+   ["ragemane"] = "Zul'Drak",
 }
 
 -- Objectives that must route to a SPECIFIC checkpoint, not merely the nearest one

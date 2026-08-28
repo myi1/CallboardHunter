@@ -349,6 +349,41 @@ local function PointsForZone(zone)
    return pts
 end
 
+-- Is this a real world-map zone we could actually point the map at? Used to
+-- sanity-check quest-log headers, which can also be categories ("Dungeons",
+-- "Class", a server's custom grouping) rather than places. Returns the properly
+-- cased zone name, or nil. Cached: the continent/zone lists don't change.
+local knownZones
+local function KnownMapZone(name)
+   if not name or name == "" then return nil end
+   if not knownZones then
+      knownZones = {}
+      for c = 1, select("#", GetMapContinents()) do
+         for _, zn in ipairs({ GetMapZones(c) }) do
+            knownZones[string.lower(zn)] = zn
+         end
+      end
+   end
+   return knownZones[string.lower(name)]
+end
+
+-- The quest log groups quests under ZONE HEADERS - the game's own answer to
+-- "where is this quest?", and far more trustworthy than sweeping every map for
+-- a POI. "Bring Me the Head of Ragemane" names no zone in its text and isn't a
+-- rare we have data for, but it sits under the "Zul'Drak" header; without this
+-- it fell through to the sweep, which returned whatever map was already loaded
+-- (Dragonblight, the zone the player was standing in). Walk back to the nearest
+-- header and use it only when it names a real zone.
+local function ZoneFromQuestHeader(questIndex)
+   if not questIndex or not GetQuestLogTitle then return nil end
+   for i = questIndex - 1, 1, -1 do
+      local title, _, _, _, isHeader = GetQuestLogTitle(i)
+      if isHeader then return KnownMapZone(title) end
+   end
+   return nil
+end
+Advisor.ZoneFromQuestHeader = ZoneFromQuestHeader
+
 -- Decide which zone to travel to: explicit arg > current arrow waypoint >
 -- active rare zone > zone of a learned camp > zone harvested from a card.
 -- Find a zone name mentioned in the quest's title or objective text.
@@ -426,6 +461,9 @@ Advisor.IsWatched = IsWatched
 -- the list (Alterac Mountains) for many unrelated quests.
 local function ResolveKill(name, ko, allowSweep)
    local zone, isDungeon, via = ZoneFromQuestText(ko)
+   -- The quest log's own zone header outranks a cached card zone: cardZones can
+   -- still hold a bad guess cached by the pre-1.5.0 POI sweep.
+   zone = zone or ZoneFromQuestHeader(ko.questIndex)
    zone = zone or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
    if not zone and CBH.db and CBH.db.learnedKills then
       for z, mobs in pairs(CBH.db.learnedKills) do
@@ -444,7 +482,22 @@ local function ResolveKill(name, ko, allowSweep)
    -- sweep is a genuine last resort.)
    if allowSweep and ko.questID then
       local zn, qx, qy = FindQuestZoneByPOI(ko.questID)
-      if zn then return zn, { { x = qx, y = qy } } end
+      -- POI data is stale right after SetMapZoom, so the sweep false-positives
+      -- on whatever map was loaded before: historically the first zone in the
+      -- list ("Alterac Mountains") and the zone the player is standing in
+      -- ("Dragonblight" for a Zul'Drak quest). A result equal to the current
+      -- zone is that artifact - and porting there is refused downstream anyway -
+      -- so treat it as no answer rather than a confident wrong one.
+      if zn and zn == GetRealZoneText() then
+         CBH.Log("port", "SWEEP rejected '" .. tostring(zn) .. "' for '"
+            .. tostring(name) .. "' (= current zone; stale-POI artifact)")
+         zn = nil
+      end
+      if zn then
+         CBH.Log("port", "SWEEP used '" .. zn .. "' for '" .. tostring(name)
+            .. "' (last resort - report if wrong)")
+         return zn, { { x = qx, y = qy } }
+      end
    end
 end
 
@@ -567,7 +620,8 @@ function Advisor.DumpObjectives()
          tostring(ko.need) .. (done and " |cffff5050[done]|r" or "") ..
          " watched=" .. tostring(IsWatched(ko.questIndex)))
       CBH.print("     cardZone=" .. tostring(cz) .. " textZone=" ..
-         tostring(ZoneFromQuestText(ko)) .. " camp=" .. tostring(camp))
+         tostring(ZoneFromQuestText(ko)) .. " headerZone=" ..
+         tostring(ZoneFromQuestHeader(ko.questIndex)) .. " camp=" .. tostring(camp))
    end
    if not any then CBH.print("  (no kill objectives)") end
    CBH.print("Open the map & /cbh port to route by live POI (overrides the above).")

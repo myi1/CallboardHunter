@@ -20,8 +20,9 @@ detection/announce/targeting → kill learning → port back to the board.**
   spot count), no-data-yet zone, dungeon/raid, or collection. Also harvests
   each card's zone for routing, even for cards you don't pick.
 - **Port button / `/cbh port [zone]`** — one click from anywhere: resolves the
-  objective's zone (arrow waypoint → rare zone → quest-log text → card zone →
-  dungeon/known-target map → learned camp → POI map sweep), switches the map
+  objective's zone (arrow waypoint → rare zone → quest-log text →
+  dungeon/known-target map → **quest log zone header** → card zone → learned camp
+  → POI map sweep), switches the map
   itself, and clicks the unlocked checkpoint nearest the objective (locked "visit
   the meeting stone" checkpoints are excluded). Dungeon-boss objectives (e.g.
   *Ingvar the Plunderer*, the Utgarde Keep end boss) route to their containing
