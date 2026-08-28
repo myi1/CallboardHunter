@@ -18,7 +18,10 @@ local CHANNEL = "cbh"
 local PREFIX = "CBHPROBE"
 local MIN_SEND_GAP = 2.0 -- seconds; anti-flood floor
 
-Comm.stats = { addon = 0, chat = 0, sent = 0 }
+-- peer* = came from someone else (definitive). self* = our own broadcast echoed
+-- back by the server, which still proves it relays on this channel but is not
+-- proof another client receives it.
+Comm.stats = { addon = 0, chat = 0, selfAddon = 0, selfChat = 0, sent = 0 }
 Comm.lastSend = 0
 local seq = 0
 
@@ -133,45 +136,71 @@ function Comm.Status()
    CBH.print("Probe status:")
    CBH.print("  channel '" .. CHANNEL .. "': "
       .. (idx and ("JOINED, index " .. idx) or "NOT JOINED"))
-   CBH.print("  sent: " .. Comm.stats.sent
-      .. " | received addon: " .. Comm.stats.addon
-      .. " | received chat: " .. Comm.stats.chat)
-   if Comm.stats.addon > 0 then
-      CBH.print("  -> addon messages DO relay on this server.")
-   elseif Comm.stats.chat > 0 then
-      CBH.print("  -> only chat messages relay; addon messages are stripped.")
+   local s = Comm.stats
+   CBH.print("  sent: " .. s.sent)
+   CBH.print("  from a PEER  - addon: " .. s.addon .. ", chat: " .. s.chat)
+   CBH.print("  self-echo    - addon: " .. s.selfAddon .. ", chat: " .. s.selfChat)
+   -- Peer traffic is definitive. A self-echo only proves the server carries the
+   -- channel; it does not prove another client receives it.
+   if s.addon > 0 then
+      CBH.print("  VERDICT: addon messages reach other players. Best case -"
+         .. " silent transport works.")
+   elseif s.chat > 0 then
+      CBH.print("  VERDICT: only chat messages reach other players; addon"
+         .. " messages are stripped.")
+   elseif s.selfAddon > 0 or s.selfChat > 0 then
+      CBH.print("  VERDICT: the server relays the channel (your own message came"
+         .. " back" .. (s.selfAddon > 0 and " as an addon message" or " as chat only")
+         .. "), but no PEER message yet - confirm with a second client.")
    else
-      CBH.print("  -> nothing received yet (need a second tester in the channel).")
+      CBH.print("  VERDICT: nothing received. Either the server drops these, or"
+         .. " nobody else is in the channel yet.")
    end
 end
 
 -- ------------------------------------------------------------------- events
 
-local f = CreateFrame("Frame")
-f:RegisterEvent("CHAT_MSG_ADDON")
-f:RegisterEvent("CHAT_MSG_CHANNEL")
-f:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, ...)
+-- Exposed (not an inline closure) so the receive logic can be tested directly.
+function Comm.OnEvent(event, a1, a2, a3, a4)
+   local payload, sender, transport
    if event == "CHAT_MSG_ADDON" then
       -- 3.3.5: prefix, message, distribution, sender
       if a1 ~= PREFIX then return end
-      Comm.stats.addon = Comm.stats.addon + 1
-      local v, n, who = Comm.Decode(a2)
-      CBH.Log("comm", "RECV addon from " .. tostring(a4) .. " dist=" .. tostring(a3)
-         .. " v=" .. tostring(v) .. " seq=" .. tostring(n) .. " who=" .. tostring(who))
-      CBH.print("|cff30ff00Probe RECV (addon)|r from " .. tostring(a4)
-         .. " - v" .. tostring(v) .. " seq " .. tostring(n))
+      payload, sender, transport = a2, a4, "addon"
    else
-      -- CHAT_MSG_CHANNEL: message, sender, ... only care about our own probe text
+      -- CHAT_MSG_CHANNEL: message, sender, ... only our own probe text matters
       if type(a1) ~= "string" or string.sub(a1, 1, string.len(PREFIX)) ~= PREFIX then
          return
       end
-      Comm.stats.chat = Comm.stats.chat + 1
-      local v, n, who = Comm.Decode(string.sub(a1, string.len(PREFIX) + 2))
-      CBH.Log("comm", "RECV chat from " .. tostring(a2)
-         .. " v=" .. tostring(v) .. " seq=" .. tostring(n) .. " who=" .. tostring(who))
-      CBH.print("|cff30ff00Probe RECV (chat)|r from " .. tostring(a2)
-         .. " - v" .. tostring(v) .. " seq " .. tostring(n))
+      payload, sender, transport = string.sub(a1, string.len(PREFIX) + 2), a2, "chat"
    end
+   local v, n, who = Comm.Decode(payload)
+   -- Distinguish a genuine peer from the server echoing our own broadcast back.
+   -- Both prove the channel carries traffic, but only the first proves it
+   -- REACHES someone else - and mistaking one for the other would give a false
+   -- "it works" on a single-client test.
+   local me = UnitName and UnitName("player")
+   local isSelf = (me ~= nil and tostring(sender) == me)
+   local s = Comm.stats
+   if isSelf then
+      s["self" .. (transport == "addon" and "Addon" or "Chat")] =
+         s["self" .. (transport == "addon" and "Addon" or "Chat")] + 1
+   else
+      s[transport] = s[transport] + 1
+   end
+   CBH.Log("comm", "RECV " .. transport .. " from " .. tostring(sender)
+      .. (isSelf and " [SELF-ECHO]" or " [PEER]")
+      .. " v=" .. tostring(v) .. " seq=" .. tostring(n) .. " who=" .. tostring(who))
+   CBH.print("|cff30ff00Probe RECV (" .. transport .. ")|r from " .. tostring(sender)
+      .. (isSelf and " |cffffff00[your own message, echoed back]|r" or " |cff30ff00[PEER]|r")
+      .. " - v" .. tostring(v) .. " seq " .. tostring(n))
+end
+
+local f = CreateFrame("Frame")
+f:RegisterEvent("CHAT_MSG_ADDON")
+f:RegisterEvent("CHAT_MSG_CHANNEL")
+f:SetScript("OnEvent", function(_, event, a1, a2, a3, a4)
+   Comm.OnEvent(event, a1, a2, a3, a4)
 end)
 
 function Comm.Command(arg)

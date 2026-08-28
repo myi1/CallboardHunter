@@ -4,6 +4,17 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.6.2] - 2026-08-29
+### Changed
+- **The probe now tells a peer message apart from your own echo.** Custom
+  channels broadcast to every member including the sender, so a single client can
+  see its own message come back — which previously looked identical to a peer
+  receiving it. Results are now labelled `[PEER]` vs `[your own message, echoed
+  back]`, counted separately, and `/cbh probe status` prints a verdict saying
+  what each outcome actually proves. This makes a solo test genuinely useful: a
+  self-echo proves the server carries the channel, and only a PEER line proves it
+  reaches another client.
+
 ## [1.6.1] - 2026-08-29
 ### Fixed
 - **Quests that name no zone in their text now route by the quest log's own zone
