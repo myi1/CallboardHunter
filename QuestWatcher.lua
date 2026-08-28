@@ -48,8 +48,23 @@ function QW.Update(force)
                local zone = FindZoneIn(text) or FindZoneIn(title)
                local _, _, have, need = string.find(text or "", "(%d+)%s*/%s*(%d+)")
                if zone then
-                  hot[zone] = { have = tonumber(have), need = tonumber(need),
-                     questIndex = i, questID = questID }
+                  have, need = tonumber(have), tonumber(need)
+                  -- A FINISHED rare quest must stop driving the addon. Kill
+                  -- objectives were always filtered by have<need, but hot zones
+                  -- never were: a completed "rare" quest kept the arrow pointing
+                  -- at its spawns, kept the Port button in objective mode, and
+                  -- could out-rank an unfinished objective (watched/lower index
+                  -- wins), sending you to a zone you were done with. Keep the
+                  -- entry so /cbh obj and /cbh scan stay truthful; flag it done
+                  -- and let consumers skip it.
+                  local done = (need and have and have >= need) or false
+                  -- Two rare quests in one zone: keep the UNFINISHED one, else a
+                  -- completed quest parsed later masks work you still have left.
+                  local prev = hot[zone]
+                  if not (prev and done and not prev.done) then
+                     hot[zone] = { have = have, need = need, done = done,
+                        questIndex = i, questID = questID }
+                  end
                end
             end
             -- Kill objectives ("Azure Scalebane slain: 3/10", "Beasts slain: 22/75"):
@@ -83,9 +98,10 @@ end
 QW.lastCounts = {}
 
 function QW.LearnKillHere(name)
-   if not WorldMapFrame:IsShown() then SetMapToCurrentZone() end
-   local x, y = GetPlayerMapPosition("player")
-   if not x or (x == 0 and y == 0) then return end -- instance or unknown map
+   -- Map-state-safe: reads against the player's own zone even when the world map
+   -- is open on somewhere else (see CBH.PlayerZonePos). nil = instance/no coords.
+   local x, y = CBH.PlayerZonePos()
+   if not x then return end
    CBH.SpawnDB.LearnKill(GetRealZoneText(), name, x, y)
 end
 
@@ -104,7 +120,9 @@ function QW.IsZoneHot(zoneKey)
       return true, nil, nil
    end
    local z = CBH.hotZones[zoneKey]
-   if z then return true, z.have, z.need end
+   -- A completed rare quest is not "hot" - this is what stops the arrow, the
+   -- rare-spawn routing points and the "slain!" progress spam once you're done.
+   if z and not z.done then return true, z.have, z.need end
    return false
 end
 

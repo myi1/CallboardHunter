@@ -146,7 +146,11 @@ local function LearnCallboard()
 end
 
 local function AnyObjectiveActive()
-   if CBH.hotZones and next(CBH.hotZones) then return true end
+   -- Completed rare quests don't count, or the button stays stuck on
+   -- "Port: <zone>" forever instead of falling back to Home/Callboard.
+   for _, info in pairs(CBH.hotZones or {}) do
+      if not info.done then return true end
+   end
    for _, ko in pairs(CBH.killObjectives or {}) do
       if not ko.need or (ko.have or 0) < ko.need then return true end
    end
@@ -467,8 +471,12 @@ local function ResolveDestination(zoneArg, allowSweep)
    -- the same way and the port button label shows where it will send you.
    local cands = {}
    for zone, info in pairs(CBH.hotZones or {}) do
-      cands[#cands + 1] = { kind = "hot", zone = zone, qi = info.questIndex,
-         w = IsWatched(info.questIndex) and 1 or 0 }
+      -- Skip finished rare quests: a completed one used to win the sort (watched
+      -- or lower questIndex) and port you to a zone you had nothing left to do in.
+      if not info.done then
+         cands[#cands + 1] = { kind = "hot", zone = zone, qi = info.questIndex,
+            w = IsWatched(info.questIndex) and 1 or 0 }
+      end
    end
    for name, ko in pairs(CBH.killObjectives or {}) do
       if not ko.need or (ko.have or 0) < ko.need then
@@ -541,7 +549,10 @@ end
 function Advisor.DumpObjectives()
    CBH.print("Active objectives:")
    for zone, info in pairs(CBH.hotZones or {}) do
-      CBH.print("  RARE zone=" .. zone .. " qid=" .. tostring(info.questID))
+      CBH.print("  RARE zone=" .. zone .. " " .. tostring(info.have) .. "/"
+         .. tostring(info.need) .. (info.done and " |cffff5050[done]|r" or "")
+         .. " qid=" .. tostring(info.questID)
+         .. " watched=" .. tostring(IsWatched(info.questIndex)))
    end
    local any = false
    for name, ko in pairs(CBH.killObjectives or {}) do

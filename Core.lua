@@ -69,6 +69,37 @@ function CBH.IsBlockedCheckpoint(name)
    return false
 end
 
+-- The player's position IN THEIR OWN ZONE, for learning spawn/kill coordinates.
+--
+-- GetPlayerMapPosition reports against whatever map is DISPLAYED, not the zone
+-- you're standing in. The old idiom here was "if the map isn't shown, point it
+-- at the current zone" - which silently did nothing whenever the map WAS open on
+-- another zone (CBH itself leaves it that way after a port). The read then came
+-- back 0,0 and every rare sighting during that window was dropped on the floor.
+-- That is a large part of why the learned rare database ends up incomplete.
+--
+-- So: point the map at the player's zone, read, then put the player's view back
+-- exactly where it was. Returns nil when there's genuinely no position (inside
+-- an instance, or a map with no player coords).
+function CBH.PlayerZonePos()
+   -- Never fight the Advisor for the map while a port is mid-flight; it drives
+   -- the map through a retry state machine and a stray SetMapZoom breaks it.
+   -- Skipping one sighting is much cheaper than a mis-routed teleport.
+   local adv = CBH.Advisor
+   if adv and (adv.portBusy or adv.portAt) then return nil end
+   local wasShown = WorldMapFrame and WorldMapFrame:IsShown()
+   local c, z = GetCurrentMapContinent(), GetCurrentMapZone()
+   SetMapToCurrentZone()
+   local x, y = GetPlayerMapPosition("player")
+   -- Restore the user's view only if we actually moved it while they were looking.
+   if wasShown and c and z
+      and (GetCurrentMapContinent() ~= c or GetCurrentMapZone() ~= z) then
+      SetMapZoom(c, z)
+   end
+   if not x or (x == 0 and y == 0) then return nil end
+   return x, y
+end
+
 -- Quest POI position on the currently displayed map, handling both known
 -- QuestPOIGetIconInfo signatures.
 function CBH.GetQuestPOI(questID)

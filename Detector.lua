@@ -17,12 +17,8 @@ local function AnnounceOnce(name, npcID, learnHere)
    if recentAnnounce[name] and now - recentAnnounce[name] < 60 then return end
    recentAnnounce[name] = now
    if learnHere then
-      local zone = GetRealZoneText()
-      if not WorldMapFrame:IsShown() then SetMapToCurrentZone() end
-      local x, y = GetPlayerMapPosition("player")
-      if x and y and (x ~= 0 or y ~= 0) then
-         CBH.SpawnDB.Learn(zone, name, npcID, x, y)
-      end
+      local x, y = CBH.PlayerZonePos()
+      if x then CBH.SpawnDB.Learn(GetRealZoneText(), name, npcID, x, y) end
    end
    if CBH.Announce.Show then CBH.Announce.Show(name, npcID) end
 end
@@ -45,6 +41,13 @@ function Detector.OnCombatLog(timestamp, event, srcGUID, srcName, srcFlags,
       local npcID = NpcIDFromGUID(dstGUID)
       if dstName and CBH.SpawnDB.IsKnownRare(npcID, dstName) then
          local zone = GetRealZoneText()
+         -- Where a rare DIED is the best spawn evidence there is: you're standing
+         -- on it, and it's the sample people actually want to share. Learn it
+         -- whether or not a callboard quest is active here (the old code only
+         -- learned on mouseover/target, so kills you tagged at range or looted
+         -- after a fight never made it into the database).
+         local dx, dy = CBH.PlayerZonePos()
+         if dx then CBH.SpawnDB.Learn(zone, dstName, npcID, dx, dy) end
          local hot, have, need = CBH.QuestWatcher.IsZoneHot(zone)
          if hot then
             local progress

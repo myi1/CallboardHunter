@@ -4,6 +4,25 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.5.3] - 2026-08-29
+### Fixed
+- **Finished rare quests kept driving the addon.** Kill objectives were always
+  filtered by "still incomplete", but rare/hot zones never were. A completed rare
+  quest kept the arrow pointing at its spawns, kept the Port button stuck on
+  `Port: <that zone>` instead of falling back to Home/Callboard, could out-rank an
+  objective you actually still had work on (sending you to the wrong zone), and
+  printed nonsense progress like "4/3" on the next rare you killed there.
+- **Rare sightings were silently dropped whenever the world map was open on
+  another zone** — which is exactly the state CBH leaves it in after a port.
+  Position reads go against the *displayed* map, so they came back empty and the
+  sighting was thrown away. Learning now reads against your own zone and puts
+  your map view back. This is a large part of why the learned rare database ends
+  up incomplete.
+### Added
+- **Rare kill positions are learned.** Previously only mouseover/target sightings
+  were recorded, so rares you tagged at range or looted after a fight never made
+  it into the database. Where a rare *died* is the best spawn evidence there is.
+
 ## [1.5.2] - 2026-08-28
 ### Added
 - **Per-objective checkpoint routing** — an objective can now route to a
