@@ -237,6 +237,13 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       else
          CBH.print("'" .. tostring(arg) .. "' wasn't blocked. /cbh blocked to list.")
       end
+   elseif cmd == "export" then
+      if CBH.Export then CBH.safeCall(CBH.Export, arg)
+      else CBH.print("Export module unavailable.") end
+   elseif cmd == "probe" then
+      -- Channel transport probe (opt-in, never auto-joins). See Comm.lua.
+      if CBH.Comm and CBH.Comm.Command then CBH.safeCall(CBH.Comm.Command, arg)
+      else CBH.print("Comm module unavailable.") end
    elseif cmd == "sethome" then
       CBH.SetHomeHere()
    elseif cmd == "config" or cmd == "options" then
@@ -336,6 +343,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | reset")
+      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | probe | reset")
    end
 end

@@ -55,6 +55,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh port [zone]` | port toward your objective (or an explicit zone) |
 | `/cbh sethome` / `home` / `clearhome` | set the Callboard-port home to where you stand / go there / clear it |
 | `/cbh block <name>` / `unblock <name>` / `blocked` | exclude checkpoints that drop you inside an instance from auto-routing |
+| `/cbh export` / `export clear` | package your learned rare + camp points for sharing (then `/reload`), or remove the export |
+| `/cbh probe join｜send｜send chat｜status｜leave` | channel transport probe — tests whether clients can talk to each other (opt-in; never auto-joins) |
 | `/cbh next` | skip the current arrow waypoint |
 | `/cbh track <zone>` / `untrack` / `debug` | force/clear/test hot zones |
 | `/cbh arrow` / `sound` / `party` | toggles |
@@ -77,3 +79,17 @@ script): `node tools/luacheck.js <addon folder>`. Run it before committing.
 
 Data lives in SavedVariables `CallboardHunterDB`: `learned` (rare sightings),
 `learnedKills` (camp points), `cardZones`, `callboards` (board locations).
+Learned points are `{x, y, n}` where `n` counts how many times that spot was
+corroborated; legacy 2-element points read as `n = 1`.
+
+## Contributing spawn data
+
+The bundled rare spawn points are approximate and improve with real sightings.
+To contribute yours:
+
+1. `/cbh export`
+2. `/reload` (this is what actually writes the file)
+3. Upload `World of Warcraft\WTF\Account\<YOUR ACCOUNT>\SavedVariables\CallboardHunter.lua`
+
+The export carries only spawn data plus your character/realm, so contributions can
+be credited and told apart when merging. `/cbh export clear` removes it.

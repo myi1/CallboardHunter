@@ -4,6 +4,30 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.6.0] - 2026-08-29
+### Added
+- **`/cbh probe` — channel transport probe.** Groundwork for live rare alerts and
+  crowd-sourced spawn data: measures whether Ebonhold relays client-to-client
+  messages on a hidden `cbh` channel, and which transport survives (silent addon
+  messages vs plain chat). Two testers run `/cbh probe join`, one runs
+  `/cbh probe send`, and `/cbh probe status` (plus `/cbh log`) reports what
+  arrived.
+
+  It is **opt-in only — nothing auto-joins**, it has a hard 2-second floor
+  between sends so it cannot flood you into a disconnect, and it cannot read or
+  write your learned spawn data. Design and results:
+  `docs/superpowers/specs/2026-08-29-comm-channel-probe-design.md`.
+- **`/cbh export` — share your learned spawn data.** Packages your rare sightings
+  *and* your callboard camp points into a clean, self-describing table, then tells
+  you to `/reload` and which file to upload. `/cbh export clear` removes it again.
+  Contains only spawn data plus your character/realm (for credit and for telling
+  contributors apart when merging) — never your home, boards, log or settings.
+- **Corroboration counts.** Repeat sightings of the same spot now bump a counter
+  instead of being silently discarded, so points are `{x, y, n}`. A spot seen six
+  times can outrank one person's single glimpse of a patrolling rare — which is
+  what makes pooled data mergeable. Existing 2-element points are read as `n = 1`;
+  no migration, nothing to redo.
+
 ## [1.5.3] - 2026-08-29
 ### Fixed
 - **Finished rare quests kept driving the addon.** Kill objectives were always

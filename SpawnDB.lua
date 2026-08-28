@@ -280,9 +280,17 @@ function SpawnDB.Learn(zoneKey, name, npcID, x, y)
    for _, p in ipairs(entry.points) do
       local dx, dy = (p[1] - x), (p[2] - y)
       if w and h then dx, dy = dx * w, dy * h else dx, dy = dx * 1000, dy * 700 end
-      if (dx * dx + dy * dy) < 2500 then return end -- within 50yd of a known point
+      if (dx * dx + dy * dy) < 2500 then      -- within 50yd of a known point
+         -- Corroboration: a repeat sighting bumps the point's count instead of
+         -- being discarded. That count is what makes shared data mergeable -
+         -- a spot seen 6 times outranks one person's single glimpse of a
+         -- patrolling rare. Points are {x, y, n}; legacy 2-element points read
+         -- as n = 1, so old databases need no migration.
+         p[3] = (p[3] or 1) + 1
+         return
+      end
    end
-   table.insert(entry.points, { x, y })
+   table.insert(entry.points, { x, y, 1 })
 end
 
 -- Record where a counted callboard kill happened (dedup 40yd, keep last 30).
@@ -296,9 +304,12 @@ function SpawnDB.LearnKill(zoneKey, name, x, y)
    for _, p in ipairs(list) do
       local dx, dy = (p[1] - x), (p[2] - y)
       if w and h then dx, dy = dx * w, dy * h else dx, dy = dx * 1000, dy * 700 end
-      if (dx * dx + dy * dy) < 1600 then return end -- within 40yd of a known point
+      if (dx * dx + dy * dy) < 1600 then      -- within 40yd of a known point
+         p[3] = (p[3] or 1) + 1               -- corroboration count (see Learn)
+         return
+      end
    end
-   table.insert(list, { x, y })
+   table.insert(list, { x, y, 1 })
    if #list > 30 then table.remove(list, 1) end
 end
 
