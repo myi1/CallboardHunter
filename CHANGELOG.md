@@ -4,6 +4,15 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.5.2] - 2026-08-28
+### Added
+- **Per-objective checkpoint routing** — an objective can now route to a
+  *specific* checkpoint, not just the nearest one in a zone. First use: the
+  "Flame Revenant" callboard quest ("Thinning the Herd in Winterspring") ports
+  to the **Fordragon Hold** checkpoint on the Dragonblight map. The port button
+  shows the checkpoint name (e.g. "Port: Fordragon Hold") so you can see where
+  it will send you.
+
 ## [1.5.1] - 2026-08-28
 ### Added
 - **Full WotLK 5-man boss coverage** for dungeon routing — completing the map

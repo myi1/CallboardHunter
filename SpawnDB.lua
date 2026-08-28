@@ -186,6 +186,18 @@ local TARGET_ZONE = {
    ["banthar"] = "Nagrand", -- "Steel Yourself: Banthar" (reported 2026-08-28)
 }
 
+-- Objectives that must route to a SPECIFIC checkpoint, not merely the nearest one
+-- in the zone. [substring] = { zone = <map the checkpoint is on>, via = <checkpoint
+-- name> }. The zone is whichever world map that checkpoint appears on. Example:
+-- the "Flame Revenant" callboard quest ("Thinning the Herd in Winterspring")
+-- ports to the Fordragon Hold checkpoint, which lives on the DRAGONBLIGHT map
+-- (not on Winterspring, and not to whatever Dragonblight checkpoint is nearest).
+-- Reported by keepsy 2026-08-28. `via` is matched against checkpoint names the
+-- same way /cbh portvia is, so a partial name is fine.
+local TARGET_CHECKPOINT = {
+   ["flame revenant"] = { zone = "Dragonblight", via = "Fordragon Hold" },
+}
+
 -- Every rare we have static points for, keyed by lowercase name, so an objective
 -- that only says "<Rare> slain: n/m" resolves to its zone without a card.
 local MOB_ZONE = {}
@@ -204,6 +216,11 @@ SpawnDB.DUNGEON_ZONE = DUNGEON_ZONE
 function SpawnDB.ZoneForTargetText(text)
    if not text then return end
    local lt = string.lower(text)
+   -- Curated objective -> specific-checkpoint overrides win (returns a 3rd value,
+   -- the checkpoint name to force on that zone's map).
+   for key, m in pairs(TARGET_CHECKPOINT) do
+      if string.find(lt, key, 1, true) then return m.zone, false, m.via end
+   end
    for key, zone in pairs(DUNGEON_ZONE) do
       if string.find(lt, key, 1, true) then return zone, true end
    end

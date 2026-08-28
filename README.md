@@ -26,8 +26,10 @@ detection/announce/targeting → kill learning → port back to the board.**
   the meeting stone" checkpoints are excluded). Dungeon-boss objectives (e.g.
   *Ingvar the Plunderer*, the Utgarde Keep end boss) route to their containing
   zone (Howling Fjord); named outdoor targets route to theirs (e.g. *Banthar* →
-  Nagrand). If it genuinely can't work out a zone it says so rather than porting
-  you somewhere wrong. For kill objectives the current quest's POI overrides old
+  Nagrand). A few objectives route to a specific named checkpoint rather than the
+  nearest one (e.g. *Flame Revenant* → the Fordragon Hold checkpoint on the
+  Dragonblight map). If it genuinely can't work out a zone it says so rather than
+  porting you somewhere wrong. For kill objectives the current quest's POI overrides old
   camps, since the server assigns a fresh area per quest. The chat line says what
   it routed by. With no active callboard quest the button becomes **Port:
   Callboard** back to a board you've used (locations are self-learned when you

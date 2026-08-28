@@ -176,10 +176,16 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
       local label, mode
       if AnyObjectiveActive() then
          mode = "objective"
-         local destZone
-         if Advisor.ResolveDestination then destZone = Advisor.ResolveDestination() end
+         local destZone, via
+         if Advisor.ResolveDestination then
+            local d, _, _, _, v = Advisor.ResolveDestination()
+            destZone, via = d, v
+         end
          if destZone then Advisor.lastDestZone = destZone end
-         label = destZone and ("Port: " .. destZone) or "Port: objective"
+         -- Show the forced checkpoint when an objective routes to a specific one
+         -- (e.g. "Port: Fordragon Hold"), otherwise the destination zone.
+         local shown = via or destZone
+         label = shown and ("Port: " .. shown) or "Port: objective"
       elseif CBH.db and CBH.db.home then
          mode = "board"
          label = "Port: Home"
@@ -365,8 +371,8 @@ local function ZoneFromQuestText(ko)
    -- exist). Before this, the name matched nothing and the fragile POI sweep
    -- confidently mis-picked "Alterac Mountains".
    for _, t in ipairs(texts) do
-      local zone, isDungeon = CBH.SpawnDB.ZoneForTargetText(t)
-      if zone then return zone, isDungeon end
+      local zone, isDungeon, via = CBH.SpawnDB.ZoneForTargetText(t)
+      if zone then return zone, isDungeon, via end
    end
 end
 
@@ -415,7 +421,7 @@ Advisor.IsWatched = IsWatched
 -- SetMapZoom the POI data is stale, so it false-positived on the first zone in
 -- the list (Alterac Mountains) for many unrelated quests.
 local function ResolveKill(name, ko, allowSweep)
-   local zone, isDungeon = ZoneFromQuestText(ko)
+   local zone, isDungeon, via = ZoneFromQuestText(ko)
    zone = zone or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
    if not zone and CBH.db and CBH.db.learnedKills then
       for z, mobs in pairs(CBH.db.learnedKills) do
@@ -424,7 +430,7 @@ local function ResolveKill(name, ko, allowSweep)
    end
    if zone then
       if CBH.db and CBH.db.cardZones then CBH.db.cardZones[name] = zone end
-      return zone, PointsForZone(zone), isDungeon
+      return zone, PointsForZone(zone), isDungeon, via
    end
    -- Nothing named it: fall back to the (fragile) POI sweep. Its guess is used
    -- for THIS port only and is deliberately NOT cached into cardZones - caching
@@ -479,8 +485,12 @@ local function ResolveDestination(zoneArg, allowSweep)
       if c.kind == "hot" then
          return c.zone, PointsForZone(c.zone), nil, false
       else
-         local zone, pts, isDungeon = ResolveKill(c.name, c.ko, allowSweep)
+         local zone, pts, isDungeon, via = ResolveKill(c.name, c.ko, allowSweep)
          if zone then
+            -- An objective-specific checkpoint override (e.g. Flame Revenant ->
+            -- Fordragon Hold on the Dragonblight map): carry the checkpoint name
+            -- through so DoPort forces it; no POI chase.
+            if via then return zone, pts, nil, false, via end
             -- A dungeon objective has no outdoor quest POI to chase: route to
             -- the containing zone's checkpoint by position, don't prefer/prefetch
             -- a POI that lives inside the instance.
@@ -829,7 +839,7 @@ function Advisor.Port(zoneArg)
       CBH.print("A teleport is already in progress - hold still until it finishes.")
       return
    end
-   local destZone, pts, qid, prefer = ResolveDestination(zoneArg, true)
+   local destZone, pts, qid, prefer, objVia = ResolveDestination(zoneArg, true)
    -- Couldn't work out a zone for any active objective. DON'T fall back to the
    -- current zone's map (below) - that ports you to a checkpoint in the zone you
    -- already stand in, which is never the right answer for an objective that's
@@ -858,10 +868,11 @@ function Advisor.Port(zoneArg)
    CBH.Log("port", "REQUEST arg='" .. tostring(zoneArg) .. "' -> dest="
       .. tostring(destZone) .. " pts=" .. ((pts and #pts) or 0)
       .. " qid=" .. tostring(qid) .. " prefPOI=" .. tostring(prefer or false))
-   -- Port-via: a zone's map can carry a checkpoint named for another zone
-   -- (Crystalsong's map has a Dalaran checkpoint). Prefer that named checkpoint
-   -- on THIS map rather than switching maps.
-   local via = PortViaFor(destZone)
+   -- Port-via: an objective-specific checkpoint override (e.g. Flame Revenant ->
+   -- Fordragon Hold) wins; else a zone's map can carry a checkpoint named for
+   -- another zone (Crystalsong's map has a Dalaran checkpoint). Prefer that named
+   -- checkpoint on THIS map rather than switching maps.
+   local via = objVia or PortViaFor(destZone)
    Advisor.portViaName = (via and via ~= destZone) and via or nil
    Advisor.portViaNote = Advisor.portViaName and (destZone .. " via " .. Advisor.portViaName) or nil
    if not WorldMapFrame:IsShown() then
