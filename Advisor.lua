@@ -157,6 +157,34 @@ local function AnyObjectiveActive()
    return false
 end
 
+-- What the port button should say, and which mode a click uses. Extracted from
+-- the ticker so it can be tested without a running UI.
+--
+-- The button only claims "objective" when it can name a real destination. CBH
+-- recognises any "<name> slain: n/m" objective, which also matches ordinary
+-- quests - "Anub'Rekhan slain: 0/1" from Naxxramas, for one. With no callboard
+-- quest at all the button used to sit on a dead "Port: objective" that simply
+-- refused when clicked, instead of offering Home. If nothing resolves, fall
+-- through to Home/Callboard; /cbh port still explains why an objective could not
+-- be routed.
+function Advisor.ComputeButton()
+   local destZone, via
+   if AnyObjectiveActive() and Advisor.ResolveDestination then
+      local d, _, _, _, v = Advisor.ResolveDestination()
+      destZone, via = d, v
+   end
+   if destZone then Advisor.lastDestZone = destZone end
+   -- Show the forced checkpoint when an objective routes to a specific one
+   -- (e.g. "Port: Fordragon Hold"), otherwise the destination zone.
+   local shown = via or destZone
+   if shown then return "Port: " .. shown, "objective" end
+   if CBH.db and CBH.db.home then return "Port: Home", "board" end
+   if CBH.db and CBH.db.callboards and #CBH.db.callboards > 0 then
+      return "Port: Callboard", "board"
+   end
+   return nil, nil
+end
+
 -- Poll for the server frame (created by the ProjectEbonhold addon at its own
 -- pace) and keep card notes fresh while the board is open (reroll swaps text
 -- without hiding the frame).
@@ -177,26 +205,7 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
    end
    CBH.safeCall(EnsurePortButton)
    if portBtn then
-      local label, mode
-      if AnyObjectiveActive() then
-         mode = "objective"
-         local destZone, via
-         if Advisor.ResolveDestination then
-            local d, _, _, _, v = Advisor.ResolveDestination()
-            destZone, via = d, v
-         end
-         if destZone then Advisor.lastDestZone = destZone end
-         -- Show the forced checkpoint when an objective routes to a specific one
-         -- (e.g. "Port: Fordragon Hold"), otherwise the destination zone.
-         local shown = via or destZone
-         label = shown and ("Port: " .. shown) or "Port: objective"
-      elseif CBH.db and CBH.db.home then
-         mode = "board"
-         label = "Port: Home"
-      elseif CBH.db and CBH.db.callboards and #CBH.db.callboards > 0 then
-         mode = "board"
-         label = "Port: Callboard"
-      end
+      local label, mode = Advisor.ComputeButton()
       if label then
          portBtn.mode = mode
          if portBtn:GetText() ~= label then

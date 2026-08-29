@@ -4,6 +4,17 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.7.4] - 2026-08-30
+### Fixed
+- **The Port button sat on a dead "Port: objective" when you had no callboard
+  quest.** CBH recognises any `<name> slain: n/m` objective, which also matches
+  ordinary quests — *"Anub'Rekhan slain: 0/1"* from Naxxramas, for one. That
+  counted as an active objective, but it resolves to no zone, so the button
+  claimed a destination it could not deliver and refused when clicked. It now
+  only says "Port: <somewhere>" when it can actually name that somewhere, and
+  otherwise falls back to **Port: Home** / **Port: Callboard**. `/cbh port` still
+  explains why a specific objective could not be routed.
+
 ## [1.7.3] - 2026-08-29
 ### Fixed
 - **The channel probe never could have received anything — that was our bug, not
