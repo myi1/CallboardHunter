@@ -117,9 +117,36 @@ channel sync is NOT viable on this server.**
 
 ### Consequence
 
-Live sync and live rare alerts are **shelved**. The file export (`/cbh export`,
-shipped in 1.6.0) is the data-sharing path. The probe stays in the addon: it is
-opt-in, inert, and cheap to re-run if Ebonhold ever changes its channel handling.
+**Custom-channel sync is dead. Peer messaging is NOT** - the original conclusion
+("shelved") over-generalised from one failed transport, and the counter-evidence
+was already installed on the same machine:
+
+- **BigWigs** calls `SendAddonMessage("BigWigs", ..., "RAID")` and syncs raid
+  timers correctly on this server.
+- **PallyPilot** receives `CHAT_MSG_ADDON` on the ProjectEbonhold bus
+  (prefix `AAM0x9`, injected by `ebonhold.dll`), so the server delivers addon
+  messages to clients.
+- Distributions actually used by working addons here: RAID x5, WHISPER x3,
+  BATTLEGROUND x2, PARTY x1, GUILD x1. CHANNEL: **zero**.
+
+`CHANNEL` simply is not a valid `SendAddonMessage` distribution on 3.3.5. The
+supported ones are expected to work.
+
+### Round 2: guild / party / raid transports (v1.7.0)
+
+The probe now also tests `GUILD`, `PARTY` and `RAID`, via
+`/cbh probe send [guild|party|raid|channel|chat|all]`. Receives are counted per
+distribution and split peer vs self-echo.
+
+This changes the shape of the feature rather than killing it: alerts become
+**guild/group scoped instead of server-wide**. That is a smaller audience, but it
+substantially simplifies the trust problem from the follow-up section below -
+senders are guildmates rather than anonymous strangers, so data poisoning stops
+being an open-network concern.
+
+- [ ] GUILD:
+- [ ] PARTY:
+- [ ] RAID:
 
 ## Follow-up (out of scope here)
 

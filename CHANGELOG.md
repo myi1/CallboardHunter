@@ -4,6 +4,23 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.7.0] - 2026-08-29
+### Added
+- **Probe now tests the transports that actually work here: `GUILD`, `PARTY` and
+  `RAID`.** `/cbh probe send [guild|party|raid|channel|chat|all]`, with receives
+  counted per distribution and split into `[PEER]` vs your own echo. It only
+  sends over transports currently available (no guild, no guild send), and `all`
+  fans out over every usable one while still counting as a single send event, so
+  the 2-second anti-flood floor cannot be bypassed.
+### Changed
+- **Live alerts are back on the table, at guild/group scope.** 1.6.3 recorded
+  channel sync as shelved and over-generalised from it. `CHANNEL` isn't a valid
+  `SendAddonMessage` distribution on 3.3.5 - but addon messages themselves work
+  fine on this server: BigWigs syncs raid timers over `RAID`, and the server
+  pushes addon messages to clients on its own bus. Server-wide alerts are gone;
+  guild-scoped ones look viable, and make contributed data easier to trust since
+  senders are people you know.
+
 ## [1.6.3] - 2026-08-29
 ### Fixed
 - **Objectives phrased `<what> in <Zone>: n/m` were ignored entirely.** CBH only
