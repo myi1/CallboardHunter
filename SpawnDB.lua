@@ -246,6 +246,50 @@ function SpawnDB.ZoneForTargetText(text)
    end
 end
 
+-- Every real world-map zone name, cached. SpawnDB.ZONES only covers the zones we
+-- ship rare data for (15 of them), but objectives happen anywhere - "Beast Kill
+-- in Wintergrasp: 0/10" could not be matched at all because Wintergrasp has no
+-- spawn table. Recognising a zone by name and having spawn data for it are two
+-- different questions, and conflating them is what made those objectives
+-- unroutable.
+local mapZones, mapZonesByLen
+local function BuildMapZones()
+   if mapZones then return end
+   mapZones, mapZonesByLen = {}, {}
+   if not (GetMapContinents and GetMapZones) then return end
+   for c = 1, select("#", GetMapContinents()) do
+      for _, zn in ipairs({ GetMapZones(c) }) do
+         if zn and zn ~= "" and not mapZones[string.lower(zn)] then
+            mapZones[string.lower(zn)] = zn
+            mapZonesByLen[#mapZonesByLen + 1] = zn
+         end
+      end
+   end
+   -- Longest first: so "Stormwind City" wins over "Stormwind" and a partial name
+   -- can never shadow the fuller one. Also makes the result deterministic, which
+   -- a pairs() scan over a hash was not.
+   table.sort(mapZonesByLen, function(a, b) return string.len(a) > string.len(b) end)
+end
+
+-- Exact name -> properly cased zone, or nil. Used to sanity-check quest-log
+-- headers, which can also be categories ("Dungeons") rather than places.
+function SpawnDB.KnownMapZone(name)
+   if not name or name == "" then return nil end
+   BuildMapZones()
+   return mapZones[string.lower(name)]
+end
+
+-- The longest real zone name mentioned anywhere in the text, or nil.
+function SpawnDB.FindMapZoneIn(text)
+   if not text or text == "" then return nil end
+   BuildMapZones()
+   local lt = string.lower(text)
+   for _, zn in ipairs(mapZonesByLen) do
+      if string.find(lt, string.lower(zn), 1, true) then return zn end
+   end
+   return nil
+end
+
 function SpawnDB.GetZoneSize(zoneKey)
    local s = ZONE_SIZE[zoneKey]
    if s then return s[1], s[2] end

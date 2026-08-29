@@ -20,11 +20,16 @@ end
 
 local function FindZoneIn(text)
    if not text then return nil end
-   text = string.lower(text)
+   local lt = string.lower(text)
+   -- Zones we ship rare data for win: those are the ones with spawn points to
+   -- route by, and this preserves long-standing behaviour.
    for zone in pairs(CBH.SpawnDB.ZONES) do
-      if string.find(text, string.lower(zone), 1, true) then return zone end
+      if string.find(lt, string.lower(zone), 1, true) then return zone end
    end
-   return nil
+   -- Otherwise ANY real map zone named in the text. Without this, an objective in
+   -- a zone with no bundled spawn data (Wintergrasp, Winterspring, Crystalsong
+   -- Forest, anywhere in the old world) matched nothing and could not be routed.
+   return CBH.SpawnDB.FindMapZoneIn and CBH.SpawnDB.FindMapZoneIn(text) or nil
 end
 
 local throttle = 0

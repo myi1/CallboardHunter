@@ -353,18 +353,8 @@ end
 -- sanity-check quest-log headers, which can also be categories ("Dungeons",
 -- "Class", a server's custom grouping) rather than places. Returns the properly
 -- cased zone name, or nil. Cached: the continent/zone lists don't change.
-local knownZones
 local function KnownMapZone(name)
-   if not name or name == "" then return nil end
-   if not knownZones then
-      knownZones = {}
-      for c = 1, select("#", GetMapContinents()) do
-         for _, zn in ipairs({ GetMapZones(c) }) do
-            knownZones[string.lower(zn)] = zn
-         end
-      end
-   end
-   return knownZones[string.lower(name)]
+   return CBH.SpawnDB.KnownMapZone and CBH.SpawnDB.KnownMapZone(name) or nil
 end
 
 -- The quest log groups quests under ZONE HEADERS - the game's own answer to
@@ -412,6 +402,17 @@ local function ZoneFromQuestText(ko)
    for _, t in ipairs(texts) do
       local zone, isDungeon, via = CBH.SpawnDB.ZoneForTargetText(t)
       if zone then return zone, isDungeon, via end
+   end
+   -- Last text-based source: ANY real map zone named in the title/objectives,
+   -- not just the ones we ship rare data for. "Beast Kill in Wintergrasp: 0/10"
+   -- named a zone that SpawnDB.ZONES has never heard of, so nothing matched and
+   -- routing fell through to a weaker source that answered Winterspring.
+   -- Deliberately LAST of the text sources, so curated overrides still win:
+   -- "Thinning the Herd in Winterspring" names a real zone, but that objective
+   -- must still route to the Fordragon Hold checkpoint, not to Winterspring.
+   for _, t in ipairs(texts) do
+      local zone = CBH.SpawnDB.FindMapZoneIn and CBH.SpawnDB.FindMapZoneIn(t)
+      if zone then return zone end
    end
 end
 

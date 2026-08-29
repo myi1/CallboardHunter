@@ -4,6 +4,23 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.7.1] - 2026-08-29
+### Fixed
+- **Objectives in zones with no bundled spawn data couldn't be routed.**
+  `SpawnDB.ZONES` holds only the 15 zones CallboardHunter ships rare data for,
+  but it was also being used as "zones we recognise by name" — so an objective
+  naming **Wintergrasp** (or Winterspring, Crystalsong Forest, anywhere in the
+  old world) matched nothing, and routing fell through to a weaker source that
+  answered the wrong zone. Any real world-map zone named in a quest's title or
+  objectives is now recognised, with the **longest** name winning so a partial
+  name can never shadow a fuller one ("Stormwind City" isn't read as
+  "Stormwind"). Recognising a zone and having spawn data for it are now separate
+  questions.
+
+  Curated overrides deliberately still outrank this: *Thinning the Herd in
+  Winterspring* names a real zone, but continues to route to the Fordragon Hold
+  checkpoint.
+
 ## [1.7.0] - 2026-08-29
 ### Added
 - **Probe now tests the transports that actually work here: `GUILD`, `PARTY` and
