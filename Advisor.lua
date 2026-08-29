@@ -403,18 +403,44 @@ local function ZoneFromQuestText(ko)
       local zone, isDungeon, via = CBH.SpawnDB.ZoneForTargetText(t)
       if zone then return zone, isDungeon, via end
    end
-   -- Last text-based source: ANY real map zone named in the title/objectives,
-   -- not just the ones we ship rare data for. "Beast Kill in Wintergrasp: 0/10"
-   -- named a zone that SpawnDB.ZONES has never heard of, so nothing matched and
-   -- routing fell through to a weaker source that answered Winterspring.
-   -- Deliberately LAST of the text sources, so curated overrides still win:
-   -- "Thinning the Herd in Winterspring" names a real zone, but that objective
-   -- must still route to the Fordragon Hold checkpoint, not to Winterspring.
+end
+
+-- Any real map zone named in the title/objectives. Kept SEPARATE from
+-- ZoneFromQuestText because it is markedly less trustworthy: a quest title can
+-- simply be wrong. "Thinning the Herd in Winterspring" hands out objectives whose
+-- mobs are actually in WINTERGRASP - confirmed by 21 recorded kills there - so
+-- this source must lose to anything empirical.
+local function ZoneFromAnyMapName(ko)
+   if not ko.questIndex then return nil end
+   local texts = { (GetQuestLogTitle(ko.questIndex)) }
+   for j = 1, GetNumQuestLeaderBoards(ko.questIndex) do
+      table.insert(texts, (GetQuestLogLeaderBoard(j, ko.questIndex)))
+   end
    for _, t in ipairs(texts) do
       local zone = CBH.SpawnDB.FindMapZoneIn and CBH.SpawnDB.FindMapZoneIn(t)
       if zone then return zone end
    end
+   return nil
 end
+
+-- Where you have ACTUALLY completed this objective before. This is ground truth
+-- from your own kills, so it outranks quest text, headers and cached card zones -
+-- all of which can be wrong. Picks the zone with the most recorded points, which
+-- is also deterministic (the old first-match pairs() scan was not).
+local function ZoneFromLearnedKills(name)
+   local lk = CBH.db and CBH.db.learnedKills
+   if not lk then return nil end
+   local best, bestN
+   for z, mobs in pairs(lk) do
+      local list = mobs[name]
+      local n = list and #list or 0
+      if n > 0 and (not bestN or n > bestN or (n == bestN and z < best)) then
+         best, bestN = z, n
+      end
+   end
+   return best
+end
+Advisor.ZoneFromLearnedKills = ZoneFromLearnedKills
 
 -- Last resort: sweep every zone map looking for the quest's POI marker.
 -- Changes the displayed map, so only used on an actual Port click (which is
@@ -461,16 +487,17 @@ Advisor.IsWatched = IsWatched
 -- SetMapZoom the POI data is stale, so it false-positived on the first zone in
 -- the list (Alterac Mountains) for many unrelated quests.
 local function ResolveKill(name, ko, allowSweep)
+   -- Source order, most trustworthy first:
+   --   1. a zone we ship spawn data for, named in the text, or a curated override
+   --   2. where you have actually killed this objective before (ground truth)
+   --   3. any real zone named in the text  - a quest TITLE can be wrong
+   --   4. the quest log's zone header
+   --   5. a cached card zone - can still hold a pre-1.5.0 POI-sweep guess
    local zone, isDungeon, via = ZoneFromQuestText(ko)
-   -- The quest log's own zone header outranks a cached card zone: cardZones can
-   -- still hold a bad guess cached by the pre-1.5.0 POI sweep.
+   zone = zone or ZoneFromLearnedKills(name)
+   zone = zone or ZoneFromAnyMapName(ko)
    zone = zone or ZoneFromQuestHeader(ko.questIndex)
    zone = zone or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
-   if not zone and CBH.db and CBH.db.learnedKills then
-      for z, mobs in pairs(CBH.db.learnedKills) do
-         if mobs[name] and #mobs[name] > 0 then zone = z; break end
-      end
-   end
    if zone then
       if CBH.db and CBH.db.cardZones then CBH.db.cardZones[name] = zone end
       return zone, PointsForZone(zone), isDungeon, via
@@ -622,7 +649,8 @@ function Advisor.DumpObjectives()
          " watched=" .. tostring(IsWatched(ko.questIndex)))
       CBH.print("     cardZone=" .. tostring(cz) .. " textZone=" ..
          tostring(ZoneFromQuestText(ko)) .. " headerZone=" ..
-         tostring(ZoneFromQuestHeader(ko.questIndex)) .. " camp=" .. tostring(camp))
+         tostring(ZoneFromQuestHeader(ko.questIndex)) .. " killedIn="
+         .. tostring(ZoneFromLearnedKills(name)) .. " camp=" .. tostring(camp))
    end
    if not any then CBH.print("  (no kill objectives)") end
    CBH.print("Open the map & /cbh port to route by live POI (overrides the above).")

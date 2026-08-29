@@ -150,6 +150,27 @@ local function OnEvent(self, event, ...)
             CBH.db.checkpointBlock["ahn'kahet"] = true
             CBH.db.seededBlocks2 = true
          end
+         -- One-time repair: the pre-1.5.0 POI sweep cached its guesses into
+         -- cardZones, and its classic false positive was the first zone in the
+         -- continent list - Alterac Mountains. Real databases still carry those
+         -- (e.g. "Ingvar the Plunderer" and "Anub'arak", both dungeon bosses
+         -- nowhere near Alterac). They are landmines for any objective the
+         -- curated tables do not cover, so drop them once. Nothing is lost:
+         -- opening the callboard re-teaches a card zone the honest way.
+         if not CBH.db.purgedSweepZones then
+            local dropped = 0
+            for name, z in pairs(CBH.db.cardZones or {}) do
+               if z == "Alterac Mountains" then
+                  CBH.db.cardZones[name] = nil
+                  dropped = dropped + 1
+               end
+            end
+            CBH.db.purgedSweepZones = true
+            if dropped > 0 then
+               CBH.print("Cleared " .. dropped .. " stale zone guess"
+                  .. (dropped == 1 and "" or "es") .. " left by an old routing bug.")
+            end
+         end
       end
    elseif event == "PLAYER_LOGIN" then
       CBH.safeCall(CBH.Announce.Init)

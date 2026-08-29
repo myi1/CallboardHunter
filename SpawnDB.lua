@@ -175,6 +175,14 @@ local DUNGEON_ZONE = {
    -- Plaguelands) isn't pulled here. If Ebonhold has no Caverns of Time
    -- checkpoint the port just reports "no checkpoints" - still better than a
    -- wrong zone.
+   -- Instance/raid hubs seen in real callboard cards that are NOT map zones, so
+   -- SetMapByZoneName can never find them on its own (harvested from cardZones:
+   -- "Coilfang Myrmidon -> Coilfang Reservoir", "Sunseeker Channeler -> Tempest
+   -- Keep", plus kills recorded inside Ulduar).
+   ["coilfang reservoir"] = "Zangarmarsh", ["serpentshrine cavern"] = "Zangarmarsh",
+   ["tempest keep"] = "Netherstorm", ["the eye"] = "Netherstorm",
+   ["ulduar"] = "The Storm Peaks", ["naxxramas"] = "Dragonblight",
+   ["vault of archavon"] = "Wintergrasp", ["black temple"] = "Shadowmoon Valley",
    ["culling of stratholme"] = "Tanaris", ["salramm the fleshcrafter"] = "Tanaris",
    ["chrono-lord epoch"] = "Tanaris", ["mal'ganis"] = "Tanaris",
    ["meathook"] = "Tanaris", ["infinite corruptor"] = "Tanaris",

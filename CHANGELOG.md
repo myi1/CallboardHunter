@@ -4,6 +4,28 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.7.2] - 2026-08-29
+### Fixed
+- **Where you actually killed something now outranks what the quest title
+  claims.** The callboard hands out *"Thinning the Herd in Winterspring"*, but
+  its mobs are in **Wintergrasp** — 21 recorded kill points prove it. CBH trusted
+  the title and routed to Winterspring. Your own kill history is now consulted
+  before quest text, quest-log headers and cached card zones, since it is the
+  only source that comes from something you actually did. When an objective was
+  killed in more than one zone the one with the most recorded points wins, which
+  is also deterministic (the old scan picked an arbitrary one).
+- **Instance hubs that aren't map zones now route.** Real cards reference
+  *Coilfang Reservoir*, *Tempest Keep* and *Ulduar*, none of which the world map
+  can be pointed at. Added those plus Naxxramas, Vault of Archavon, Black Temple
+  and Serpentshrine Cavern.
+- **Stale "Alterac Mountains" guesses are cleared from your saved data once.**
+  The pre-1.5.0 POI sweep cached its bad guesses, and real databases still carry
+  them (`Ingvar the Plunderer`, `Anub'arak` — dungeon bosses nowhere near
+  Alterac). Nothing is lost: opening the callboard re-teaches a card zone
+  properly.
+### Changed
+- `/cbh obj` also reports `killedIn=` so every routing source is visible at once.
+
 ## [1.7.1] - 2026-08-29
 ### Fixed
 - **Objectives in zones with no bundled spawn data couldn't be routed.**
