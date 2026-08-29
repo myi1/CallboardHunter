@@ -4,6 +4,23 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.7.3] - 2026-08-29
+### Fixed
+- **The channel probe never could have received anything — that was our bug, not
+  the server's.** To stay silent it removed the channel from every chat frame,
+  but on 3.3.5 `CHAT_MSG_CHANNEL` only fires for channels *registered* to a chat
+  frame, so that killed the events too. It now registers the channel and hides
+  only the *display* with a message filter. A second defect: registration was
+  skipped whenever the (asynchronous) join hadn't resolved yet — it's now
+  unconditional, and re-running `/cbh probe join` repairs a lost registration.
+
+  Credit to **Zendan21's Ravioli Activity Finder**, which does server-wide sync
+  on Ebonhold using exactly this pattern; reading it is what exposed the mistake.
+### Changed
+- **Server-wide rare alerts are viable after all.** Two earlier verdicts here
+  ("channel sync is dead", then "guild scope only") were both wrong, and both
+  followed from this same broken test.
+
 ## [1.7.2] - 2026-08-29
 ### Fixed
 - **Where you actually killed something now outranks what the quest title

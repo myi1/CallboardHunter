@@ -68,23 +68,64 @@ local function ChannelIndex()
 end
 Comm.ChannelIndex = ChannelIndex
 
+-- Hide our own protocol chatter from the chat window WITHOUT unhooking the
+-- channel. Returning true from a message filter suppresses display only; the
+-- CHAT_MSG_CHANNEL event still fires, so the addon keeps receiving.
+local filterInstalled
+local function FilterProbeMessages(_, _, msg)
+   if type(msg) == "string" and string.sub(msg, 1, string.len(PREFIX)) == PREFIX then
+      return true -- swallow it visually
+   end
+   return false
+end
+
+-- Register the channel with a chat frame and install the display filter. MUST be
+-- called unconditionally, NOT gated on GetChannelName returning an index: the
+-- join is asynchronous, so right after JoinChannelByName the index is often
+-- still 0. Gating on it skips registration entirely, and an unregistered channel
+-- delivers no CHAT_MSG_CHANNEL events - which is how the transport looked dead.
+local function Register()
+   if DEFAULT_CHAT_FRAME and ChatFrame_AddChannel then
+      pcall(ChatFrame_AddChannel, DEFAULT_CHAT_FRAME, CHANNEL)
+   end
+   if not filterInstalled and ChatFrame_AddMessageEventFilter then
+      pcall(ChatFrame_AddMessageEventFilter, "CHAT_MSG_CHANNEL", FilterProbeMessages)
+      filterInstalled = true
+   end
+end
+
 function Comm.Join()
+   -- Re-running join is a repair: it re-registers a channel whose chat-frame
+   -- hook was lost (or never landed because the join was still in flight).
    if ChannelIndex() then
-      CBH.print("Probe: already in the channel (index " .. ChannelIndex() .. ").")
+      Register()
+      CBH.print("Probe: already in the channel (index " .. ChannelIndex()
+         .. "); re-registered it for receiving.")
       return
    end
-   JoinTemporaryChannel(CHANNEL)
-   if ChatFrame_RemoveChannel then
-      for i = 1, NUM_CHAT_WINDOWS or 7 do
-         local f = _G["ChatFrame" .. i]
-         if f then pcall(ChatFrame_RemoveChannel, f, CHANNEL) end
-      end
+   -- CRITICAL, and the reason the first channel test produced a false negative:
+   -- on 3.3.5 CHAT_MSG_CHANNEL only fires for channels registered to a chat
+   -- frame. The probe used to JoinTemporaryChannel and then call
+   -- ChatFrame_RemoveChannel on every frame to stay silent - which silenced the
+   -- EVENTS too, so nothing could ever be received. Ravioli Activity Finder
+   -- (Zendan21) does it correctly: join bound to a chat frame, register the
+   -- channel, and suppress only the DISPLAY with a message filter.
+   local chatFrameID = (DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.GetID
+      and DEFAULT_CHAT_FRAME:GetID()) or 1
+   if JoinChannelByName then
+      JoinChannelByName(CHANNEL, nil, chatFrameID)
+   elseif JoinTemporaryChannel then
+      JoinTemporaryChannel(CHANNEL)
    end
+   Register()
    local idx = ChannelIndex()
-   CBH.Log("comm", "JOIN channel -> index " .. tostring(idx))
+   CBH.Log("comm", "JOIN channel -> index " .. tostring(idx)
+      .. " (registered to chat frame " .. tostring(chatFrameID) .. ")")
    CBH.print("Probe: joined the channel"
-      .. (idx and (" (index " .. idx .. ")") or " - /cbh probe status to confirm")
-      .. ". Note: channel transports already tested negative here.")
+      .. (idx and (" (index " .. idx .. ")") or " - run /cbh probe join again in a"
+          .. " moment to confirm; the join takes a second to land")
+      .. ". Our messages are hidden from chat but still received."
+      .. " /cbh probe leave when done.")
 end
 
 function Comm.Leave()

@@ -1,7 +1,7 @@
 # CallboardHunter — channel transport probe
 
 **Date:** 2026-08-29
-**Status:** implemented (v1.6.0), awaiting in-game result
+**Status:** implemented (v1.6.0). First channel result was a FALSE NEGATIVE caused by this addon's own code - see Round 3.
 
 ## Problem
 
@@ -165,3 +165,33 @@ Once the transport is known, the sync design must address:
   lands inside the dedupe radius (points become `{x, y, n}`; legacy 2-element
   points read as `n = 1`), so corroboration is measurable both locally and across
   contributors.
+
+## Round 3: the channel result was our own bug (v1.7.3)
+
+`/cbh probe join` used `JoinTemporaryChannel` and then called
+`ChatFrame_RemoveChannel` on every chat frame, to keep the probe silent. On
+3.3.5 **`CHAT_MSG_CHANNEL` only fires for channels registered to a chat frame** -
+so that removed the events along with the display. The transport could never
+have worked, and "the server drops these" was wrong.
+
+Found by reading **Ravioli Activity Finder** (Zendan21, Ebonhold `addons`
+forum), which does server-wide listing sync on this exact server:
+
+| Step | Ravioli | old probe |
+|---|---|---|
+| Join | `JoinChannelByName(name, nil, chatFrameID)` | `JoinTemporaryChannel` |
+| Register | `ChatFrame_AddChannel` | `ChatFrame_RemoveChannel` (fatal) |
+| Stay quiet | `ChatFrame_AddMessageEventFilter` (hides display only) | - |
+| Send | `SendChatMessage(msg, "CHANNEL", nil, id)` | same |
+| Pace | outbound queue, 0.5s per message | 2s floor |
+
+A second defect was found while fixing it: registration was gated on
+`GetChannelName` returning an index, but the join is asynchronous, so the index
+is usually still 0 immediately after joining - skipping registration entirely.
+`Register()` is now unconditional, and re-running `/cbh probe join` repairs a
+lost registration.
+
+**Consequence: server-wide rare alerts are viable after all.** Chat-on-a-custom-
+channel is the proven transport here, and it reaches everyone running the addon
+rather than only a guild. The trust model from the follow-up section matters
+again, since senders are not necessarily people you know.
