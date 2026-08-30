@@ -130,46 +130,76 @@ for zone in pairs(ZONE_SIZE) do SpawnDB.ZONES[zone] = true end
 -- Pinnacle both map to Howling Fjord, so the zone does not identify the dungeon.
 -- DUNGEON_ZONE below is derived from this, so routing behaviour is unchanged.
 local DUNGEONS = {
-   ["Utgarde Keep"] = { zone = "Howling Fjord", bosses = {
+   -- kind: "dungeon" (5-man) or "raid". Both are automated identically; the kind
+   -- is what lets the card catalogue bucket objectives the way the server does
+   -- (Maerys's "The Whole Board" asks for one of each TYPE: open world, dungeon,
+   -- raid, ...), and it keeps 5-man and raid bosses of the same name apart.
+   ["Utgarde Keep"] = { zone = "Howling Fjord", kind = "dungeon", bosses = {
       "Prince Keleseth", "Skarvald", "Dalronn", "Ingvar the Plunderer" } },
-   ["Utgarde Pinnacle"] = { zone = "Howling Fjord", bosses = {
+   ["Utgarde Pinnacle"] = { zone = "Howling Fjord", kind = "dungeon", bosses = {
       "Svala Sorrowgrave", "Gortok Palehoof", "Skadi the Ruthless", "King Ymiron" } },
-   ["The Nexus"] = { zone = "Borean Tundra", bosses = {
+   ["The Nexus"] = { zone = "Borean Tundra", kind = "dungeon", bosses = {
       "Grand Magus Telestra", "Anomalus", "Ormorok", "Keristrasza" } },
-   ["The Oculus"] = { zone = "Borean Tundra", bosses = {
+   ["The Oculus"] = { zone = "Borean Tundra", kind = "dungeon", bosses = {
       "Drakos", "Varos Cloudstrider", "Mage-Lord Urom", "Ley-Guardian Eregos" } },
-   ["Azjol-Nerub"] = { zone = "Dragonblight", bosses = {
+   ["Azjol-Nerub"] = { zone = "Dragonblight", kind = "dungeon", bosses = {
       "Krik'thir", "Hadronox", "Anub'arak" } },
-   ["Ahn'kahet"] = { zone = "Dragonblight", aliases = { "The Old Kingdom" }, bosses = {
-      "Elder Nadox", "Prince Taldaram", "Jedoga Shadowseeker", "Herald Volazj" } },
-   ["Drak'Tharon Keep"] = { zone = "Grizzly Hills", bosses = {
+   ["Ahn'kahet"] = { zone = "Dragonblight", kind = "dungeon", aliases = { "The Old Kingdom" },
+      bosses = { "Elder Nadox", "Prince Taldaram", "Jedoga Shadowseeker", "Herald Volazj" } },
+   ["Drak'Tharon Keep"] = { zone = "Grizzly Hills", kind = "dungeon", bosses = {
       "Trollgore", "Novos the Summoner", "King Dred", "The Prophet Tharon'ja" } },
-   ["Gundrak"] = { zone = "Zul'Drak", bosses = {
+   ["Gundrak"] = { zone = "Zul'Drak", kind = "dungeon", bosses = {
       "Slad'ran", "Drakkari Colossus", "Moorabi", "Gal'darah", "Eck the Ferocious" } },
-   ["Halls of Stone"] = { zone = "The Storm Peaks", bosses = {
+   ["Halls of Stone"] = { zone = "The Storm Peaks", kind = "dungeon", bosses = {
       "Krystallus", "Maiden of Grief", "Sjonnir the Ironshaper" } },
-   ["Halls of Lightning"] = { zone = "The Storm Peaks", bosses = {
+   ["Halls of Lightning"] = { zone = "The Storm Peaks", kind = "dungeon", bosses = {
       "General Bjarngrim", "Volkhan", "Ionar", "Loken" } },
-   ["The Violet Hold"] = { zone = "Dalaran", bosses = {
+   ["The Violet Hold"] = { zone = "Dalaran", kind = "dungeon", bosses = {
       "Cyanigosa", "Erekem", "Xevozz", "Zuramat", "Ichoron", "Moragg", "Lavanthor" } },
-   ["Trial of the Champion"] = { zone = "Icecrown", bosses = {
+   ["Trial of the Champion"] = { zone = "Icecrown", kind = "dungeon", bosses = {
       "Eadric the Pure", "Argent Confessor Paletress", "The Black Knight" } },
-   ["The Forge of Souls"] = { zone = "Icecrown", bosses = {
+   ["The Forge of Souls"] = { zone = "Icecrown", kind = "dungeon", bosses = {
       "Bronjahm", "Devourer of Souls" } },
-   ["Pit of Saron"] = { zone = "Icecrown", bosses = {
+   ["Pit of Saron"] = { zone = "Icecrown", kind = "dungeon", bosses = {
       "Forgemaster Garfrost", "Krick", "Scourgelord Tyrannus" } },
-   ["Halls of Reflection"] = { zone = "Icecrown", bosses = { "Falric", "Marwyn" } },
-   ["The Culling of Stratholme"] = { zone = "Tanaris", aliases = { "Culling of Stratholme" },
+   ["Halls of Reflection"] = { zone = "Icecrown", kind = "dungeon", bosses = {
+      "Falric", "Marwyn" } },
+   ["The Culling of Stratholme"] = { zone = "Tanaris", kind = "dungeon",
+      aliases = { "Culling of Stratholme" },
       bosses = { "Salramm the Fleshcrafter", "Chrono-Lord Epoch", "Mal'Ganis",
                  "Meathook", "Infinite Corruptor" } },
-   -- Raid/instance hubs that appear in real callboard cards but are not map
-   -- zones, so the world map can never be pointed at them directly.
-   ["Coilfang Reservoir"] = { zone = "Zangarmarsh", aliases = { "Serpentshrine Cavern" }, bosses = {} },
-   ["Tempest Keep"] = { zone = "Netherstorm", aliases = { "The Eye" }, bosses = {} },
-   ["Ulduar"] = { zone = "The Storm Peaks", bosses = {} },
-   ["Naxxramas"] = { zone = "Dragonblight", bosses = {} },
-   ["Vault of Archavon"] = { zone = "Wintergrasp", bosses = {} },
-   ["Black Temple"] = { zone = "Shadowmoon Valley", bosses = {} },
+
+   -- Raids. Bosses matter here for the same reason they do in 5-mans: a card may
+   -- name only the boss ("Wanted: Festergut") and never the raid. These carried
+   -- EMPTY boss lists until now, which is why raid automation could not match.
+   ["Naxxramas"] = { zone = "Dragonblight", kind = "raid", bosses = {
+      "Anub'Rekhan", "Grand Widow Faerlina", "Maexxna", "Noth the Plaguebringer",
+      "Heigan the Unclean", "Loatheb", "Instructor Razuvious", "Gothik the Harvester",
+      "Patchwerk", "Grobbulus", "Gluth", "Thaddius", "Sapphiron", "Kel'Thuzad" } },
+   ["Ulduar"] = { zone = "The Storm Peaks", kind = "raid", bosses = {
+      "Flame Leviathan", "Ignis the Furnace Master", "Razorscale", "XT-002 Deconstructor",
+      "Kologarn", "Auriaya", "Hodir", "Thorim", "Freya", "Mimiron", "General Vezax",
+      "Yogg-Saron", "Algalon the Observer" } },
+   ["Icecrown Citadel"] = { zone = "Icecrown", kind = "raid", bosses = {
+      "Lord Marrowgar", "Lady Deathwhisper", "Deathbringer Saurfang", "Festergut",
+      "Rotface", "Professor Putricide", "Blood-Queen Lana'thel", "Valithria Dreamwalker",
+      "Sindragosa", "The Lich King" } },
+   ["Trial of the Crusader"] = { zone = "Icecrown", kind = "raid", bosses = {
+      "Lord Jaraxxus", "Icehowl", "Gormok the Impaler" } },
+   ["Vault of Archavon"] = { zone = "Wintergrasp", kind = "raid", bosses = {
+      "Archavon the Stone Watcher", "Emalon the Storm Watcher",
+      "Koralon the Flame Watcher", "Toravon the Ice Watcher" } },
+   ["The Obsidian Sanctum"] = { zone = "Dragonblight", kind = "raid", bosses = {
+      "Sartharion", "Tenebron", "Shadron", "Vesperon" } },
+   ["The Eye of Eternity"] = { zone = "Borean Tundra", kind = "raid", bosses = { "Malygos" } },
+   ["The Ruby Sanctum"] = { zone = "Dragonblight", kind = "raid", bosses = { "Halion" } },
+   ["Onyxia's Lair"] = { zone = "Dustwallow Marsh", kind = "raid", bosses = { "Onyxia" } },
+   -- Outland raid hubs seen in real callboard cards; the hub name is what the
+   -- cards use, so no boss list is needed.
+   ["Coilfang Reservoir"] = { zone = "Zangarmarsh", kind = "raid",
+      aliases = { "Serpentshrine Cavern" }, bosses = {} },
+   ["Tempest Keep"] = { zone = "Netherstorm", kind = "raid", aliases = { "The Eye" }, bosses = {} },
+   ["Black Temple"] = { zone = "Shadowmoon Valley", kind = "raid", bosses = {} },
 }
 
 -- Derived: every dungeon name, alias and boss name -> its zone. Keys are matched
@@ -187,6 +217,48 @@ for dungeon, info in pairs(DUNGEONS) do
 end
 
 SpawnDB.DUNGEONS = DUNGEONS
+
+-- Which instance (if any) does this text name, and is it a dungeon or a raid?
+-- Returns instanceName, kind. The LONGEST matching name wins, so "Icecrown
+-- Citadel" is not mistaken for a stray "Icecrown", and a boss shared between a
+-- 5-man and a raid resolves to whichever name matched more specifically.
+function SpawnDB.InstanceInText(text)
+   if not text then return nil end
+   local lt = string.lower(text)
+   local best, bestKind, bestLen
+   for name, info in pairs(DUNGEONS) do
+      local cands = { name }
+      for _, a in ipairs(info.aliases or {}) do cands[#cands + 1] = a end
+      for _, b in ipairs(info.bosses or {}) do cands[#cands + 1] = b end
+      for _, c in ipairs(cands) do
+         if string.find(lt, string.lower(c), 1, true) then
+            if not bestLen or string.len(c) > bestLen then
+               best, bestKind, bestLen = name, info.kind or "dungeon", string.len(c)
+            end
+         end
+      end
+   end
+   return best, bestKind
+end
+
+-- The callboard's objective taxonomy, as far as it can be observed. Maerys's
+-- "The Whole Board" asks for one objective "of each type - open world, dungeon,
+-- ...", so the server groups them, but the full vocabulary is not visible to an
+-- addon. These are therefore derived from card SHAPE, and anything unrecognised
+-- is kept as "other" rather than discarded:
+--   raid / dungeon  - names an instance we know, or one of its bosses
+--   collection      - "Collect 40 Icethorn."
+--   open world      - "Kill 10 X in <zone>." or "<X> slain"
+function SpawnDB.ClassifyCard(text)
+   if not text or text == "" then return "other" end
+   local _, kind = SpawnDB.InstanceInText(text)
+   if kind then return kind end
+   local lt = string.lower(text)
+   if string.find(lt, "^collect%s+%d") then return "collection" end
+   if SpawnDB.FindMapZoneIn and SpawnDB.FindMapZoneIn(text) then return "open world" end
+   if string.find(lt, "slain") or string.find(lt, "^kill%s+%d") then return "open world" end
+   return "other"
+end
 
 -- Does this text name the dungeon itself, or one of its bosses? Used to decide
 -- whether a callboard card belongs to the instance the player is standing in.

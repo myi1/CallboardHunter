@@ -4,6 +4,30 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.4] - 2026-08-30
+### Added
+- **Raid callboard automation.** `IsInInstance()` already reported raids, but the
+  raid entries carried **empty boss lists** — so a card naming only its boss
+  ("Wanted: Festergut") could never match and the automation sat idle. Naxxramas,
+  Ulduar, Icecrown Citadel, Trial of the Crusader, Vault of Archavon, Obsidian
+  Sanctum, Eye of Eternity, Ruby Sanctum and Onyxia's Lair now carry their bosses.
+- **The catalogue buckets by objective type** — `open world`, `dungeon`, `raid`,
+  `collection`, `other` — matching how the server groups them (Maerys's "The
+  Whole Board" asks for one of each type). `/cbh catalogue` summarises per type
+  and `dump` lists them grouped. Entries recorded before types existed are
+  classified on read, so nothing needs migrating.
+
+  The vocabulary beyond "open world" and "dungeon" isn't visible to an addon, so
+  types are derived from card *shape*; anything unrecognised is kept as `other`
+  rather than discarded.
+### Changed
+- **Raid bosses are now routable, which changes the Port button for ordinary raid
+  quests.** `Anub'Rekhan slain: 0/1` (Naxxramas) previously resolved to nothing
+  and the button fell back to `Port: Home`; it now reads `Port: Dragonblight`,
+  because that is where Naxxramas is. This is a deliberate consequence of adding
+  raid data — CBH still cannot tell a callboard quest from an ordinary one, so it
+  routes what it can place and offers Home only when it genuinely cannot.
+
 ## [1.9.3] - 2026-08-30
 ### Added
 - **`tools/wdbquests.js`** — pulls quest text out of the client's own cache.

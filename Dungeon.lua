@@ -1,4 +1,6 @@
--- CallboardHunter Dungeon: callboard automation inside instances.
+-- CallboardHunter Dungeon: callboard automation inside instances -- 5-man
+-- dungeons AND raids. IsInInstance() already reported both; what was missing was
+-- raid boss data, so a raid card naming only its boss could never match.
 --
 -- Summon Callboard (donation-shop spell) drops a board anywhere, including in a
 -- dungeon. This runs the tedious part: reroll until the card for THIS dungeon
@@ -66,7 +68,7 @@ function D.ReadCards()
    return out
 end
 
--- Which card (if any) is for the dungeon we are in. Prefers a card that names
+-- Which card (if any) is for the instance we are in (dungeon or raid). Prefers a card that names
 -- the instance outright ("Slay X in Utgarde Keep"), then one naming a boss of
 -- it - a boss is decisive because SpawnDB knows bosses per DUNGEON, so Utgarde
 -- Keep and Utgarde Pinnacle are not confused despite sharing a zone.
@@ -335,7 +337,7 @@ function D.OnZoneChanged()
    D.announced = instance
    if Opt("dungeonAuto", false) then
       CBH.print(instance .. ": cast Summon Callboard and CBH will reroll to this"
-         .. " dungeon's quest, accept it, and share it with the group.")
+         .. " instance's quest, accept it, and share it with the group.")
       return
    end
    local o = CBH.db and CBH.db.options
@@ -343,7 +345,7 @@ function D.OnZoneChanged()
    if shown >= OFF_HINTS then return end
    if o then o.dungeonHintsShown = shown + 1 end
    CBH.print(instance .. ": callboard automation is OFF. /cbh dungeon on lets CBH"
-      .. " reroll the board to this dungeon's quest, accept it and share it."
+      .. " reroll the board to this instance's quest, accept it and share it."
       .. " (" .. (OFF_HINTS - shown - 1) .. " more reminder"
       .. ((OFF_HINTS - shown - 1) == 1 and "" or "s") .. ".)")
 end

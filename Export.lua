@@ -97,32 +97,60 @@ function CBH.RecordCard(text)
    if count >= CATALOGUE_CAP then return end
    local lvl = UnitLevel and UnitLevel("player")
    cat[key] = { n = 1, lo = lvl, hi = lvl,
+                -- Bucket by the callboard's own notion of objective type, so the
+                -- pooled data can answer "one of each type" the way Maerys does.
+                kind = CBH.SpawnDB and CBH.SpawnDB.ClassifyCard
+                   and CBH.SpawnDB.ClassifyCard(key) or nil,
                 where = (GetRealZoneText and GetRealZoneText()) or nil,
                 at = date("%Y-%m-%d") }
 end
 
 -- /cbh catalogue [dump]
+local KIND_ORDER = { "open world", "dungeon", "raid", "collection", "other" }
+
 function CBH.Catalogue(arg)
    local cat = (CBH.db and CBH.db.cardCatalogue) or {}
-   local keys = {}
-   for k in pairs(cat) do keys[#keys + 1] = k end
-   table.sort(keys)
+   local byKind, keys = {}, {}
+   for k, e in pairs(cat) do
+      keys[#keys + 1] = k
+      -- Classify on read too, so entries recorded before types existed bucket
+      -- correctly without needing a migration.
+      local kind = e.kind
+      if not kind and CBH.SpawnDB and CBH.SpawnDB.ClassifyCard then
+         kind = CBH.SpawnDB.ClassifyCard(k)
+         e.kind = kind
+      end
+      kind = kind or "other"
+      byKind[kind] = byKind[kind] or {}
+      table.insert(byKind[kind], k)
+   end
    if #keys == 0 then
       CBH.print("No cards catalogued yet - open an Objectives Board and they"
          .. " record themselves.")
       return
    end
-   if string.lower(arg or "") == "dump" then
-      for _, k in ipairs(keys) do
-         local e = cat[k]
-         DEFAULT_CHAT_FRAME:AddMessage("  [" .. tostring(e.lo or "?")
-            .. (e.hi and e.hi ~= e.lo and ("-" .. e.hi) or "") .. "] " .. k
-            .. " (x" .. tostring(e.n or 1) .. ")")
+   local dump = string.lower(arg or "") == "dump"
+   local counts = {}
+   for _, kind in ipairs(KIND_ORDER) do
+      local list = byKind[kind]
+      if list then
+         table.sort(list)
+         counts[#counts + 1] = kind .. " " .. #list
+         if dump then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99" .. string.upper(kind)
+               .. "|r (" .. #list .. ")")
+            for _, k in ipairs(list) do
+               local e = cat[k]
+               DEFAULT_CHAT_FRAME:AddMessage("  [" .. tostring(e.lo or "?")
+                  .. (e.hi and e.hi ~= e.lo and ("-" .. e.hi) or "") .. "] " .. k
+                  .. " (x" .. tostring(e.n or 1) .. ")")
+            end
+         end
       end
    end
    CBH.print(#keys .. " distinct card" .. (#keys == 1 and "" or "s")
-      .. " catalogued." .. (string.lower(arg or "") == "dump" and ""
-         or " /cbh catalogue dump to list them.") .. " They ride along with /cbh export.")
+      .. " catalogued - " .. table.concat(counts, ", ") .. ".")
+   if not dump then CBH.print("/cbh catalogue dump to list them by type.") end
 end
 
 function CBH.Export(arg)
