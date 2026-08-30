@@ -4,6 +4,23 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.3] - 2026-08-30
+### Added
+- **`tools/wdbquests.js`** — pulls quest text out of the client's own cache.
+  `questcache.wdb` holds full id/title/objectives/description for everything the
+  client was shown, written on a clean exit — and the client **deletes the entire
+  `Cache\` directory on the next launch**, so it is a snapshot that destroys
+  itself. This merges one snapshot into a pool file that persists, so playing
+  normally accumulates the callboard list instead of discarding it every session.
+
+  Re-running enriches rather than duplicates, callboard quests are tagged (id
+  range, `Wanted:` title, or the "custom objective" marker), and the summary
+  reports how much of the id span has been sampled. `--selftest` verifies the
+  parser against a synthetic cache. Run it right after exiting the game.
+
+  Confirmed working against a real cache: `600637 Wanted: Loken — "Slay Loken in
+  Halls of Lightning." / "Loken slain"`.
+
 ## [1.9.2] - 2026-08-30
 ### Fixed
 - **Callboards summoned inside a dungeon were remembered as places to travel
