@@ -16,6 +16,9 @@ local DEFAULTS = {
       -- which is the player's call to make knowingly. See Dungeon.lua.
       dungeonAuto = false, dungeonRerollMax = 10, dungeonGoldReserve = 0,
       dungeonHintsShown = 0,
+      -- Route only objectives the callboard actually gave you (see
+      -- CBH.IsCallboardObjective). Auto-inactive until a board has been seen.
+      callboardOnly = true,
       dungeonShare = true },
    learned = {},      -- rare sightings: [zone][npcID/name] = {points}
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
@@ -82,6 +85,49 @@ function CBH.IsBlockedCheckpoint(name)
       if key ~= "" and string.find(low, key, 1, true) then return true end
    end
    return false
+end
+
+-- Was this objective handed out by the callboard?
+--
+-- CBH recognises any "<name> slain: n/m" objective, which also matches ordinary
+-- quests - Naxxramas' "Anub'Rekhan slain: 0/1", for one. Until the card
+-- catalogue existed there was no way to tell them apart, so the Port button
+-- would happily route an ordinary raid quest. Now there is: an objective counts
+-- as callboard work if we have actually SEEN it on a board.
+--
+-- Two sources, both populated by opening boards:
+--   cardZones      - objective name -> zone, harvested per card
+--   cardCatalogue  - full card text, so a name appearing inside one counts
+function CBH.IsCallboardObjective(name)
+   if not (name and name ~= "" and CBH.db) then return false end
+   if CBH.db.cardZones and CBH.db.cardZones[name] then return true end
+   local cat = CBH.db.cardCatalogue
+   if cat then
+      local low = string.lower(name)
+      for text in pairs(cat) do
+         if string.find(string.lower(text), low, 1, true) then return true end
+      end
+   end
+   return false
+end
+
+-- How many callboard objectives we know of at all. Zero means the filter has no
+-- data to work with, and a filter with no data would hide EVERYTHING - so
+-- callboard-only mode stays inactive until at least one board has been seen.
+-- This is what stops a fresh install from showing a permanently dead button.
+function CBH.KnownCallboardCount()
+   local n = 0
+   if not CBH.db then return 0 end
+   for _ in pairs(CBH.db.cardZones or {}) do n = n + 1 end
+   for _ in pairs(CBH.db.cardCatalogue or {}) do n = n + 1 end
+   return n
+end
+
+-- Should the Port button ignore objectives the callboard never gave you?
+function CBH.CallboardOnlyActive()
+   local o = CBH.db and CBH.db.options
+   if not o or o.callboardOnly == false then return false end
+   return CBH.KnownCallboardCount() > 0
 end
 
 -- Is this somewhere the Port: Callboard button could actually bring you back to?
@@ -327,6 +373,16 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
    elseif cmd == "dungeon" then
       if CBH.Dungeon and CBH.Dungeon.Command then CBH.safeCall(CBH.Dungeon.Command, arg)
       else CBH.print("Dungeon module unavailable.") end
+   elseif cmd == "cbonly" then
+      CBH.db.options.callboardOnly = (string.lower(arg or "") ~= "off")
+      local n = CBH.KnownCallboardCount()
+      CBH.print("Callboard-only routing "
+         .. (CBH.db.options.callboardOnly and "ON" or "OFF")
+         .. " - " .. (CBH.db.options.callboardOnly
+            and ("the Port button ignores quests the callboard never gave you ("
+                 .. n .. " known)." .. (n == 0 and " No boards seen yet, so it is"
+                 .. " inactive until you open one." or ""))
+            or "every tracked objective is routable again."))
    elseif cmd == "catalogue" or cmd == "catalog" then
       if CBH.Catalogue then CBH.safeCall(CBH.Catalogue, arg) end
    elseif cmd == "export" then
@@ -435,6 +491,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | catalogue | probe | dungeon | reset")
+      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | catalogue | cbonly | probe | dungeon | reset")
    end
 end

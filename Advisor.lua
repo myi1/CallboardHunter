@@ -157,8 +157,11 @@ local function AnyObjectiveActive()
    for _, info in pairs(CBH.hotZones or {}) do
       if not info.done then return true end
    end
-   for _, ko in pairs(CBH.killObjectives or {}) do
-      if not ko.need or (ko.have or 0) < ko.need then return true end
+   local cbOnly = CBH.CallboardOnlyActive and CBH.CallboardOnlyActive()
+   for name, ko in pairs(CBH.killObjectives or {}) do
+      if not ko.need or (ko.have or 0) < ko.need then
+         if not cbOnly or CBH.IsCallboardObjective(name) then return true end
+      end
    end
    return false
 end
@@ -578,8 +581,13 @@ local function ResolveDestination(zoneArg, allowSweep)
             w = IsWatched(info.questIndex) and 1 or 0 }
       end
    end
+   -- Callboard-only mode: an ordinary quest that happens to match
+   -- "<name> slain: n/m" is not callboard work, so it must not steer the Port
+   -- button. Inactive until at least one board has been seen.
+   local cbOnly = CBH.CallboardOnlyActive and CBH.CallboardOnlyActive()
    for name, ko in pairs(CBH.killObjectives or {}) do
-      if not ko.need or (ko.have or 0) < ko.need then
+      if (not ko.need or (ko.have or 0) < ko.need)
+         and (not cbOnly or CBH.IsCallboardObjective(name)) then
          cands[#cands + 1] = { kind = "kill", name = name, ko = ko,
             qi = ko.questIndex, w = IsWatched(ko.questIndex) and 1 or 0 }
       end

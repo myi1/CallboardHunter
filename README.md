@@ -73,6 +73,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh block <name>` / `unblock <name>` / `blocked` | exclude checkpoints that drop you inside an instance from auto-routing |
 | `/cbh dungeon on｜off` | dungeon callboard automation: reroll to the dungeon's card, accept, share (off by default) |
 | `/cbh dungeon rerolls <n｜unlimited>` / `reserve <gold>` / `share on｜off` | bound the reroll loop |
+| `/cbh cbonly` / `cbonly off` | route only objectives the callboard actually gave you (default on) |
 | `/cbh catalogue` / `catalogue dump` | every distinct callboard card seen, with its level band (ships with the export) |
 | `/cbh export` / `export clear` | package your learned rare + camp points for sharing (then `/reload`), or remove the export |
 | `/cbh probe join｜send｜send chat｜status｜leave` | channel transport probe — tests whether clients can talk to each other (opt-in; never auto-joins) |

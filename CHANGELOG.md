@@ -4,6 +4,24 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.5] - 2026-08-30
+### Added
+- **Callboard-only routing** (`/cbh cbonly`, on by default). The Port button now
+  ignores objectives the callboard never gave you. CBH recognises any
+  `<name> slain: n/m` objective, which also matches ordinary quests — so
+  Naxxramas' `Anub'Rekhan slain: 0/1` was steering the button. It now routes only
+  objectives it has actually **seen on a board**, using `cardZones` and the card
+  catalogue as evidence; everything else falls through to `Port: Home`.
+
+  **It stays inactive until at least one board has been seen.** A filter with no
+  data would hide everything, so a fresh install behaves exactly as before and
+  starts filtering only once it has something to filter on. `/cbh cbonly off`
+  restores the old behaviour.
+
+  This is what the 1.9.4 note asked about: `Anub'Rekhan` goes back to
+  `Port: Home`, while genuine callboard work like *Flame Revenant* still routes
+  to Fordragon Hold.
+
 ## [1.9.4] - 2026-08-30
 ### Added
 - **Raid callboard automation.** `IsInInstance()` already reported raids, but the
