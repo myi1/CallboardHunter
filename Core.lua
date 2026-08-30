@@ -88,38 +88,49 @@ function CBH.IsBlockedCheckpoint(name)
    return false
 end
 
--- Was this objective handed out by the callboard?
+-- Was this quest handed out by the callboard?
 --
--- CBH recognises any "<name> slain: n/m" objective, which also matches ordinary
--- quests - Naxxramas' "Anub'Rekhan slain: 0/1", for one. Until the card
--- catalogue existed there was no way to tell them apart, so the Port button
--- would happily route an ordinary raid quest. Now there is: an objective counts
--- as callboard work if we have actually SEEN it on a board.
+-- Judged on the QUEST TITLE against the card catalogue, which is the only store
+-- written exclusively by looking at a board. Two earlier attempts were wrong:
 --
--- Two sources, both populated by opening boards:
---   cardZones      - objective name -> zone, harvested per card
---   cardCatalogue  - full card text, so a name appearing inside one counts
-function CBH.IsCallboardObjective(name)
-   if not (name and name ~= "" and CBH.db) then return false end
-   if CBH.db.cardZones and CBH.db.cardZones[name] then return true end
-   local cat = CBH.db.cardCatalogue
-   if cat then
-      local low = string.lower(name)
-      for text in pairs(cat) do
-         if string.find(string.lower(text), low, 1, true) then return true end
+--   * cardZones as evidence - it is also written by resolution caching, so it
+--     ended up claiming things the callboard never offered. (That writeback is
+--     gone now, restoring its documented "harvested from cards" meaning.)
+--   * matching the TARGET name - "The Maddening Deep" (a Maerys meta-quest) and
+--     the callboard's "Topple the Tyrant: Yogg-Saron" name the same boss, so the
+--     meta-quest passed the filter and steered the Port button to Ulduar.
+--
+-- The objective name is accepted as a fallback only when there is no title.
+function CBH.IsCallboardQuest(title, name)
+   local cat = CBH.db and CBH.db.cardCatalogue
+   if not cat then return false end
+   local probe = title
+   if not probe or probe == "" then probe = name end
+   if not probe or probe == "" then return false end
+   probe = string.lower(probe)
+   for text in pairs(cat) do
+      local lt = string.lower(text)
+      -- Either direction: a card may carry more text than the quest title, or
+      -- the title may be the longer of the two.
+      if string.find(lt, probe, 1, true) or string.find(probe, lt, 1, true) then
+         return true
       end
    end
    return false
 end
 
--- How many callboard objectives we know of at all. Zero means the filter has no
--- data to work with, and a filter with no data would hide EVERYTHING - so
--- callboard-only mode stays inactive until at least one board has been seen.
--- This is what stops a fresh install from showing a permanently dead button.
+-- Back-compat shim for callers that only have a name.
+function CBH.IsCallboardObjective(name)
+   return CBH.IsCallboardQuest(nil, name)
+end
+
+-- How many cards we have actually seen. Only the catalogue counts: it is the
+-- one store written solely by reading a board. Zero means the filter has no
+-- evidence, and a filter with no evidence would hide EVERYTHING - so
+-- callboard-only mode stays inactive until a board has been opened.
 function CBH.KnownCallboardCount()
    local n = 0
    if not CBH.db then return 0 end
-   for _ in pairs(CBH.db.cardZones or {}) do n = n + 1 end
    for _ in pairs(CBH.db.cardCatalogue or {}) do n = n + 1 end
    return n
 end

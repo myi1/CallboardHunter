@@ -74,6 +74,8 @@ function CBH.RecordCard(text)
    if not (CBH.db and text) or text == "" then return end
    -- Cards carry live progress ("0/10"), which would make every tick a new
    -- entry. Normalise counters out so one card is one entry.
+   -- Never catalogue our own annotations (they carry colour escapes).
+   if string.find(text, "|c", 1, true) then return end
    local key = string.gsub(text, "%d+%s*/%s*%d+", "#/#")
    key = string.gsub(key, "^%s+", "")
    key = string.gsub(key, "%s+$", "")

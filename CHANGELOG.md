@@ -4,6 +4,26 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.7] - 2026-08-30
+### Fixed
+- **`Port: The Storm Peaks` with no callboard quest active.** The callboard-only
+  filter added in 1.9.5 judged an objective by its **target name**, so Maerys's
+  *"The Maddening Deep"* (defeat Yogg-Saron in Ulduar) passed — the callboard
+  does offer a *"Topple the Tyrant: Yogg-Saron"* card, and both name the same
+  boss. It now judges the **quest title**, which tells the two apart, so the
+  meta-quest falls through to `Port: Home` while the real board contract still
+  routes.
+- **`cardZones` was being written by resolution caching**, not just by reading
+  cards — despite being documented as "harvested from callboard cards". That made
+  it claim objectives the callboard never offered, and 1.9.5 then trusted it as
+  evidence. The writeback is gone and the filter now takes evidence only from the
+  card catalogue, which nothing but a board writes to.
+- **CBH was cataloguing its own card annotations.** `CardTexts` read every
+  FontString on a card including the note CBH draws on it, so entries like
+  `|cffaaaaaaDungeon/raid: Ulduar|r` were recorded as callboard text. Our own note
+  is skipped, coloured text is refused outright, and existing entries are cleared
+  from your catalogue once.
+
 ## [1.9.6] - 2026-08-30
 ### Fixed
 - **`Port: Home` to Dalaran failed with "No checkpoints found".** Dalaran floats

@@ -23,7 +23,10 @@ local function CardTexts(card)
    local texts = {}
    for i = 1, select("#", card:GetRegions()) do
       local r = select(i, card:GetRegions())
-      if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+      -- Skip the note WE attached to this card, or the catalogue records our own
+      -- annotations as if they were callboard text.
+      if r ~= card.cbhNote
+         and r and r.GetObjectType and r:GetObjectType() == "FontString" then
          local t = r:GetText()
          if t and t ~= "" then table.insert(texts, t) end
       end
@@ -151,6 +154,16 @@ local function LearnCallboard()
    CBH.print("Callboard location learned: " .. zone .. ". The port button can bring you back here.")
 end
 
+-- Is this kill objective callboard work? Judged on the QUEST TITLE, not the
+-- target name: "The Maddening Deep" (a Maerys meta-quest) and the callboard's
+-- "Topple the Tyrant: Yogg-Saron" name the same boss, and only the second is a
+-- board contract. Matching on the name alone let the first through.
+local function IsCallboardKill(name, ko)
+   local title = ko and ko.questIndex and GetQuestLogTitle
+      and (GetQuestLogTitle(ko.questIndex)) or nil
+   return CBH.IsCallboardQuest and CBH.IsCallboardQuest(title, name) or false
+end
+
 local function AnyObjectiveActive()
    -- Completed rare quests don't count, or the button stays stuck on
    -- "Port: <zone>" forever instead of falling back to Home/Callboard.
@@ -160,7 +173,7 @@ local function AnyObjectiveActive()
    local cbOnly = CBH.CallboardOnlyActive and CBH.CallboardOnlyActive()
    for name, ko in pairs(CBH.killObjectives or {}) do
       if not ko.need or (ko.have or 0) < ko.need then
-         if not cbOnly or CBH.IsCallboardObjective(name) then return true end
+         if not cbOnly or IsCallboardKill(name, ko) then return true end
       end
    end
    return false
@@ -542,7 +555,10 @@ local function ResolveKill(name, ko, allowSweep)
    zone = zone or ZoneFromQuestHeader(ko.questIndex)
    zone = zone or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
    if zone then
-      if CBH.db and CBH.db.cardZones then CBH.db.cardZones[name] = zone end
+      -- Deliberately NOT cached into cardZones. That table is documented as
+      -- "harvested from callboard cards", and writing resolutions into it made
+      -- it claim things the callboard never offered - which then fed the
+      -- callboard-only whitelist as if it were evidence.
       return zone, PointsForZone(zone), isDungeon, via
    end
    -- Nothing named it: fall back to the (fragile) POI sweep. Its guess is used
@@ -608,7 +624,7 @@ local function ResolveDestination(zoneArg, allowSweep)
    local cbOnly = CBH.CallboardOnlyActive and CBH.CallboardOnlyActive()
    for name, ko in pairs(CBH.killObjectives or {}) do
       if (not ko.need or (ko.have or 0) < ko.need)
-         and (not cbOnly or CBH.IsCallboardObjective(name)) then
+         and (not cbOnly or IsCallboardKill(name, ko)) then
          cands[#cands + 1] = { kind = "kill", name = name, ko = ko,
             qi = ko.questIndex, w = IsWatched(ko.questIndex) and 1 or 0 }
       end
