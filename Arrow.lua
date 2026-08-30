@@ -136,10 +136,12 @@ function Arrow.Init()
    tex:SetTexture("Interface\\Minimap\\ROTATING-MINIMAPARROW")
    tex:SetPoint("TOP"); tex:SetWidth(48); tex:SetHeight(48)
 
-   label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+   label = CBH.UI.Text(frame, "label", CBH.UI.TEXT_PRIMARY)
    label:SetPoint("TOP", tex, "BOTTOM", 0, -2)
 
-   distText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+   -- Distance is a live number: condensed face, muted tier, so it reads as
+   -- metadata under the name rather than competing with it.
+   distText = CBH.UI.Text(frame, "meta", CBH.UI.TEXT_MUTED, CBH.UI.FONT_META)
    distText:SetPoint("TOP", label, "BOTTOM", 0, -1)
 
    frame:SetScript("OnUpdate", OnUpdate)

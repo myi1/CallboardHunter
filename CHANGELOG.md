@@ -4,6 +4,34 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.10.0] - 2026-08-30
+### Changed
+- **One interface instead of four.** CBH had grown a teal-on-charcoal config
+  panel, a gold/parchment route panel, a black tooltip toast, and a stock
+  Blizzard button — four visual languages in one addon, every one of them using
+  stock fonts. All surfaces now draw from a shared `UI.lua`.
+
+  The direction comes from what a callboard actually is: a notice board in a
+  hold. Oiled wood and parchment, brass for the one actionable thing, wax red and
+  verdigris reserved for status. Depth is a surface shift plus a hairline border —
+  no shadows anywhere.
+
+- **Status is a stamp, never a colour.** `> ACTIVE`, `+ DONE`, `x BLOCKED`,
+  `> READY` — a glyph *and* a word, so meaning survives with the colour stripped
+  out. Colour only reinforces. A test pins this invariant.
+
+- **The Port button names its destination.** `Fordragon Hold`, not
+  `Port: objective`. Answering "where do I go next" is what CBH is for, so the
+  destination is now the focal element rather than a generic verb on a stock
+  stone button. It sizes to fit its label and dims in combat.
+
+- **A real type scale** replaces stock font objects: FRIZQT for names, ARIALN
+  condensed for counts and metadata (it reads as a ledger hand), stepping
+  10/11/12/13/14/16/18. Section labels drop to the smallest condensed tier —
+  they are structure, not content.
+
+The design system is recorded in `.interface-design/system.md`.
+
 ## [1.9.8] - 2026-08-30
 ### Added
 - **Outland and Classic instances.** The dungeon table only ever covered

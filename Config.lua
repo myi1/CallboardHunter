@@ -18,8 +18,8 @@ local function RefreshConfig()
   panel.party:SetChecked(CBH.db.options and CBH.db.options.partyAnnounce)
 
   local home = CBH.db.home
-  panel.homeLabel:SetText(home and (TEAL .. home.zone .. "|r")
-    or "|cff888888(not set — stand at your callboard, then Set)|r")
+  panel.homeLabel:SetText(home and UI.Colour("brass", home.zone)
+    or UI.Colour("muted", "not set - stand at your callboard, then Set"))
 
   -- Blocked-checkpoint rows.
   local names = {}
@@ -31,7 +31,7 @@ local function RefreshConfig()
     if not row then
       row = CreateFrame("Frame", nil, panel.blockContent)
       row:SetWidth(224); row:SetHeight(19)
-      row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      row.text = UI.Text(row, "body", UI.TEXT_SECONDARY)
       row.text:SetPoint("LEFT", row, "LEFT", 2, 0)
       row.text:SetWidth(196); row.text:SetJustifyH("LEFT")
       row.del = CreateFrame("Button", nil, row, "UIPanelCloseButton")
@@ -61,16 +61,18 @@ local function MakeCheck(name, label, y, onclick)
   cb:SetWidth(22); cb:SetHeight(22)
   cb:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, y)
   local t = _G["CBHCfg" .. name .. "Text"]
-  t:SetFontObject("GameFontHighlightSmall")
-  t:SetText(label); t:SetTextColor(unpack(T_PRIMARY))
+  UI.Font(t, "body", UI.TEXT_PRIMARY)
+  t:SetText(label)
   cb:SetScript("OnClick", function(self) onclick(self:GetChecked() and true or false) end)
   return cb
 end
 
+-- Section labels are set in the condensed face at stamp size: they are
+-- structure, not content, so they sit a full tier below anything readable.
 local function Section(text, y)
-  local f = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  local f = UI.Text(panel, "stamp", UI.TEXT_MUTED, UI.FONT_META)
   f:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, y)
-  f:SetText(text); f:SetTextColor(unpack(T_MUTED))
+  f:SetText(text)
 end
 
 function CBH.OpenConfig()
@@ -84,24 +86,21 @@ function CBH.OpenConfig()
   panel:SetMovable(true); panel:EnableMouse(true); panel:RegisterForDrag("LeftButton")
   panel:SetScript("OnDragStart", function(s) s:StartMoving() end)
   panel:SetScript("OnDragStop", function(s) s:StopMovingOrSizing() end)
-  panel:SetBackdrop({ bgFile = WHITE8, edgeFile = WHITE8, edgeSize = 1,
-    insets = { left = 1, right = 1, top = 1, bottom = 1 } })
-  panel:SetBackdropColor(0.09, 0.10, 0.10, 0.97)
-  panel:SetBackdropBorderColor(ACCENT[1], ACCENT[2], ACCENT[3], 0.30)
+  UI.Skin(panel, UI.SURFACE_0, UI.BORDER_STRONG)
   panel:SetFrameStrata("DIALOG")
 
   local hdr = panel:CreateTexture(nil, "ARTWORK")
   hdr:SetPoint("TOPLEFT", panel, "TOPLEFT", 1, -1)
   hdr:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -1, -1); hdr:SetHeight(34)
-  hdr:SetTexture(0.13, 0.15, 0.15, 1)
+  hdr:SetTexture(UI.SURFACE_1[1], UI.SURFACE_1[2], UI.SURFACE_1[3], 1)
   local hline = panel:CreateTexture(nil, "OVERLAY")
   hline:SetPoint("TOPLEFT", hdr, "BOTTOMLEFT", 0, 0)
   hline:SetPoint("TOPRIGHT", hdr, "BOTTOMRIGHT", 0, 0)
-  hline:SetHeight(1); hline:SetTexture(1, 1, 1, 0.09)
+  hline:SetHeight(1); hline:SetTexture(UI.BORDER[1], UI.BORDER[2], UI.BORDER[3], 0.10)
 
-  local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  local title = UI.Text(panel, "title", UI.TEXT_PRIMARY)
   title:SetPoint("LEFT", panel, "TOPLEFT", 16, -18)
-  title:SetText(TEAL .. "CallboardHunter|r")
+  title:SetText("Callboard")
   local close = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -4)
 
@@ -114,7 +113,7 @@ function CBH.OpenConfig()
     function(v) CBH.db.options.partyAnnounce = v end)
 
   Section("HOME CALLBOARD", -134)
-  panel.homeLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  panel.homeLabel = UI.Text(panel, "body", UI.TEXT_PRIMARY)
   panel.homeLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, -152)
   panel.homeLabel:SetWidth(240); panel.homeLabel:SetJustifyH("LEFT")
 
@@ -130,7 +129,7 @@ function CBH.OpenConfig()
   clearHome:SetScript("OnClick", function() if CBH.ClearHome then CBH.ClearHome() end RefreshConfig() end)
 
   Section("BLOCKED CHECKPOINTS", -204)
-  local sub = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local sub = UI.Text(panel, "meta", UI.TEXT_MUTED, UI.FONT_META)
   sub:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -218)
   sub:SetWidth(248); sub:SetJustifyH("LEFT")
   sub:SetText("Never auto-ported to (they drop you inside). Manual clicks still work.")
@@ -141,11 +140,11 @@ function CBH.OpenConfig()
   panel.blockContent = CreateFrame("Frame", nil, scroll)
   panel.blockContent:SetWidth(226); panel.blockContent:SetHeight(10)
   scroll:SetScrollChild(panel.blockContent)
-  panel.blockEmpty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  panel.blockEmpty = UI.Text(panel, "meta", UI.TEXT_FAINT, UI.FONT_META)
   panel.blockEmpty:SetPoint("TOPLEFT", scroll, "TOPLEFT", 2, -2)
   panel.blockEmpty:SetText("(none)")
 
-  local hint = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  local hint = UI.Text(panel, "meta", UI.TEXT_MUTED, UI.FONT_META)
   hint:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 20, 46)
   hint:SetText("Add a checkpoint name to block:")
 

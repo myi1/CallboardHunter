@@ -48,24 +48,25 @@ local function BuildNote(desc)
       local pts = CountPoints(zone, mob)
       local here = (GetRealZoneText() == zone) and " (current zone)" or ""
       if pts > 0 then
-         return "|cff30ff00Known camp: " .. pts .. " spot" .. (pts > 1 and "s" or "") ..
-            " in " .. zone .. here .. "|r"
+         return CBH.UI.Stamp("ready") .. " " .. CBH.UI.Colour("secondary",
+            pts .. " known spot" .. (pts > 1 and "s" or "") .. " in " .. zone .. here)
       end
-      return "|cffffff00No camp data yet - " .. zone .. here .. "|r"
+      return CBH.UI.Stamp("idle") .. " " .. CBH.UI.Colour("muted",
+         "no camp data - " .. zone .. here)
    end
    -- "Slay Kelthuzad in Naxxramas."
    local _, _, boss, place = string.find(desc, "^Slay (.-) in (.-)%.?$")
    if boss then
-      return "|cffaaaaaaDungeon/raid: " .. place .. "|r"
+      return CBH.UI.Colour("muted", "Dungeon/raid: " .. place)
    end
    -- "Collect 40 Icethorn."
    local _, _, cn, item = string.find(desc, "^Collect (%d+) (.-)%.?$")
    if item then
-      return "|cffaaaaaaCollection: " .. item .. "|r"
+      return CBH.UI.Colour("muted", "Collection: " .. item)
    end
    -- Rare trophy cards mention "Rare"
    if string.find(string.lower(desc), "rare") then
-      return "|cff30ff00Rare hunt - arrow will guide|r"
+      return CBH.UI.Stamp("active") .. " " .. CBH.UI.Colour("secondary", "rare hunt")
    end
    return nil
 end
@@ -81,7 +82,7 @@ local function RefreshCards()
             if not note then note = BuildNote(t) end
          end
          if not card.cbhNote then
-            card.cbhNote = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            card.cbhNote = CBH.UI.Text(card, "meta", CBH.UI.TEXT_SECONDARY, CBH.UI.FONT_META)
             card.cbhNote:SetPoint("BOTTOM", card, "BOTTOM", 0, 92) -- clear of the Select button
             card.cbhNote:SetWidth(card:GetWidth() - 50)
          end
@@ -95,9 +96,12 @@ end
 local portBtn
 local function EnsurePortButton()
    if portBtn or not (CBH.db and CBH.db.options) then return end
-   portBtn = CreateFrame("Button", "CallboardHunterPortButton", UIParent, "UIPanelButtonTemplate")
-   portBtn:SetWidth(120); portBtn:SetHeight(22)
-   portBtn:SetText("Port: checkpoint")
+   -- A stamped travel order rather than a stock stone button: the destination
+   -- is what CBH exists to answer, so it IS the button's content and the focal
+   -- element of the whole addon.
+   portBtn = CreateFrame("Button", "CallboardHunterPortButton", UIParent)
+   CBH.UI.SkinButton(portBtn, { accent = true, height = 26, minWidth = 132 })
+   portBtn:SetLabel("Checkpoint")
    portBtn:SetMovable(true)
    portBtn:RegisterForDrag("RightButton") -- right-drag moves, left-click ports
    portBtn:SetScript("OnDragStart", function(self) self:StartMoving() end)
@@ -119,10 +123,10 @@ local function EnsurePortButton()
    portBtn:SetScript("OnEnter", function(self)
       GameTooltip:SetOwner(self, "ANCHOR_TOP")
       if self.mode == "board" then
-         GameTooltip:AddLine("Travel to the callboard")
+         GameTooltip:AddLine(CBH.UI.Colour("primary", "Return to the callboard"))
          GameTooltip:AddLine("Left-click: port to the checkpoint nearest a callboard you have used.", 1, 1, 1, true)
       else
-         GameTooltip:AddLine("Travel to your objective")
+         GameTooltip:AddLine(CBH.UI.Colour("primary", "Travel order"))
          GameTooltip:AddLine("Left-click: port to the checkpoint nearest your callboard objective.", 1, 1, 1, true)
       end
       GameTooltip:AddLine("Right-click drag: move this button.", 0.7, 0.7, 0.7, true)
@@ -234,12 +238,13 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
       local label, mode = Advisor.ComputeButton()
       if label then
          portBtn.mode = mode
-         if portBtn:GetText() ~= label then
-            portBtn:SetText(label)
-            local fs = portBtn:GetFontString()
-            portBtn:SetWidth(math.max(110, ((fs and fs:GetStringWidth()) or 0) + 26))
-         end
-         if InCombatLockdown() then portBtn:Disable() else portBtn:Enable() end
+         -- The button names the place, not the verb: "Fordragon Hold", not
+         -- "Port: objective". Strip the prefix the label still carries.
+         local shown = string.gsub(label, "^Port:%s*", "")
+         if portBtn:GetLabel() ~= shown then portBtn:SetLabel(shown) end
+         local usable = not InCombatLockdown()
+         if usable then portBtn:Enable() else portBtn:Disable() end
+         portBtn:SetEnabledLook(usable)
          portBtn:Show()
       else
          portBtn:Hide()

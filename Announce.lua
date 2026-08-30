@@ -20,11 +20,12 @@ function Announce.Init()
    toastText = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
    toastText:SetPoint("TOP", toast, "TOP", 0, -10)
 
+   -- Stays a secure button (it runs /targetexact), skinned to match.
    targetBtn = CreateFrame("Button", "CallboardHunterTargetButton", toast,
-      "SecureActionButtonTemplate,UIPanelButtonTemplate")
-   targetBtn:SetWidth(120); targetBtn:SetHeight(22)
+      "SecureActionButtonTemplate")
+   CBH.UI.SkinButton(targetBtn, { height = 22, minWidth = 96 })
    targetBtn:SetPoint("BOTTOM", toast, "BOTTOM", 0, 8)
-   targetBtn:SetText("Target")
+   targetBtn:SetLabel("Target")
    targetBtn:SetAttribute("type", "macro")
 
    -- Click anywhere on the toast (outside the button) to dismiss it.
@@ -43,17 +44,17 @@ local function SetMacro(name)
    local macro = "/targetexact " .. name
    if InCombatLockdown() then
       pendingMacro = macro
-      targetBtn:SetText("(in combat)")
+      targetBtn:SetLabel("in combat")
    else
       targetBtn:SetAttribute("macrotext", macro)
-      targetBtn:SetText("Target")
+      targetBtn:SetLabel("Target")
    end
 end
 
 function Announce.OnRegenEnabled()
    if pendingMacro and targetBtn then
       targetBtn:SetAttribute("macrotext", pendingMacro)
-      targetBtn:SetText("Target")
+      targetBtn:SetLabel("Target")
       pendingMacro = nil
    end
    -- The toast cannot be hidden during combat (secure child); if it expired
@@ -66,7 +67,7 @@ end
 
 function Announce.Show(name, npcID)
    if not toast then return end
-   toastText:SetText("|cffff5050Rare spotted:|r " .. name)
+   toastText:SetText(name)
    SetMacro(name)
    toast:Show()
 
