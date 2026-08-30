@@ -37,6 +37,14 @@ UI.TEXT_SECONDARY = { 0.690, 0.604, 0.490 }
 UI.TEXT_MUTED     = { 0.490, 0.427, 0.353 }
 UI.TEXT_FAINT     = { 0.353, 0.310, 0.259 }
 
+-- ON PARCHMENT. CBH draws on two grounds: its OWN dark panels, and the server's
+-- callboard cards, which are light parchment art we do not control. The tiers
+-- above are for dark ground only - using them on a card puts pale text on pale
+-- paper, which is exactly what shipped in 1.10.0 and was unreadable. Text on a
+-- card is INK, and the status colours darken to match.
+UI.INK       = { 0.165, 0.122, 0.078 }  -- primary text on parchment
+UI.INK_SOFT  = { 0.353, 0.278, 0.196 }  -- secondary text on parchment
+
 UI.BRASS     = { 0.784, 0.592, 0.247 }  -- the single accent: action, destination
 UI.WAX       = { 0.651, 0.227, 0.180 }  -- blocked / failed
 UI.VERDIGRIS = { 0.353, 0.561, 0.420 }  -- active / done
@@ -48,8 +56,12 @@ UI.BORDER_STRONG = { 0.910, 0.863, 0.784, 0.18 }
 
 -- Chat-line colour codes, so printed output matches the frames.
 UI.HEX = {
+   -- on the addon's own dark surfaces
    primary = "e8dcc8", secondary = "b09a7d", muted = "7d6d5a",
    brass = "c8973f", wax = "a63a2e", verdigris = "5a8f6b",
+   -- on the server's light parchment cards
+   ink = "2a1f14", inkSoft = "5a4732",
+   brassInk = "6f4e12", waxInk = "7d2419", verdigrisInk = "2c5238",
 }
 function UI.Colour(key, text)
    return "|cff" .. (UI.HEX[key] or UI.HEX.primary) .. tostring(text) .. "|r"
@@ -119,13 +131,23 @@ UI.STAMPS = {
    idle    = { glyph = "-",  word = "IDLE",    colour = UI.TEXT_MUTED },
 }
 
--- Stamp as a chat-safe string, e.g. "> ACTIVE".
-function UI.Stamp(kind)
+-- Stamp as a chat-safe string, e.g. "> ACTIVE". Pass onParchment=true for text
+-- drawn on a callboard card, which is light: the same stamp, darkened so it is
+-- legible on paper. The glyph and word never change - only the ground does.
+function UI.Stamp(kind, onParchment)
    local s = UI.STAMPS[kind] or UI.STAMPS.idle
-   local hex = UI.HEX.muted
-   if s.colour == UI.VERDIGRIS then hex = UI.HEX.verdigris
-   elseif s.colour == UI.WAX then hex = UI.HEX.wax
-   elseif s.colour == UI.BRASS then hex = UI.HEX.brass end
+   local hex
+   if onParchment then
+      hex = UI.HEX.inkSoft
+      if s.colour == UI.VERDIGRIS then hex = UI.HEX.verdigrisInk
+      elseif s.colour == UI.WAX then hex = UI.HEX.waxInk
+      elseif s.colour == UI.BRASS then hex = UI.HEX.brassInk end
+   else
+      hex = UI.HEX.muted
+      if s.colour == UI.VERDIGRIS then hex = UI.HEX.verdigris
+      elseif s.colour == UI.WAX then hex = UI.HEX.wax
+      elseif s.colour == UI.BRASS then hex = UI.HEX.brass end
+   end
    return "|cff" .. hex .. s.glyph .. " " .. s.word .. "|r"
 end
 

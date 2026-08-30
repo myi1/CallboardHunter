@@ -48,25 +48,25 @@ local function BuildNote(desc)
       local pts = CountPoints(zone, mob)
       local here = (GetRealZoneText() == zone) and " (current zone)" or ""
       if pts > 0 then
-         return CBH.UI.Stamp("ready") .. " " .. CBH.UI.Colour("secondary",
+         return CBH.UI.Stamp("ready", true) .. " " .. CBH.UI.Colour("ink",
             pts .. " known spot" .. (pts > 1 and "s" or "") .. " in " .. zone .. here)
       end
-      return CBH.UI.Stamp("idle") .. " " .. CBH.UI.Colour("muted",
+      return CBH.UI.Stamp("idle", true) .. " " .. CBH.UI.Colour("inkSoft",
          "no camp data - " .. zone .. here)
    end
    -- "Slay Kelthuzad in Naxxramas."
    local _, _, boss, place = string.find(desc, "^Slay (.-) in (.-)%.?$")
    if boss then
-      return CBH.UI.Colour("muted", "Dungeon/raid: " .. place)
+      return CBH.UI.Colour("inkSoft", "Dungeon/raid: " .. place)
    end
    -- "Collect 40 Icethorn."
    local _, _, cn, item = string.find(desc, "^Collect (%d+) (.-)%.?$")
    if item then
-      return CBH.UI.Colour("muted", "Collection: " .. item)
+      return CBH.UI.Colour("inkSoft", "Collection: " .. item)
    end
    -- Rare trophy cards mention "Rare"
    if string.find(string.lower(desc), "rare") then
-      return CBH.UI.Stamp("active") .. " " .. CBH.UI.Colour("secondary", "rare hunt")
+      return CBH.UI.Stamp("active", true) .. " " .. CBH.UI.Colour("ink", "rare hunt")
    end
    return nil
 end
@@ -82,7 +82,8 @@ local function RefreshCards()
             if not note then note = BuildNote(t) end
          end
          if not card.cbhNote then
-            card.cbhNote = CBH.UI.Text(card, "meta", CBH.UI.TEXT_SECONDARY, CBH.UI.FONT_META)
+            -- Ink: this FontString sits on the server's light card art.
+            card.cbhNote = CBH.UI.Text(card, "body", CBH.UI.INK, CBH.UI.FONT_META)
             card.cbhNote:SetPoint("BOTTOM", card, "BOTTOM", 0, 92) -- clear of the Select button
             card.cbhNote:SetWidth(card:GetWidth() - 50)
          end

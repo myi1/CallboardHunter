@@ -4,6 +4,18 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.10.1] - 2026-08-31
+### Fixed
+- **Card notes were unreadable.** 1.10.0 put parchment-coloured text onto the
+  callboard's own card art, which is light parchment — pale on pale. CBH draws on
+  two grounds: its own dark panels, and the server's light cards, which it does
+  not control. Card text is now ink (`#2a1f14`) and the stamps darken to match
+  (`> READY` on paper uses a dark brass, not the bright one).
+
+  `ui_test.lua` guards it by luminance from here: dark-ground text must be light,
+  parchment-ground text must be dark, and every stamp must be darker on paper
+  than on wood.
+
 ## [1.10.0] - 2026-08-30
 ### Changed
 - **One interface instead of four.** CBH had grown a teal-on-charcoal config

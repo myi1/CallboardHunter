@@ -31,6 +31,17 @@ the focal element of the whole addon.
 - Borders: `BORDER` alpha .10, `BORDER_STRONG` alpha .18. Low-alpha over the
   surface, never solid — a solid border reads as a hard line.
 
+## Two grounds — the mistake 1.10.0 made
+CBH draws on **its own dark surfaces** (panel, toast, button, arrow) and on the
+**server's light parchment cards**, which it does not control. The text tiers
+above are for dark ground only. Text on a card is `INK` / `INK_SOFT`, and stamps
+take `UI.Stamp(kind, true)` so their colours darken to match.
+
+1.10.0 put parchment-coloured text on the parchment card art and it was
+unreadable. `ui_test.lua` now guards it by luminance: dark-ground text must be
+light, parchment-ground text must be dark, and every stamp must be darker on
+paper than on wood.
+
 ## Depth strategy
 **Surface shift + hairline border. No shadows anywhere.** WoW backdrops make
 shadows expensive and inconsistent; one strategy, held everywhere.
