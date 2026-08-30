@@ -19,6 +19,7 @@ local DEFAULTS = {
    learned = {},      -- rare sightings: [zone][npcID/name] = {points}
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
    cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
+   cardCatalogue = {},-- [card text] = {n, lo, hi, where, at}: every card ever seen
    callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }
    portOverrides = {},-- [objectiveZone] = checkpointZone to route via instead
    checkpointBlock = {}, -- [lowercase name] = true: never route/port to this
@@ -276,6 +277,8 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
    elseif cmd == "dungeon" then
       if CBH.Dungeon and CBH.Dungeon.Command then CBH.safeCall(CBH.Dungeon.Command, arg)
       else CBH.print("Dungeon module unavailable.") end
+   elseif cmd == "catalogue" or cmd == "catalog" then
+      if CBH.Catalogue then CBH.safeCall(CBH.Catalogue, arg) end
    elseif cmd == "export" then
       if CBH.Export then CBH.safeCall(CBH.Export, arg)
       else CBH.print("Export module unavailable.") end
@@ -382,6 +385,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | probe | dungeon | reset")
+      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | catalogue | probe | dungeon | reset")
    end
 end

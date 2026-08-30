@@ -73,8 +73,9 @@ local function RefreshCards()
       if card and card:IsShown() then
          local note
          for _, t in ipairs(CardTexts(card)) do
-            note = BuildNote(t)
-            if note then break end
+            -- Catalogue EVERY card, not just the ones BuildNote can parse.
+            if CBH.RecordCard then CBH.RecordCard(t) end
+            if not note then note = BuildNote(t) end
          end
          if not card.cbhNote then
             card.cbhNote = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

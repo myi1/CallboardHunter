@@ -4,6 +4,24 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.1] - 2026-08-30
+### Added
+- **Card catalogue** (`/cbh catalogue`). Every distinct callboard card you see is
+  now recorded verbatim, with the level band you saw it at. `cardZones` only ever
+  stored cards matching `"Kill N <mob> in <zone>"`, so collection and slay cards
+  were never recorded at all — the observed objective list was undercounting its
+  own source. Live progress counters are normalised out of the key, so
+  `Beast Kill in Howling Fjord: 0/75` and `.../75/75` are one entry, not two.
+
+  It rides along with `/cbh export`, which is what makes a level-banded 1-80
+  callboard quest list buildable once several players pool their exports — no
+  single player can produce one, since a fast-prestige route skips levels 11-52
+  entirely. `/cbh catalogue dump` lists what you have.
+### Fixed
+- `/cbh export` refused to write when you had no spawn data, even with a
+  catalogue worth sharing. A player who has only opened boards still has
+  something to contribute.
+
 ## [1.9.0] - 2026-08-30
 ### Added
 - **Fast-prestige route runner (`/cbh route`).** The community levelling route —

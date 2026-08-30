@@ -57,6 +57,74 @@ local function Collect(src, isRare)
    return out, zones, points
 end
 
+-- ------------------------------------------------------------- card catalogue
+--
+-- Record every distinct callboard card ever seen, verbatim. cardZones only ever
+-- stored cards matching "Kill N <mob> in <zone>", so collection and slay cards
+-- were never recorded at all - the observed objective list was an undercount of
+-- its own source. This keeps the raw text plus the level you were when it
+-- appeared, which is what makes a level-banded 1-80 quest list possible once
+-- several players pool their exports.
+--
+-- Keyed by the card text itself, so it dedupes naturally and re-seeing a card
+-- just bumps its count.
+local CATALOGUE_CAP = 2000
+
+function CBH.RecordCard(text)
+   if not (CBH.db and text) or text == "" then return end
+   -- Cards carry live progress ("0/10"), which would make every tick a new
+   -- entry. Normalise counters out so one card is one entry.
+   local key = string.gsub(text, "%d+%s*/%s*%d+", "#/#")
+   key = string.gsub(key, "^%s+", "")
+   key = string.gsub(key, "%s+$", "")
+   if key == "" then return end
+   CBH.db.cardCatalogue = CBH.db.cardCatalogue or {}
+   local cat = CBH.db.cardCatalogue
+   local e = cat[key]
+   if e then
+      e.n = (e.n or 1) + 1
+      -- Widen the level band this card has been seen at.
+      local lvl = UnitLevel and UnitLevel("player")
+      if lvl and lvl > 0 then
+         if not e.lo or lvl < e.lo then e.lo = lvl end
+         if not e.hi or lvl > e.hi then e.hi = lvl end
+      end
+      return
+   end
+   -- Cap so a long-running database cannot grow without bound.
+   local count = 0
+   for _ in pairs(cat) do count = count + 1 end
+   if count >= CATALOGUE_CAP then return end
+   local lvl = UnitLevel and UnitLevel("player")
+   cat[key] = { n = 1, lo = lvl, hi = lvl,
+                where = (GetRealZoneText and GetRealZoneText()) or nil,
+                at = date("%Y-%m-%d") }
+end
+
+-- /cbh catalogue [dump]
+function CBH.Catalogue(arg)
+   local cat = (CBH.db and CBH.db.cardCatalogue) or {}
+   local keys = {}
+   for k in pairs(cat) do keys[#keys + 1] = k end
+   table.sort(keys)
+   if #keys == 0 then
+      CBH.print("No cards catalogued yet - open an Objectives Board and they"
+         .. " record themselves.")
+      return
+   end
+   if string.lower(arg or "") == "dump" then
+      for _, k in ipairs(keys) do
+         local e = cat[k]
+         DEFAULT_CHAT_FRAME:AddMessage("  [" .. tostring(e.lo or "?")
+            .. (e.hi and e.hi ~= e.lo and ("-" .. e.hi) or "") .. "] " .. k
+            .. " (x" .. tostring(e.n or 1) .. ")")
+      end
+   end
+   CBH.print(#keys .. " distinct card" .. (#keys == 1 and "" or "s")
+      .. " catalogued." .. (string.lower(arg or "") == "dump" and ""
+         or " /cbh catalogue dump to list them.") .. " They ride along with /cbh export.")
+end
+
 function CBH.Export(arg)
    arg = string.lower(arg or "")
    if arg == "clear" then
@@ -70,8 +138,13 @@ function CBH.Export(arg)
    local rares, rZones, rPts = Collect(CBH.db.learned, true)
    local camps, cZones, cPts = Collect(CBH.db.learnedKills, false)
 
-   if rPts == 0 and cPts == 0 then
-      CBH.print("Nothing learned yet - go find some rares first, then /cbh export.")
+   local nCards = 0
+   for _ in pairs(CBH.db.cardCatalogue or {}) do nCards = nCards + 1 end
+   -- A catalogue alone is worth exporting: it is the raw material for the quest
+   -- list, and a player who has only opened boards still has something to give.
+   if rPts == 0 and cPts == 0 and nCards == 0 then
+      CBH.print("Nothing learned yet - open a callboard or find some rares first,"
+         .. " then /cbh export.")
       return
    end
 
@@ -87,6 +160,9 @@ function CBH.Export(arg)
       exported = date("%Y-%m-%d %H:%M:%S"),
       rares = rares,
       camps = camps,
+      -- Every distinct card seen, verbatim, with the level band it appeared at.
+      -- This is the raw material for a level-banded callboard quest list.
+      cards = CBH.db.cardCatalogue or {},
    }
 
    CBH.print("Export prepared: " .. rPts .. " rare point"
@@ -94,6 +170,10 @@ function CBH.Export(arg)
       .. (rZones == 1 and "" or "s") .. ", and " .. cPts .. " callboard camp point"
       .. (cPts == 1 and "" or "s") .. " across " .. cZones .. " zone"
       .. (cZones == 1 and "" or "s") .. ".")
+   if nCards > 0 then
+      CBH.print("  ...plus " .. nCards .. " catalogued callboard card"
+         .. (nCards == 1 and "" or "s") .. ".")
+   end
    CBH.print("Now type /reload (or log out) - that is what writes the file.")
    CBH.print("Then upload: World of Warcraft\\WTF\\Account\\<YOUR ACCOUNT>"
       .. "\\SavedVariables\\CallboardHunter.lua")
