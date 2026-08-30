@@ -4,6 +4,56 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.0] - 2026-08-30
+### Added
+- **Fast-prestige route runner (`/cbh route`).** The community levelling route —
+  Hardcore swap → Dalaran → the three-quest chain → Zul'Drak → Borean Tundra →
+  Icecrown — taking a fresh level 1 all the way to **80** at any ash level, as
+  **one button and one line telling you what to do next**. It works out which
+  step you're on from live state (quest log, zone, level) rather than making you
+  keep a cursor, and survives `/reload`, doing steps by hand, or doing them out
+  of order. A new run resets the lap automatically.
+  - **One button, every step.** It ports you, targets and marks the quest giver,
+    or confirms a Hardcore swap. Secure macro button, so `/targetexact` works;
+    attribute changes queue during combat and replay on regen.
+  - **Auto accept and turn-in** for the route's own quests — walk to the NPC,
+    open their dialog, and it accepts and hands in for you, through gossip menus
+    and multi-quest greetings alike. Scoped to those quests only, and a quest
+    with a real choice of rewards is left for you. `/cbh route auto` turns it off.
+  - **Checkpoint ids are verified, not trusted.** Opening the world map harvests
+    every checkpoint button's id/name/unlocked state, so the panel can say
+    "310: Dalaran, unlocked" and flag `NAME MISMATCH` if the server renumbers
+    one. The Zul'Drak step blocks itself, with a reason, when 304 reads locked.
+  - **Levelling steps** are satisfied by your actual level, so they advance on
+    their own as you ding (66-72 Borean Tundra, 73-80 Icecrown — bands taken from
+    logged runs, since the community post stops at Unu'pe). The button ports you
+    back if you strayed, and the label reads `Level 68 / 72`.
+    `/cbh route grind <level>` retunes the band you're standing on.
+  - **Quest givers are learned** on your first lap and the arrow points itself at
+    them on every later one. Each step remembers what it was worth in levels.
+  - `/cbh route hc <tier|off>` sets the Hardcore tier you level on;
+    `/cbh route why` diagnoses a step that won't advance; `forget` drops a bad
+    learned NPC; `full` shows the whole checklist; `exec` hands you the
+    self-execute macro; `reset` starts the lap over.
+
+  This lived in **PallyPilot** until now. It moved here because CallboardHunter
+  already owns the two things it leans on — the checkpoint port layer and the
+  guidance arrow. **Existing route state migrates automatically** on first login:
+  harvested checkpoints and learned quest givers carry over.
+### Added (tooling)
+- `tools/` runs the route state machine against a stubbed WoW API on a Lua VM
+  (fengari), so route logic is testable without logging in — **68 checks** across
+  `route_test.lua` and `cp_test.lua`. `cd tools && npm install`, then
+  `node run_lua.js route_test.lua`. `tools/` also now carries its own
+  `package.json`, so `node tools/luacheck.js .` works without hunting for
+  luaparse.
+### Notes
+- The route covers the **levelling leg only** — a fresh level 1 to 80, at any ash
+  level, any time. It deliberately does not cover the prestige preamble (farm to
+  the ash gate, self-execute, refill the tree); that is a different job.
+- `Back` can't undo a levelling step — you can't un-ding — so it says so rather
+  than looking like a dead button. `/cbh route reset` is the way back.
+
 ## [1.8.0] - 2026-08-30
 ### Added
 - **Dungeon callboard automation** (`/cbh dungeon on` — **off by default**). With

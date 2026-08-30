@@ -1,6 +1,7 @@
 -- CallboardHunter Core: namespace, saved vars, events, slash commands.
 CallboardHunter = {
    QuestWatcher = {}, SpawnDB = {}, Arrow = {}, Detector = {}, Announce = {},
+   Route = {},       -- fast-prestige route runner (/cbh route)
    hotZones = {},    -- [zoneKey] = {have=n, need=m, questIndex=i}
    visited = {},     -- [pointKey] = true (runtime only)
    forcedZone = nil, -- set by /cbh track
@@ -22,6 +23,7 @@ local DEFAULTS = {
    portOverrides = {},-- [objectiveZone] = checkpointZone to route via instead
    checkpointBlock = {}, -- [lowercase name] = true: never route/port to this
    questPatterns = nil,
+   route = {},        -- prestige route state: laps, learned givers, checkpoints
 }
 
 local function CopyDefaults(src, dst)
@@ -179,6 +181,10 @@ local function OnEvent(self, event, ...)
    elseif event == "PLAYER_LOGIN" then
       CBH.safeCall(CBH.Announce.Init)
       CBH.safeCall(CBH.Arrow.Init)
+      -- Carry route state over from the PallyPilot module this used to live in,
+      -- so harvested checkpoints and learned quest givers survive the move.
+      CBH.safeCall(CBH.Route.MigrateFromPallyPilot)
+      CBH.safeCall(CBH.Route.Init)
       CBH.safeCall(CBH.QuestWatcher.Update, true)
    elseif event == "QUEST_ACCEPTED" then
       local questIndex = ...
@@ -211,7 +217,9 @@ SLASH_CALLBOARDHUNTER1 = "/cbh"
 SlashCmdList["CALLBOARDHUNTER"] = function(line)
    local _, _, cmd, arg = string.find(line or "", "^%s*(%S*)%s*(.-)%s*$")
    cmd = string.lower(cmd or "")
-   if cmd == "scan" then
+   if cmd == "route" or cmd == "prestige" then
+      CBH.safeCall(CBH.Route.Command, arg)
+   elseif cmd == "scan" then
       if CBH.QuestWatcher.Scan then CBH.QuestWatcher.Scan() end
    elseif cmd == "track" and arg ~= "" then
       CBH.forcedZone = arg

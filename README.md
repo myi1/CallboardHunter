@@ -8,6 +8,16 @@ detection/announce/targeting → kill learning → port back to the board.**
 
 ## Features
 
+- **Fast-prestige route runner** (`/cbh route`) — the community levelling route
+  (Hardcore swap → Dalaran → three-quest chain → Zul'Drak → Borean Tundra →
+  Icecrown), taking a fresh level 1 all the way to **80** at any ash level, as
+  **one button and one line telling you what to do next**. The button ports you, targets and marks the quest giver, or confirms a
+  Hardcore swap; the route's quests **accept and hand in by themselves** once
+  you're talking to the NPC. It works out which step you're on from your quest
+  log, zone and level, verifies checkpoint ids against the map rather than
+  trusting them, and blocks the Zul'Drak leg with a reason if the Argent Stand
+  flight path isn't unlocked. `/cbh route hc <tier>` sets the Hardcore tier you
+  actually have (or `off`); `/cbh route why` explains a stuck step.
 - **Quest watcher** — parses rare-trophy quests ("Rare Kill in <Zone>") and
   kill objectives ("<Name> slain: n/m"), with `/cbh scan` diagnostics that show
   a per-objective match verdict for pattern tuning.
@@ -51,11 +61,18 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | Command | Effect |
 | --- | --- |
 | `/cbh` | help |
+| `/cbh route` | fast-prestige levelling route: one button, one instruction |
+| `/cbh route hc <tier｜off>` | Hardcore tier to level on (default 5) |
+| `/cbh route grind <level>` | retune the level band you're on (72 Borean, 80 Icecrown) |
+| `/cbh route auto` | toggle auto accept / turn-in of the route's quests |
+| `/cbh route why` / `forget` | diagnose a stuck step / drop a bad learned NPC |
 | `/cbh config` | open the config panel (all toggles, home board, blocked checkpoints) |
 | `/cbh scan` | quest log dump with match verdicts |
 | `/cbh port [zone]` | port toward your objective (or an explicit zone) |
 | `/cbh sethome` / `home` / `clearhome` | set the Callboard-port home to where you stand / go there / clear it |
 | `/cbh block <name>` / `unblock <name>` / `blocked` | exclude checkpoints that drop you inside an instance from auto-routing |
+| `/cbh dungeon on｜off` | dungeon callboard automation: reroll to the dungeon's card, accept, share (off by default) |
+| `/cbh dungeon rerolls <n｜unlimited>` / `reserve <gold>` / `share on｜off` | bound the reroll loop |
 | `/cbh export` / `export clear` | package your learned rare + camp points for sharing (then `/reload`), or remove the export |
 | `/cbh probe join｜send｜send chat｜status｜leave` | channel transport probe — tests whether clients can talk to each other (opt-in; never auto-joins) |
 | `/cbh next` | skip the current arrow waypoint |
@@ -75,8 +92,12 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 
 ## Development
 
-Lua 5.1 syntax check (requires Node + `npm install luaparse` next to the
-script): `node tools/luacheck.js <addon folder>`. Run it before committing.
+Lua 5.1 syntax check: `cd tools && npm install && node luacheck.js ..`.
+Run it before committing.
+
+`Route.lua` is a state machine, so it also runs offline against a stubbed WoW
+API on a Lua VM: `node run_lua.js route_test.lua` and `node run_lua.js
+cp_test.lua` (68 checks, non-zero exit on failure). See `tools/README.md`.
 
 Data lives in SavedVariables `CallboardHunterDB`: `learned` (rare sightings),
 `learnedKills` (camp points), `cardZones`, `callboards` (board locations).

@@ -1,7 +1,7 @@
 ﻿## Interface: 30300
 ## Title: CallboardHunter
-## Notes: Reads rare-mob callboard quests and guides you to the nearest rare. Announce + click-to-target.
-## Version: 1.8.0
+## Notes: Callboard quest routing (port/arrow/rare-detect) plus a one-button runner for the fast-prestige route.
+## Version: 1.9.0
 ## SavedVariables: CallboardHunterDB, CallboardHunterExport
 ## OptionalDeps: RareSpawnOverlay
 
@@ -12,6 +12,7 @@ Arrow.lua
 Detector.lua
 Announce.lua
 Advisor.lua
+Route.lua
 Comm.lua
 Dungeon.lua
 Export.lua
