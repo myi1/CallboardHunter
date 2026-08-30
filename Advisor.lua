@@ -199,6 +199,10 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
       CBH.safeCall(RefreshCards)
       CBH.safeCall(LearnCallboard)
    end
+   -- Dungeon automation runs off the same board polling (opt-in, instances only).
+   if CBH.Dungeon and CBH.Dungeon.Poll then
+      CBH.safeCall(CBH.Dungeon.Poll, GetTime())
+   end
    if Advisor.portAt and GetTime() >= Advisor.portAt then
       Advisor.portAt = nil
       CBH.safeCall(Advisor.DoPort)

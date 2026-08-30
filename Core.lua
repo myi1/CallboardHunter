@@ -10,7 +10,11 @@ local CBH = CallboardHunter
 local DB_VERSION = 1
 local DEFAULTS = {
    version = DB_VERSION,
-   options = { arrow = true, sound = true, partyAnnounce = false, arrowPos = nil },
+   options = { arrow = true, sound = true, partyAnnounce = false, arrowPos = nil,
+      -- Dungeon callboard automation. OFF by default: it click-loops the board,
+      -- which is the player's call to make knowingly. See Dungeon.lua.
+      dungeonAuto = false, dungeonRerollMax = 10, dungeonGoldReserve = 0,
+      dungeonShare = true },
    learned = {},      -- rare sightings: [zone][npcID/name] = {points}
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
    cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
@@ -176,6 +180,9 @@ local function OnEvent(self, event, ...)
       CBH.safeCall(CBH.Announce.Init)
       CBH.safeCall(CBH.Arrow.Init)
       CBH.safeCall(CBH.QuestWatcher.Update, true)
+   elseif event == "QUEST_ACCEPTED" then
+      local questIndex = ...
+      CBH.safeCall(CBH.Dungeon and CBH.Dungeon.OnQuestAccepted, questIndex)
    elseif event == "QUEST_LOG_UPDATE" then
       CBH.safeCall(CBH.QuestWatcher.Update)
    elseif event == "ZONE_CHANGED_NEW_AREA" then
@@ -194,7 +201,7 @@ end
 
 CBH.frame = CreateFrame("Frame")
 CBH.frame:SetScript("OnEvent", OnEvent)
-for _, e in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "QUEST_LOG_UPDATE",
+for _, e in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED",
       "ZONE_CHANGED_NEW_AREA", "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED",
       "COMBAT_LOG_EVENT_UNFILTERED", "PLAYER_REGEN_ENABLED" }) do
    CBH.frame:RegisterEvent(e)
@@ -258,6 +265,9 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       else
          CBH.print("'" .. tostring(arg) .. "' wasn't blocked. /cbh blocked to list.")
       end
+   elseif cmd == "dungeon" then
+      if CBH.Dungeon and CBH.Dungeon.Command then CBH.safeCall(CBH.Dungeon.Command, arg)
+      else CBH.print("Dungeon module unavailable.") end
    elseif cmd == "export" then
       if CBH.Export then CBH.safeCall(CBH.Export, arg)
       else CBH.print("Export module unavailable.") end
@@ -364,6 +374,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | probe | reset")
+      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | probe | dungeon | reset")
    end
 end

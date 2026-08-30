@@ -122,71 +122,88 @@ for zone in pairs(ZONE_SIZE) do SpawnDB.ZONES[zone] = true end
 -- Crusader; Prince Taldaram: Ahn'kahet AND Icecrown Citadel) - these map to
 -- their 5-man dungeon, the far likelier callboard source; if you ever get the
 -- raid version, "/cbh portvia <zone>" overrides it for that objective.
-local DUNGEON_ZONE = {
-   -- Howling Fjord: Utgarde Keep / Utgarde Pinnacle
-   ["utgarde keep"] = "Howling Fjord", ["utgarde pinnacle"] = "Howling Fjord",
-   ["prince keleseth"] = "Howling Fjord", ["skarvald"] = "Howling Fjord",
-   ["dalronn"] = "Howling Fjord", ["ingvar the plunderer"] = "Howling Fjord",
-   ["svala sorrowgrave"] = "Howling Fjord", ["gortok palehoof"] = "Howling Fjord",
-   ["skadi the ruthless"] = "Howling Fjord", ["king ymiron"] = "Howling Fjord",
-   -- Borean Tundra: The Nexus / The Oculus (Coldarra)
-   ["the nexus"] = "Borean Tundra", ["the oculus"] = "Borean Tundra",
-   ["grand magus telestra"] = "Borean Tundra", ["anomalus"] = "Borean Tundra",
-   ["ormorok"] = "Borean Tundra", ["keristrasza"] = "Borean Tundra",
-   ["drakos"] = "Borean Tundra", ["varos cloudstrider"] = "Borean Tundra",
-   ["mage-lord urom"] = "Borean Tundra", ["ley-guardian eregos"] = "Borean Tundra",
-   -- Dragonblight: Azjol-Nerub / Ahn'kahet: The Old Kingdom
-   ["azjol-nerub"] = "Dragonblight", ["ahn'kahet"] = "Dragonblight",
-   ["the old kingdom"] = "Dragonblight", ["krik'thir"] = "Dragonblight",
-   ["hadronox"] = "Dragonblight", ["elder nadox"] = "Dragonblight",
-   ["prince taldaram"] = "Dragonblight", ["jedoga shadowseeker"] = "Dragonblight",
-   ["herald volazj"] = "Dragonblight", ["anub'arak"] = "Dragonblight",
-   -- Grizzly Hills: Drak'Tharon Keep (sits on the Grizzly Hills/Zul'Drak border;
-   -- its entrance is on the Grizzly Hills side)
-   ["drak'tharon keep"] = "Grizzly Hills", ["trollgore"] = "Grizzly Hills",
-   ["novos the summoner"] = "Grizzly Hills", ["king dred"] = "Grizzly Hills",
-   ["the prophet tharon'ja"] = "Grizzly Hills",
-   -- Zul'Drak: Gundrak
-   ["gundrak"] = "Zul'Drak", ["slad'ran"] = "Zul'Drak",
-   ["drakkari colossus"] = "Zul'Drak", ["moorabi"] = "Zul'Drak",
-   ["gal'darah"] = "Zul'Drak", ["eck the ferocious"] = "Zul'Drak",
-   -- The Storm Peaks: Halls of Stone / Halls of Lightning
-   ["halls of stone"] = "The Storm Peaks", ["halls of lightning"] = "The Storm Peaks",
-   ["krystallus"] = "The Storm Peaks", ["maiden of grief"] = "The Storm Peaks",
-   ["sjonnir the ironshaper"] = "The Storm Peaks", ["general bjarngrim"] = "The Storm Peaks",
-   ["volkhan"] = "The Storm Peaks", ["ionar"] = "The Storm Peaks",
-   ["loken"] = "The Storm Peaks",
-   -- Dalaran: The Violet Hold (Cyanigosa is always the finale; the other six are
-   -- a random pair of mini-bosses per run, so list all six)
-   ["the violet hold"] = "Dalaran", ["cyanigosa"] = "Dalaran",
-   ["erekem"] = "Dalaran", ["xevozz"] = "Dalaran", ["zuramat"] = "Dalaran",
-   ["ichoron"] = "Dalaran", ["moragg"] = "Dalaran", ["lavanthor"] = "Dalaran",
-   -- Icecrown: Trial of the Champion + the ICC 5-man wings (the raid "Icecrown
-   -- Citadel" text already contains "Icecrown" and is caught by the zone scan)
-   ["trial of the champion"] = "Icecrown", ["the forge of souls"] = "Icecrown",
-   ["pit of saron"] = "Icecrown", ["halls of reflection"] = "Icecrown",
-   ["bronjahm"] = "Icecrown", ["devourer of souls"] = "Icecrown",
-   ["scourgelord tyrannus"] = "Icecrown", ["forgemaster garfrost"] = "Icecrown",
-   ["krick"] = "Icecrown", -- Pit of Saron's "Ick and Krick" ("ick" alone is too short)
-   ["eadric the pure"] = "Icecrown", ["argent confessor paletress"] = "Icecrown",
-   ["the black knight"] = "Icecrown", ["falric"] = "Icecrown", ["marwyn"] = "Icecrown",
-   -- Tanaris (Caverns of Time): The Culling of Stratholme. Keyed on the full
-   -- instance name, NOT bare "Stratholme", so the classic Stratholme (Eastern
-   -- Plaguelands) isn't pulled here. If Ebonhold has no Caverns of Time
-   -- checkpoint the port just reports "no checkpoints" - still better than a
-   -- wrong zone.
-   -- Instance/raid hubs seen in real callboard cards that are NOT map zones, so
-   -- SetMapByZoneName can never find them on its own (harvested from cardZones:
-   -- "Coilfang Myrmidon -> Coilfang Reservoir", "Sunseeker Channeler -> Tempest
-   -- Keep", plus kills recorded inside Ulduar).
-   ["coilfang reservoir"] = "Zangarmarsh", ["serpentshrine cavern"] = "Zangarmarsh",
-   ["tempest keep"] = "Netherstorm", ["the eye"] = "Netherstorm",
-   ["ulduar"] = "The Storm Peaks", ["naxxramas"] = "Dragonblight",
-   ["vault of archavon"] = "Wintergrasp", ["black temple"] = "Shadowmoon Valley",
-   ["culling of stratholme"] = "Tanaris", ["salramm the fleshcrafter"] = "Tanaris",
-   ["chrono-lord epoch"] = "Tanaris", ["mal'ganis"] = "Tanaris",
-   ["meathook"] = "Tanaris", ["infinite corruptor"] = "Tanaris",
+-- Dungeons, their containing zone, and their bosses. Source of truth for two
+-- different questions, which is why it is shaped this way:
+--   * routing  - "this objective names Ingvar, where do I port?"  -> zone
+--   * matching - "is this card for the dungeon I am standing in?" -> bosses
+-- A flat name->zone map cannot answer the second: Utgarde Keep and Utgarde
+-- Pinnacle both map to Howling Fjord, so the zone does not identify the dungeon.
+-- DUNGEON_ZONE below is derived from this, so routing behaviour is unchanged.
+local DUNGEONS = {
+   ["Utgarde Keep"] = { zone = "Howling Fjord", bosses = {
+      "Prince Keleseth", "Skarvald", "Dalronn", "Ingvar the Plunderer" } },
+   ["Utgarde Pinnacle"] = { zone = "Howling Fjord", bosses = {
+      "Svala Sorrowgrave", "Gortok Palehoof", "Skadi the Ruthless", "King Ymiron" } },
+   ["The Nexus"] = { zone = "Borean Tundra", bosses = {
+      "Grand Magus Telestra", "Anomalus", "Ormorok", "Keristrasza" } },
+   ["The Oculus"] = { zone = "Borean Tundra", bosses = {
+      "Drakos", "Varos Cloudstrider", "Mage-Lord Urom", "Ley-Guardian Eregos" } },
+   ["Azjol-Nerub"] = { zone = "Dragonblight", bosses = {
+      "Krik'thir", "Hadronox", "Anub'arak" } },
+   ["Ahn'kahet"] = { zone = "Dragonblight", aliases = { "The Old Kingdom" }, bosses = {
+      "Elder Nadox", "Prince Taldaram", "Jedoga Shadowseeker", "Herald Volazj" } },
+   ["Drak'Tharon Keep"] = { zone = "Grizzly Hills", bosses = {
+      "Trollgore", "Novos the Summoner", "King Dred", "The Prophet Tharon'ja" } },
+   ["Gundrak"] = { zone = "Zul'Drak", bosses = {
+      "Slad'ran", "Drakkari Colossus", "Moorabi", "Gal'darah", "Eck the Ferocious" } },
+   ["Halls of Stone"] = { zone = "The Storm Peaks", bosses = {
+      "Krystallus", "Maiden of Grief", "Sjonnir the Ironshaper" } },
+   ["Halls of Lightning"] = { zone = "The Storm Peaks", bosses = {
+      "General Bjarngrim", "Volkhan", "Ionar", "Loken" } },
+   ["The Violet Hold"] = { zone = "Dalaran", bosses = {
+      "Cyanigosa", "Erekem", "Xevozz", "Zuramat", "Ichoron", "Moragg", "Lavanthor" } },
+   ["Trial of the Champion"] = { zone = "Icecrown", bosses = {
+      "Eadric the Pure", "Argent Confessor Paletress", "The Black Knight" } },
+   ["The Forge of Souls"] = { zone = "Icecrown", bosses = {
+      "Bronjahm", "Devourer of Souls" } },
+   ["Pit of Saron"] = { zone = "Icecrown", bosses = {
+      "Forgemaster Garfrost", "Krick", "Scourgelord Tyrannus" } },
+   ["Halls of Reflection"] = { zone = "Icecrown", bosses = { "Falric", "Marwyn" } },
+   ["The Culling of Stratholme"] = { zone = "Tanaris", aliases = { "Culling of Stratholme" },
+      bosses = { "Salramm the Fleshcrafter", "Chrono-Lord Epoch", "Mal'Ganis",
+                 "Meathook", "Infinite Corruptor" } },
+   -- Raid/instance hubs that appear in real callboard cards but are not map
+   -- zones, so the world map can never be pointed at them directly.
+   ["Coilfang Reservoir"] = { zone = "Zangarmarsh", aliases = { "Serpentshrine Cavern" }, bosses = {} },
+   ["Tempest Keep"] = { zone = "Netherstorm", aliases = { "The Eye" }, bosses = {} },
+   ["Ulduar"] = { zone = "The Storm Peaks", bosses = {} },
+   ["Naxxramas"] = { zone = "Dragonblight", bosses = {} },
+   ["Vault of Archavon"] = { zone = "Wintergrasp", bosses = {} },
+   ["Black Temple"] = { zone = "Shadowmoon Valley", bosses = {} },
 }
+
+-- Derived: every dungeon name, alias and boss name -> its zone. Keys are matched
+-- as lowercase substrings of quest title/objective text. A few boss names are
+-- shared with a raid (Anub'arak: Azjol-Nerub AND Trial of the Crusader; Prince
+-- Taldaram: Ahn'kahet AND Icecrown Citadel) - these resolve to their 5-man
+-- dungeon, the likelier callboard source; "/cbh portvia <zone>" overrides it.
+-- Dungeons whose name already contains their zone (e.g. "Icecrown Citadel"
+-- contains "Icecrown") need no entry - the zone scan catches those first.
+local DUNGEON_ZONE = {}
+for dungeon, info in pairs(DUNGEONS) do
+   DUNGEON_ZONE[string.lower(dungeon)] = info.zone
+   for _, a in ipairs(info.aliases or {}) do DUNGEON_ZONE[string.lower(a)] = info.zone end
+   for _, b in ipairs(info.bosses or {}) do DUNGEON_ZONE[string.lower(b)] = info.zone end
+end
+
+SpawnDB.DUNGEONS = DUNGEONS
+
+-- Does this text name the dungeon itself, or one of its bosses? Used to decide
+-- whether a callboard card belongs to the instance the player is standing in.
+function SpawnDB.TextMatchesDungeon(text, dungeon)
+   if not text or not dungeon then return false end
+   local info = DUNGEONS[dungeon]
+   local lt, ld = string.lower(text), string.lower(dungeon)
+   if string.find(lt, ld, 1, true) then return true end
+   if not info then return false end
+   for _, a in ipairs(info.aliases or {}) do
+      if string.find(lt, string.lower(a), 1, true) then return true end
+   end
+   for _, b in ipairs(info.bosses or {}) do
+      if string.find(lt, string.lower(b), 1, true) then return true end
+   end
+   return false
+end
 
 -- Outdoor callboard targets whose quest text names neither an outdoor zone nor a
 -- rare we already have points for. Extend as new ones are reported.

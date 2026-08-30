@@ -4,6 +4,31 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.8.0] - 2026-08-30
+### Added
+- **Dungeon callboard automation** (`/cbh dungeon on` — **off by default**). With
+  the Summon Callboard spell: you cast it inside a dungeon, and CBH rerolls the
+  board until the card for *that dungeon* appears, accepts it, and shares it with
+  your group.
+
+  CBH cannot cast the spell for you — `CastSpellByName` is protected on 3.3.5 and
+  needs a real keypress. You cast; CBH takes over the moment the board appears.
+
+  Bounded by three independent stops: the board's own ~30s lifetime, a reroll cap
+  (`/cbh dungeon rerolls <n|unlimited>`, default 10) and a gold reserve
+  (`/cbh dungeon reserve <gold>`) it will never spend below. Every reroll's cost
+  is reported as it goes, with a total when it stops.
+
+  The Confirm click is **verified, never blind** — it only clicks a popup that
+  identifies itself as the reroll dialog, and stops if any other dialog is open,
+  so it can't confirm something destructive. Sharing happens once per quest and
+  only when you're in a group.
+### Changed
+- Dungeon data is now `SpawnDB.DUNGEONS` (zone **and** bosses per dungeon), with
+  the routing table derived from it. A flat name→zone map couldn't tell Utgarde
+  Keep from Utgarde Pinnacle — both are "Howling Fjord" — which matching needs.
+  Routing behaviour is unchanged.
+
 ## [1.7.4] - 2026-08-30
 ### Fixed
 - **The Port button sat on a dead "Port: objective" when you had no callboard
