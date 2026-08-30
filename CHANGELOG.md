@@ -4,6 +4,25 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.2] - 2026-08-30
+### Fixed
+- **Callboards summoned inside a dungeon were remembered as places to travel
+  back to.** `LearnCallboard` was written when boards were permanent world
+  objects; the Summon Callboard spell drops a temporary 30-second board anywhere,
+  including instances. Walking into Halls of Stone recorded it as a Port:
+  Callboard destination — an instance with no world map, no checkpoint, and
+  instance-local coordinates. CBH now refuses to learn one inside an instance or
+  in any zone the world map doesn't have, never picks an unreachable entry, and
+  **clears the bad ones from your saved data once** (real databases already carry
+  `Naxxramas`, `The Obsidian Sanctum` and `Ahn'kahet: The Old Kingdom`).
+  `/cbh sethome` is refused inside an instance for the same reason.
+- **Dungeon automation gave no sign it existed.** It's off by default and only
+  acts once a board is already open, so walking into a dungeon showed nothing at
+  all — the entry reminder was in the design and was missed in the 1.8.0
+  implementation. CBH now says, once per dungeon, either that it's ready or how
+  to turn it on (`/cbh dungeon on`). The off-hint stops after three dungeons
+  rather than nagging forever.
+
 ## [1.9.1] - 2026-08-30
 ### Added
 - **Card catalogue** (`/cbh catalogue`). Every distinct callboard card you see is

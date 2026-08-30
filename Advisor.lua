@@ -132,6 +132,11 @@ end
 -- Remember where callboards are: called while an Objectives Board is open.
 local function LearnCallboard()
    if not (CBH.db and CBH.db.callboards) then return end
+   -- A board summoned inside a dungeon is temporary and unreachable; recording it
+   -- pollutes the Port: Callboard list with somewhere you can never go back to.
+   if IsInInstance and IsInInstance() then return end
+   if CBH.IsPortableCallboardZone
+      and not CBH.IsPortableCallboardZone(GetRealZoneText()) then return end
    if not WorldMapFrame:IsShown() then SetMapToCurrentZone() end
    local x, y = GetPlayerMapPosition("player")
    if not x or (x == 0 and y == 0) then return end
@@ -1019,9 +1024,19 @@ function Advisor.PortToCallboard()
       end
       local zone = GetRealZoneText()
       for _, b in ipairs(list) do
-         if b.zone == zone then pick = b break end
+         if b.zone == zone and CBH.IsPortableCallboardZone(b.zone) then pick = b break end
       end
-      pick = pick or list[1]
+      if not pick then
+         -- Never fall back to an entry we cannot travel to.
+         for _, b in ipairs(list) do
+            if CBH.IsPortableCallboardZone(b.zone) then pick = b break end
+         end
+      end
+      if not pick then
+         CBH.print("No callboard location you can travel back to - open a board"
+            .. " outdoors once, or /cbh sethome where you want your home.")
+         return
+      end
    end
    CBH.Log("port", "CALLBOARD request -> " .. tostring(pick.zone)
       .. string.format(" %.2f/%.2f", pick.x or 0, pick.y or 0))

@@ -317,6 +317,37 @@ function D.OnQuestAccepted(questIndex)
    if ok then CBH.print("Shared the quest with your group.") end
 end
 
+-- Tell the player, once per instance, that the board is worth summoning here.
+-- Without this the feature is invisible: it is off by default and only ever acts
+-- once a board is already open, so a player who never runs /cbh dungeon on gets
+-- no signal that anything exists. (This was in the design and was missed in the
+-- first implementation - the symptom was walking into a dungeon and seeing
+-- nothing at all.)
+local OFF_HINTS = 3   -- stop nagging about the off switch after a few dungeons
+
+function D.OnZoneChanged()
+   local instance = D.CurrentInstance()
+   if not instance then
+      D.announced = nil
+      return
+   end
+   if D.announced == instance then return end
+   D.announced = instance
+   if Opt("dungeonAuto", false) then
+      CBH.print(instance .. ": cast Summon Callboard and CBH will reroll to this"
+         .. " dungeon's quest, accept it, and share it with the group.")
+      return
+   end
+   local o = CBH.db and CBH.db.options
+   local shown = (o and o.dungeonHintsShown) or 0
+   if shown >= OFF_HINTS then return end
+   if o then o.dungeonHintsShown = shown + 1 end
+   CBH.print(instance .. ": callboard automation is OFF. /cbh dungeon on lets CBH"
+      .. " reroll the board to this dungeon's quest, accept it and share it."
+      .. " (" .. (OFF_HINTS - shown - 1) .. " more reminder"
+      .. ((OFF_HINTS - shown - 1) == 1 and "" or "s") .. ".)")
+end
+
 -- ---------------------------------------------------------------- entry point
 
 -- Called by the Advisor ticker. Starts a run when the board opens inside an

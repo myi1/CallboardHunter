@@ -15,6 +15,7 @@ local DEFAULTS = {
       -- Dungeon callboard automation. OFF by default: it click-loops the board,
       -- which is the player's call to make knowingly. See Dungeon.lua.
       dungeonAuto = false, dungeonRerollMax = 10, dungeonGoldReserve = 0,
+      dungeonHintsShown = 0,
       dungeonShare = true },
    learned = {},      -- rare sightings: [zone][npcID/name] = {points}
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
@@ -44,6 +45,13 @@ end
 
 -- Set/clear the home callboard (the checkpoint nearest where you stand).
 function CBH.SetHomeHere()
+   -- A home inside an instance is not a place the checkpoint network can return
+   -- you to (see CBH.IsPortableCallboardZone).
+   if IsInInstance and IsInInstance() then
+      CBH.print("You are inside an instance - stand outdoors where you want your"
+         .. " home and try again.")
+      return false
+   end
    SetMapToCurrentZone()
    local x, y = GetPlayerMapPosition("player")
    if not x or (x == 0 and y == 0) then
@@ -74,6 +82,45 @@ function CBH.IsBlockedCheckpoint(name)
       if key ~= "" and string.find(low, key, 1, true) then return true end
    end
    return false
+end
+
+-- Is this somewhere the Port: Callboard button could actually bring you back to?
+--
+-- Callboards used to be permanent world objects, so anywhere you opened one was
+-- worth remembering. The Summon Callboard spell changed that: it drops a
+-- temporary 30-second board ANYWHERE, including inside a dungeon. A board summoned
+-- in Halls of Stone is not a destination - the zone has no world map, no
+-- checkpoint, and its coordinates are instance-local and meaningless outside.
+-- Real databases already carry entries like "Naxxramas" and "The Obsidian
+-- Sanctum" from before this check existed.
+function CBH.IsPortableCallboardZone(zone)
+   if not zone or zone == "" then return false end
+   if CBH.SpawnDB and CBH.SpawnDB.KnownMapZone then
+      return CBH.SpawnDB.KnownMapZone(zone) ~= nil
+   end
+   return true   -- map list unavailable: do not throw data away
+end
+
+-- Drop callboards recorded somewhere unreachable. Runs once, at login, when the
+-- continent/zone lists are populated.
+function CBH.PurgeUnreachableCallboards()
+   if not (CBH.db and CBH.db.callboards) then return end
+   if CBH.db.purgedInstanceBoards then return end
+   local kept, dropped = {}, {}
+   for _, b in ipairs(CBH.db.callboards) do
+      if b.zone and CBH.IsPortableCallboardZone(b.zone) then
+         kept[#kept + 1] = b
+      else
+         dropped[#dropped + 1] = tostring(b.zone)
+      end
+   end
+   CBH.db.callboards = kept
+   CBH.db.purgedInstanceBoards = true
+   if #dropped > 0 then
+      CBH.print("Forgot " .. #dropped .. " callboard location"
+         .. (#dropped == 1 and "" or "s") .. " you cannot travel back to ("
+         .. table.concat(dropped, ", ") .. ").")
+   end
 end
 
 -- The player's position IN THEIR OWN ZONE, for learning spawn/kill coordinates.
@@ -184,6 +231,7 @@ local function OnEvent(self, event, ...)
       CBH.safeCall(CBH.Arrow.Init)
       -- Carry route state over from the PallyPilot module this used to live in,
       -- so harvested checkpoints and learned quest givers survive the move.
+      CBH.safeCall(CBH.PurgeUnreachableCallboards)
       CBH.safeCall(CBH.Route.MigrateFromPallyPilot)
       CBH.safeCall(CBH.Route.Init)
       CBH.safeCall(CBH.QuestWatcher.Update, true)
@@ -192,9 +240,10 @@ local function OnEvent(self, event, ...)
       CBH.safeCall(CBH.Dungeon and CBH.Dungeon.OnQuestAccepted, questIndex)
    elseif event == "QUEST_LOG_UPDATE" then
       CBH.safeCall(CBH.QuestWatcher.Update)
-   elseif event == "ZONE_CHANGED_NEW_AREA" then
+   elseif event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_ENTERING_WORLD" then
       CBH.visited = {}
       CBH.safeCall(CBH.Arrow.Refresh)
+      CBH.safeCall(CBH.Dungeon and CBH.Dungeon.OnZoneChanged)
    elseif event == "UPDATE_MOUSEOVER_UNIT" then
       CBH.safeCall(CBH.Detector.OnMouseover)
    elseif event == "PLAYER_TARGET_CHANGED" then
@@ -209,7 +258,8 @@ end
 CBH.frame = CreateFrame("Frame")
 CBH.frame:SetScript("OnEvent", OnEvent)
 for _, e in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED",
-      "ZONE_CHANGED_NEW_AREA", "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED",
+      "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD",
+      "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED",
       "COMBAT_LOG_EVENT_UNFILTERED", "PLAYER_REGEN_ENABLED" }) do
    CBH.frame:RegisterEvent(e)
 end
