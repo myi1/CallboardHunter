@@ -4,6 +4,22 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.8] - 2026-08-30
+### Added
+- **Outland and Classic instances.** The dungeon table only ever covered
+  Northrend, so *"Purge the Darkness: Kelidan the Breaker"* resolved to nothing —
+  Kelidan is the Blood Furnace end boss, in Hellfire Peninsula. Added every
+  Outland dungeon and raid (Hellfire Citadel, Coilfang, Auchindoun, Tempest Keep,
+  Gruul's, Karazhan, Magisters' Terrace, Sunwell, Black Temple) and the Classic
+  instances (Deadmines through Naxxramas-era raids), with their bosses.
+
+  Both spellings of punctuated names are listed — the server does not always use
+  Blizzard's apostrophes, and the reported card said "Kelidan" where Blizzard
+  writes "Keli'dan".
+
+  Classic Stratholme is now known (Eastern Plaguelands) alongside the Culling of
+  Stratholme (Tanaris); longest-match keeps them apart.
+
 ## [1.9.7] - 2026-08-30
 ### Fixed
 - **`Port: The Storm Peaks` with no callboard quest active.** The callboard-only

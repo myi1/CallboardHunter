@@ -194,12 +194,117 @@ local DUNGEONS = {
    ["The Eye of Eternity"] = { zone = "Borean Tundra", kind = "raid", bosses = { "Malygos" } },
    ["The Ruby Sanctum"] = { zone = "Dragonblight", kind = "raid", bosses = { "Halion" } },
    ["Onyxia's Lair"] = { zone = "Dustwallow Marsh", kind = "raid", bosses = { "Onyxia" } },
-   -- Outland raid hubs seen in real callboard cards; the hub name is what the
-   -- cards use, so no boss list is needed.
+   -- ------------------------------------------------------------- Outland
+   -- Reported gap: "Purge the Darkness: Kelidan the Breaker" resolved to nothing
+   -- because this table only ever covered Northrend. Kelidan is the Blood
+   -- Furnace end boss, inside Hellfire Citadel, in Hellfire Peninsula.
+   -- Both spellings of the apostrophe names are listed - the server does not
+   -- always use Blizzard's punctuation.
+   ["Hellfire Ramparts"] = { zone = "Hellfire Peninsula", kind = "dungeon", bosses = {
+      "Watchkeeper Gargolmar", "Omor the Unscarred", "Vazruden", "Nazan" } },
+   ["The Blood Furnace"] = { zone = "Hellfire Peninsula", kind = "dungeon",
+      aliases = { "Blood Furnace" }, bosses = {
+      "The Maker", "Broggok", "Keli'dan the Breaker", "Kelidan the Breaker" } },
+   ["The Shattered Halls"] = { zone = "Hellfire Peninsula", kind = "dungeon",
+      aliases = { "Shattered Halls" }, bosses = {
+      "Grand Warlock Nethekurse", "Blood Guard Porung", "Warbringer O'mrogg",
+      "Warchief Kargath Bladefist", "Kargath Bladefist" } },
+   ["Magtheridon's Lair"] = { zone = "Hellfire Peninsula", kind = "raid", bosses = {
+      "Magtheridon" } },
+
+   ["The Slave Pens"] = { zone = "Zangarmarsh", kind = "dungeon",
+      aliases = { "Slave Pens" }, bosses = {
+      "Mennu the Betrayer", "Rokmar the Crackler", "Quagmirran" } },
+   ["The Underbog"] = { zone = "Zangarmarsh", kind = "dungeon",
+      aliases = { "Underbog" }, bosses = {
+      "Hungarfen", "Ghaz'an", "Swamplord Musel'ek", "The Black Stalker" } },
+   ["The Steamvault"] = { zone = "Zangarmarsh", kind = "dungeon",
+      aliases = { "Steamvault" }, bosses = {
+      "Hydromancer Thespia", "Mekgineer Steamrigger", "Warlord Kalithresh" } },
+
+   ["Mana-Tombs"] = { zone = "Terokkar Forest", kind = "dungeon", bosses = {
+      "Pandemonius", "Tavarok", "Nexus-Prince Shaffar" } },
+   ["Auchenai Crypts"] = { zone = "Terokkar Forest", kind = "dungeon", bosses = {
+      "Shirrak the Dead Watcher", "Exarch Maladaar" } },
+   ["Sethekk Halls"] = { zone = "Terokkar Forest", kind = "dungeon", bosses = {
+      "Darkweaver Syth", "Talon King Ikiss" } },
+   ["Shadow Labyrinth"] = { zone = "Terokkar Forest", kind = "dungeon", bosses = {
+      "Ambassador Hellmaw", "Blackheart the Inciter", "Grandmaster Vorpil", "Murmur" } },
+
+   ["The Mechanar"] = { zone = "Netherstorm", kind = "dungeon",
+      aliases = { "Mechanar" }, bosses = {
+      "Gatewatcher Gyro-Kill", "Gatewatcher Iron-Hand", "Mechano-Lord Capacitus",
+      "Nethermancer Sepethrea", "Pathaleon the Calculator" } },
+   ["The Botanica"] = { zone = "Netherstorm", kind = "dungeon",
+      aliases = { "Botanica" }, bosses = {
+      "Commander Sarannis", "High Botanist Freywinn", "Thorngrin the Tender",
+      "Laj", "Warp Splinter" } },
+   ["The Arcatraz"] = { zone = "Netherstorm", kind = "dungeon",
+      aliases = { "Arcatraz" }, bosses = {
+      "Zereketh the Unbound", "Dalliah the Doomsayer", "Wrath-Scryer Soccothrates",
+      "Harbinger Skyriss" } },
+
+   ["Gruul's Lair"] = { zone = "Blade's Edge Mountains", kind = "raid", bosses = {
+      "High King Maulgar", "Gruul the Dragonkiller" } },
+   ["Magisters' Terrace"] = { zone = "Isle of Quel'Danas", kind = "dungeon", bosses = {
+      "Selin Fireheart", "Vexallus", "Priestess Delrissa" } },
+   ["Sunwell Plateau"] = { zone = "Isle of Quel'Danas", kind = "raid", bosses = {
+      "Kalecgos", "Brutallus", "Felmyst", "M'uru", "Kil'jaeden" } },
+   ["Karazhan"] = { zone = "Deadwind Pass", kind = "raid", bosses = {
+      "Attumen the Huntsman", "Moroes", "Maiden of Virtue", "The Curator",
+      "Shade of Aran", "Terestian Illhoof", "Netherspite", "Prince Malchezaar" } },
+
+   -- Outland raid hubs seen in real callboard cards. Bosses added so a card that
+   -- names only the boss resolves, same as everywhere else.
    ["Coilfang Reservoir"] = { zone = "Zangarmarsh", kind = "raid",
-      aliases = { "Serpentshrine Cavern" }, bosses = {} },
-   ["Tempest Keep"] = { zone = "Netherstorm", kind = "raid", aliases = { "The Eye" }, bosses = {} },
-   ["Black Temple"] = { zone = "Shadowmoon Valley", kind = "raid", bosses = {} },
+      aliases = { "Serpentshrine Cavern" }, bosses = {
+      "Hydross the Unstable", "The Lurker Below", "Leotheras the Blind",
+      "Fathom-Lord Karathress", "Morogrim Tidewalker", "Lady Vashj" } },
+   ["Tempest Keep"] = { zone = "Netherstorm", kind = "raid", aliases = { "The Eye" },
+      bosses = { "Al'ar", "Void Reaver", "High Astromancer Solarian",
+                 "Kael'thas Sunstrider" } },
+   ["Black Temple"] = { zone = "Shadowmoon Valley", kind = "raid", bosses = {
+      "High Warlord Naj'entus", "Supremus", "Shade of Akama", "Teron Gorefiend",
+      "Gurtogg Bloodboil", "Reliquary of Souls", "Mother Shahraz",
+      "Illidan Stormrage" } },
+
+   -- ------------------------------------------------------------- Classic
+   -- The callboard operates at every level (cardZones already holds Elwynn,
+   -- Teldrassil, Durotar objectives), so the old-world instances belong here too.
+   ["Ragefire Chasm"] = { zone = "Orgrimmar", kind = "dungeon", bosses = { "Taragaman the Hungerer" } },
+   ["The Deadmines"] = { zone = "Westfall", kind = "dungeon", aliases = { "Deadmines" },
+      bosses = { "Mr. Smite", "Edwin VanCleef" } },
+   ["Wailing Caverns"] = { zone = "The Barrens", kind = "dungeon", bosses = { "Mutanus the Devourer" } },
+   ["Shadowfang Keep"] = { zone = "Silverpine Forest", kind = "dungeon", bosses = {
+      "Baron Silverlaine", "Arugal" } },
+   ["Blackfathom Deeps"] = { zone = "Ashenvale", kind = "dungeon", bosses = { "Aku'mai" } },
+   ["The Stockade"] = { zone = "Stormwind City", kind = "dungeon", bosses = { "Bazil Thredd" } },
+   ["Gnomeregan"] = { zone = "Dun Morogh", kind = "dungeon", bosses = { "Mekgineer Thermaplugg" } },
+   ["Razorfen Kraul"] = { zone = "The Barrens", kind = "dungeon", bosses = { "Charlga Razorflank" } },
+   ["Razorfen Downs"] = { zone = "The Barrens", kind = "dungeon", bosses = { "Amnennar the Coldbringer" } },
+   ["Scarlet Monastery"] = { zone = "Tirisfal Glades", kind = "dungeon", bosses = {
+      "Herod", "Arcanist Doan", "Scarlet Commander Mograine", "High Inquisitor Whitemane" } },
+   ["Uldaman"] = { zone = "Badlands", kind = "dungeon", bosses = { "Archaedas", "Ironaya" } },
+   ["Zul'Farrak"] = { zone = "Tanaris", kind = "dungeon", bosses = { "Chief Ukorz Sandscalp" } },
+   ["Maraudon"] = { zone = "Desolace", kind = "dungeon", bosses = { "Princess Theradras" } },
+   ["Temple of Atal'Hakkar"] = { zone = "Swamp of Sorrows", kind = "dungeon",
+      aliases = { "Sunken Temple" }, bosses = { "Shade of Eranikus", "Jammal'an the Prophet" } },
+   ["Blackrock Depths"] = { zone = "Searing Gorge", kind = "dungeon", bosses = {
+      "Emperor Dagran Thaurissan", "Ambassador Flamelash" } },
+   ["Dire Maul"] = { zone = "Feralas", kind = "dungeon", bosses = { "Immol'thar", "Prince Tortheldrin" } },
+   ["Stratholme"] = { zone = "Eastern Plaguelands", kind = "dungeon", bosses = {
+      "Baron Rivendare", "Balnazzar" } },
+   ["Scholomance"] = { zone = "Western Plaguelands", kind = "dungeon", bosses = {
+      "Darkmaster Gandling", "Ras Frostwhisper" } },
+   ["Blackrock Spire"] = { zone = "Searing Gorge", kind = "dungeon", bosses = {
+      "General Drakkisath", "Overlord Wyrmthalak" } },
+   ["Blackwing Lair"] = { zone = "Searing Gorge", kind = "raid", bosses = {
+      "Razorgore the Untamed", "Vaelastrasz the Corrupt", "Nefarian" } },
+   ["Molten Core"] = { zone = "Searing Gorge", kind = "raid", bosses = {
+      "Lucifron", "Magmadar", "Golemagg the Incinerator", "Ragnaros" } },
+   ["Zul'Gurub"] = { zone = "Stranglethorn Vale", kind = "raid", bosses = { "Hakkar" } },
+   ["Ahn'Qiraj"] = { zone = "Silithus", kind = "raid", aliases = { "Temple of Ahn'Qiraj" },
+      bosses = { "The Prophet Skeram", "C'Thun", "Ossirian the Unscarred" } },
 }
 
 -- Derived: every dungeon name, alias and boss name -> its zone. Keys are matched
