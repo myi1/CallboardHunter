@@ -4,6 +4,18 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.10.2] - 2026-08-31
+### Fixed
+- **More contrast on card notes.** The 1.10.1 ink was still a mid-tone and washed
+  out against the bright card texture at small sizes. Ink is now near-black brown
+  and measures **10.2:1** against the card art (was well under); every stamp
+  colour clears 6.5:1. `ui_test.lua` pins real WCAG ratios against a sample of
+  the actual parchment rather than a luminance guess — 4.5:1 minimum, 7:1 for
+  body ink.
+- **The stamp glyph no longer clips.** Card notes were 50px narrower than the
+  card, so `>` was cut off at the left edge and lines wrapped early. Now 16px,
+  centred, and a size tier larger to hold its own against the texture.
+
 ## [1.10.1] - 2026-08-31
 ### Fixed
 - **Card notes were unreadable.** 1.10.0 put parchment-coloured text onto the

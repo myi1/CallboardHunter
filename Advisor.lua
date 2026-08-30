@@ -83,9 +83,14 @@ local function RefreshCards()
          end
          if not card.cbhNote then
             -- Ink: this FontString sits on the server's light card art.
-            card.cbhNote = CBH.UI.Text(card, "body", CBH.UI.INK, CBH.UI.FONT_META)
+            -- Ink: this FontString sits on the server's light card art. Sized a
+            -- tier up from meta because it competes with a busy parchment
+            -- texture, and only 16px narrower than the card - at -50 the stamp
+            -- glyph clipped off the left edge and the line wrapped early.
+            card.cbhNote = CBH.UI.Text(card, "label", CBH.UI.INK, CBH.UI.FONT_META)
             card.cbhNote:SetPoint("BOTTOM", card, "BOTTOM", 0, 92) -- clear of the Select button
-            card.cbhNote:SetWidth(card:GetWidth() - 50)
+            card.cbhNote:SetWidth(card:GetWidth() - 16)
+            card.cbhNote:SetJustifyH("CENTER")
          end
          card.cbhNote:SetText(note or "")
       end

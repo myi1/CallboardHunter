@@ -38,9 +38,14 @@ above are for dark ground only. Text on a card is `INK` / `INK_SOFT`, and stamps
 take `UI.Stamp(kind, true)` so their colours darken to match.
 
 1.10.0 put parchment-coloured text on the parchment card art and it was
-unreadable. `ui_test.lua` now guards it by luminance: dark-ground text must be
-light, parchment-ground text must be dark, and every stamp must be darker on
-paper than on wood.
+unreadable. `ui_test.lua` now guards it by luminance AND by measured WCAG
+contrast against the real card sample (`#d8b98a`): every parchment colour must
+clear **4.5:1**, and body ink must clear **7:1**. Ink currently reads 10.2:1.
+
+Mid-tones wash out on that texture at small sizes — the first fix at `#2a1f14`
+still looked grey in game. Card notes also sit at `label` size (13) rather than
+`meta`, because they compete with a busy parchment texture, and only 16px
+narrower than the card (at −50 the stamp glyph clipped and the line wrapped).
 
 ## Depth strategy
 **Surface shift + hairline border. No shadows anywhere.** WoW backdrops make

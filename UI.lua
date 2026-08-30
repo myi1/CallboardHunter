@@ -42,8 +42,11 @@ UI.TEXT_FAINT     = { 0.353, 0.310, 0.259 }
 -- above are for dark ground only - using them on a card puts pale text on pale
 -- paper, which is exactly what shipped in 1.10.0 and was unreadable. Text on a
 -- card is INK, and the status colours darken to match.
-UI.INK       = { 0.165, 0.122, 0.078 }  -- primary text on parchment
-UI.INK_SOFT  = { 0.353, 0.278, 0.196 }  -- secondary text on parchment
+-- Near-black brown. The card art is bright (~#d8b98a) and these render small,
+-- so mid-tones wash out against it - the first pass at 0.165/0.353 was still
+-- too light in practice. Ink on paper wants real contrast, not a tint.
+UI.INK       = { 0.086, 0.059, 0.031 }  -- primary text on parchment
+UI.INK_SOFT  = { 0.196, 0.145, 0.086 }  -- secondary text on parchment
 
 UI.BRASS     = { 0.784, 0.592, 0.247 }  -- the single accent: action, destination
 UI.WAX       = { 0.651, 0.227, 0.180 }  -- blocked / failed
@@ -60,8 +63,8 @@ UI.HEX = {
    primary = "e8dcc8", secondary = "b09a7d", muted = "7d6d5a",
    brass = "c8973f", wax = "a63a2e", verdigris = "5a8f6b",
    -- on the server's light parchment cards
-   ink = "2a1f14", inkSoft = "5a4732",
-   brassInk = "6f4e12", waxInk = "7d2419", verdigrisInk = "2c5238",
+   ink = "160f08", inkSoft = "322516",
+   brassInk = "4a3105", waxInk = "5c150d", verdigrisInk = "14301e",
 }
 function UI.Colour(key, text)
    return "|cff" .. (UI.HEX[key] or UI.HEX.primary) .. tostring(text) .. "|r"
