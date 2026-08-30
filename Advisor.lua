@@ -485,6 +485,27 @@ end
 local DEFAULT_PORT_VIA = {
    ["Crystalsong Forest"] = "Dalaran",
 }
+
+-- Some zones have NO checkpoint on their own map, so pointing the map at them
+-- finds nothing at all. Dalaran is the case: it floats over Crystalsong Forest,
+-- and the checkpoint named "Dalaran" sits on the CRYSTALSONG map. Setting home
+-- in Dalaran therefore failed with "No checkpoints found (unnamed map buttons:
+-- 0)" - the Dalaran city map has no checkpoint buttons to find.
+--
+-- This is a MAP redirect, distinct from DEFAULT_PORT_VIA above: that one prefers
+-- a differently-named checkpoint on the map we are already showing, whereas this
+-- changes WHICH MAP to show. The destination stays Dalaran; only the map we scan
+-- for its checkpoint changes.
+local DEFAULT_MAP_VIA = {
+   ["Dalaran"] = "Crystalsong Forest",
+}
+local function MapViaFor(zone)
+   if not zone then return nil end
+   local u = CBH.db and CBH.db.mapOverrides and CBH.db.mapOverrides[zone]
+   if u == "" then return nil end
+   return u or DEFAULT_MAP_VIA[zone]
+end
+Advisor.MapViaFor = MapViaFor
 local function PortViaFor(zone)
    if not zone then return nil end
    local u = CBH.db and CBH.db.portOverrides and CBH.db.portOverrides[zone]
@@ -737,19 +758,22 @@ local function DoPort()
    -- The world map can revert to the player's current zone between Advisor.Port
    -- and here, which made an Icecrown objective scan the Dragonblight map and
    -- pick Moa'ki. Re-assert the map and retry a few times before giving up.
-   if Advisor.lastDestZone then
-      local want = string.gsub(string.lower(Advisor.lastDestZone), "%s", "")
+   -- Assert the map we actually intend to SCAN. For a redirected destination
+   -- (Dalaran -> the Crystalsong map) that is not the destination zone.
+   local wantMap = Advisor.portMapZone or Advisor.lastDestZone
+   if wantMap then
+      local want = string.gsub(string.lower(wantMap), "%s", "")
       local cur = string.lower(tostring(GetMapInfo() or ""))
       if want ~= "" and cur ~= ""
          and not (string.find(cur, want, 1, true) or string.find(want, cur, 1, true)) then
          if (Advisor.portMapTries or 0) < 4 then
             Advisor.portMapTries = (Advisor.portMapTries or 0) + 1
             if not WorldMapFrame:IsShown() then ShowUIPanel(WorldMapFrame) end
-            SetMapByZoneName(Advisor.lastDestZone)
+            SetMapByZoneName(wantMap)
             Advisor.portAt = GetTime() + 0.4 -- rescan once the map settles
             return
          end
-         CBH.Log("port", "MAP-STUCK: wanted " .. tostring(Advisor.lastDestZone)
+         CBH.Log("port", "MAP-STUCK: wanted " .. tostring(wantMap)
             .. " but map is " .. tostring(GetMapInfo()) .. " - scanning anyway")
       end
    end
@@ -993,16 +1017,22 @@ function Advisor.Port(zoneArg)
    -- Fordragon Hold) wins; else a zone's map can carry a checkpoint named for
    -- another zone (Crystalsong's map has a Dalaran checkpoint). Prefer that named
    -- checkpoint on THIS map rather than switching maps.
-   local via = objVia or PortViaFor(destZone)
-   Advisor.portViaName = (via and via ~= destZone) and via or nil
-   Advisor.portViaNote = Advisor.portViaName and (destZone .. " via " .. Advisor.portViaName) or nil
+   local mapZone = MapViaFor(destZone)
+   Advisor.portMapZone = mapZone
+   -- With a map redirect the checkpoint we want is the one NAMED for the
+   -- destination, sitting on the other zone's map.
+   local via = objVia or PortViaFor(destZone) or (mapZone and destZone) or nil
+   Advisor.portViaName = (via and via ~= (mapZone or destZone)) and via or nil
+   Advisor.portViaNote = Advisor.portViaName
+      and (destZone .. " via " .. (mapZone and (mapZone .. "'s map") or Advisor.portViaName))
+      or nil
    if not WorldMapFrame:IsShown() then
       -- (ToggleWorldMap does not exist on this client.)
       ShowUIPanel(WorldMapFrame)
    end
    if destZone then
-      if not SetMapByZoneName(destZone) then
-         CBH.Log("port", "MAP-MISS: no map for '" .. tostring(destZone)
+      if not SetMapByZoneName(mapZone or destZone) then
+         CBH.Log("port", "MAP-MISS: no map for '" .. tostring(mapZone or destZone)
             .. "', falling back to current zone map")
          CBH.print("No map found for zone '" .. tostring(destZone) .. "' - using current map.")
          SetMapToCurrentZone()
@@ -1053,7 +1083,14 @@ function Advisor.PortToCallboard()
    Advisor.portPreferPOI = false
    Advisor.lastDestZone = pick.zone
    Advisor.portMapTries = nil
+   -- Same redirect as Advisor.Port: a home in Dalaran must scan the Crystalsong
+   -- map, because Dalaran's own map carries no checkpoints. Without this,
+   -- "Port: Home" to Dalaran reported "No checkpoints found".
+   local mapZone = MapViaFor(pick.zone)
+   Advisor.portMapZone = mapZone
+   Advisor.portViaName = mapZone and pick.zone or nil
+   Advisor.portViaNote = mapZone and (pick.zone .. " via " .. mapZone .. "'s map") or nil
    if not WorldMapFrame:IsShown() then ShowUIPanel(WorldMapFrame) end
-   if not SetMapByZoneName(pick.zone) then SetMapToCurrentZone() end
+   if not SetMapByZoneName(mapZone or pick.zone) then SetMapToCurrentZone() end
    Advisor.portAt = GetTime() + 0.7
 end

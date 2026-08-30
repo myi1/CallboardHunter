@@ -4,6 +4,23 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.9.6] - 2026-08-30
+### Fixed
+- **`Port: Home` to Dalaran failed with "No checkpoints found".** Dalaran floats
+  over Crystalsong Forest, and the checkpoint named "Dalaran" sits on the
+  **Crystalsong map** — Dalaran's own city map carries no checkpoint buttons at
+  all, so pointing the map at it found nothing. Setting your home there (now
+  practical with the Summon Callboard spell) hit this every time.
+
+  Porting to a zone with no checkpoints of its own now scans the right map while
+  keeping the destination intact: the map shows Crystalsong Forest, the
+  checkpoint named "Dalaran" is preferred, and the chat line reads
+  "Dalaran via Crystalsong Forest's map". This is a *map* redirect, distinct from
+  the existing `/cbh portvia`, which prefers a differently-named checkpoint on the
+  map already shown. Both `Port: Home` and objective ports honour it, and the
+  map-assertion retry now checks the map being scanned rather than the
+  destination — otherwise it fought its own redirect.
+
 ## [1.9.5] - 2026-08-30
 ### Added
 - **Callboard-only routing** (`/cbh cbonly`, on by default). The Port button now

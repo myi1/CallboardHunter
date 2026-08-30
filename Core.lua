@@ -26,6 +26,7 @@ local DEFAULTS = {
    cardCatalogue = {},-- [card text] = {n, lo, hi, where, at}: every card ever seen
    callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }
    portOverrides = {},-- [objectiveZone] = checkpointZone to route via instead
+   mapOverrides = {}, -- [zone] = which zone's MAP to scan for its checkpoint
    checkpointBlock = {}, -- [lowercase name] = true: never route/port to this
    questPatterns = nil,
    route = {},        -- prestige route state: laps, learned givers, checkpoints
