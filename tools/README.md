@@ -19,7 +19,7 @@ node luacheck.js ..
 
 ## Test suites
 
-Ten fengari suites execute the addon's OWN source — not a reimplementation of
+Fourteen fengari suites execute the addon's OWN source — not a reimplementation of
 it — against a stubbed WoW 3.3.5 API. [fengari](https://fengari.io/) is a Lua VM
 in JavaScript; `run_lua.js` loads a script into it and `run_all.js` runs every
 `*_test.lua` in this folder in one pass.
@@ -34,14 +34,22 @@ Point a suite at another checkout with `CBH_ADDON=/path/to/CallboardHunter`.
 `route_test.lua` and `cp_test.lua` instead take `CBH_ROUTE=/path/to/Route.lua`,
 for pointing just that one file elsewhere.
 
+- **`board_test.lua`** — the shared reroll engine on its own: the caller's
+  match callback, the sparse card list a hidden slot produces, skipping CBH's
+  own card annotation, the reroll cap, refusing an unknown dialog, the
+  cards-stopped-changing settle rail, and a won run ending itself.
 - **`cb_zone_test.lua`** — which zones are valid `Port: Callboard` destinations
-  (never an instance), the one-time purge of unreachable callboards, and
-  refusing to set home while inside an instance.
+  (never an instance), the one-time purges of unreachable callboards and of
+  pre-1.9.8 self-annotations in the card catalogue, and refusing to set home
+  while inside an instance.
 - **`comm_test.lua`** — the addon-message payload round-trip, the anti-flood
   floor, per-transport availability gating, self-echo vs peer-message counting,
   and that joining the channel actually registers a display filter rather than
   silently unhooking it.
-- **`cp_test.lua`** covers checkpoint harvesting off the world map, the
+- **`config_test.lua`** — that `/cbh config` actually builds (an unbound
+  global shipped in three releases without failing a suite), the favourites
+  picker's rows, level bands, and its dark-surface glyph colours.
+- **`cp_test.lua`** — checkpoint harvesting off the world map, the
   locked/unlocked read, the Argent Stand prerequisite block, and the
   name-mismatch warning if the server renumbers a checkpoint.
 - **`dungeon_test.lua`** — the dungeon-board auto-select/reroll loop: card
@@ -51,6 +59,10 @@ for pointing just that one file elsewhere.
 - **`export_test.lua`** — SpawnDB corroboration counts and the legacy
   2-element point migration, the shape (and privacy) of the exported table,
   and the card catalogue's classification and progress-counter normalisation.
+- **`fav_test.lua`** — favourites keyed on the card's target rather than its
+  flavour prefix, the pickable list merged from bundled and learned data
+  (minus CBH's own annotations), and `/cbh hunt`: its refusals, the brakes it
+  inherits from `/cbh dungeon`, `hunt stop`, and a won hunt ending at once.
 - **`header_test.lua`** — Advisor's zone resolution: inferring a zone from the
   quest-log header, curated checkpoint overrides beating both the header and
   learned kills, raid bosses being routable, the callboard-only whitelist, and
@@ -61,13 +73,17 @@ for pointing just that one file elsewhere.
 - **`resolve_test.lua`** — the zone-routing table for dungeon/raid/Classic/Outland
   bosses and instance aliases, instance-name detection (longest match wins),
   and card-type classification.
-- **`route_test.lua`** walks a full lap and asserts where the step pointer
+- **`route_test.lua`** — walks a full lap and asserts where the step pointer
   lands at each transition, then drives the auto accept / turn-in engine
   through the real event wiring. Load-bearing cases: the backtrack one (leaving
   Zul'Drak must not un-complete the Zul'Drak port and send the route round in a
   circle), the apostrophe one (the server spells a quest title with a curly
   `’`), and the hand-in detection that reads the server's own
   `"<quest> completed."` line.
+- **`shared_board_test.lua`** — both callers over one engine, which is where
+  `Board.run` being shared bites: `/cbh dungeon off` mid-run must not strand
+  the board and lock `/cbh hunt` out of it, and neither caller may stop the
+  other's run.
 - **`ui_test.lua`** — the colour-blind-safe status stamps (glyph and word,
   never colour alone), the type scale, and WCAG contrast ratios for text on
   both the dark UI ground and the parchment card art.

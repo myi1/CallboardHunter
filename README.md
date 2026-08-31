@@ -77,7 +77,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh dungeon on｜off` | dungeon callboard automation: reroll to the dungeon's card, accept, share (off by default) |
 | `/cbh dungeon rerolls <n｜unlimited>` / `reserve <gold>` / `share on｜off` | bound the reroll loop |
 | `/cbh fav` / `fav clear` | list or clear your favourite callboard quests |
-| `/cbh hunt` | reroll the open board until a favourite appears |
+| `/cbh fav rerolls <n｜unlimited>` / `reserve <gold>` | bound a hunt (defaults to the `/cbh dungeon` numbers) |
+| `/cbh hunt` / `hunt stop` | reroll the open board until a favourite appears / call it off |
 | `/cbh cbonly` / `cbonly off` | route only objectives the callboard actually gave you (default on) |
 | `/cbh catalogue` / `catalogue dump` | every distinct callboard card seen, with its level band (ships with the export) |
 | `/cbh export` / `export clear` | package your learned rare + camp points for sharing (then `/reload`), or remove the export |

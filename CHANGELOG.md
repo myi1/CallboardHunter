@@ -19,6 +19,12 @@ GitHub releases and the `.toc`.
 - **`/cbh hunt`** refuses outright, with an explanation, when you have no
   favourites set — not a silent no-op. An empty list would otherwise reroll
   forever with nothing to stop for.
+- **A hunt states its bound before it spends anything**, and inherits the brakes
+  you already set: `/cbh hunt` uses your `/cbh dungeon` reroll cap and gold
+  reserve until you give favourites its own with `/cbh fav rerolls <n>` /
+  `/cbh fav reserve <gold>`. A reserve you typed once covers both features.
+- **`/cbh hunt stop`** calls a hunt off without closing the board. It only ever
+  stops a hunt — a dungeon run that happens to be live is not its to kill.
 - **A bundled 63-target database** (`SpawnDB.QUESTS`) so favourites and their
   level bands are pickable before you have ever personally seen the card; it
   keeps growing from whatever `/cbh catalogue` has learned on your account.
@@ -35,6 +41,15 @@ GitHub releases and the `.toc`.
   "attempt to index a nil value (global 'UI')" on the very first line of
   `OpenConfig`. Found while wiring up the favourites list above; `Config.lua`
   now binds `local UI = CBH.UI` (and `Fav`) the way every other file does.
+- **The card catalogue is purged of CBH's own card notes, once.** Before 1.9.8
+  the catalogue recorded the annotations CBH draws on cards as if the server had
+  written them; one real database held 97 such entries out of 346. They showed
+  up in the new favourites picker as rows that look real and can never match a
+  card — favourite one and a hunt would reroll to its cap with no possible win.
+  They are dropped from the database at login and skipped in the picker.
+- **`/cbh dungeon off` mid-run stops the run** instead of orphaning it. The run
+  state is shared with `/cbh hunt` now, so an orphan answered every later hunt
+  with "already working the board" until a `/reload`.
 
 ## [1.10.2] - 2026-08-31
 ### Fixed
