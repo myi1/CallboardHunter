@@ -16,7 +16,7 @@
 - **Never blind-click a popup.** Only click a dialog whose own text identifies it as the reroll confirmation. Any other dialog stops the run.
 - **All strings via `UI.Colour` / `UI.Stamp`**, never raw `|cff` codes.
 - **Every commit runs** `node tools/luacheck.js .` clean and all suites green.
-- Test suites live in the scratchpad, not the repo: `C:\Users\Yahya\AppData\Local\Temp\claude\E--Games-Ebonhold-Interface-AddOns-CallboardHunter--claude-worktrees-sleepy-albattani-1dcd8e\ec0ef08b-1ea3-4536-9cab-8fbe19796d2a\scratchpad`. Run one with `node <name>_test.js`. Repo-side suites (`route_test.lua`, `cp_test.lua`) run via `cd tools && node run_lua.js <name>.lua`.
+- **Test suites live in `tools/`.** Run them all with `cd tools && node run_all.js`; one with `cd tools && node run_lua.js <name>_test.lua` (`-v` for verbose). Baseline: 10 suites, 391 assertions. They execute the real addon source under fengari, so a suite failing means the addon changed, not the test harness.
 - **Regression bar:** `dungeon_test` must stay at 37 passing assertions after the extraction. That is the acceptance condition for Task 2.
 
 ## File Structure
