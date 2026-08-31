@@ -65,8 +65,8 @@ end
 load("Core.lua")
 local CBH = CallboardHunter
 CBH.db = { options = {}, learned = {}, learnedKills = {}, cardZones = {},
-           cardCatalogue = {}, callboards = {}, portOverrides = {},
-           checkpointBlock = {}, log = {} }
+           cardZoneVerified = {}, cardCatalogue = {}, callboards = {},
+           portOverrides = {}, checkpointBlock = {}, log = {} }
 -- This suite exercises ZONE RESOLUTION; the callboard-only filter is a separate
 -- concern with its own section below, so keep it off for the rest.
 CBH.db.options.callboardOnly = false
@@ -76,7 +76,10 @@ function CBH.Log() end
 function CBH.IsBlockedCheckpoint() return false end
 function CBH.GetQuestPOI() return nil end
 function CBH.PlayerZonePos() return nil end
-load("SpawnDB.lua"); load("QuestWatcher.lua"); load("Advisor.lua")
+-- UI.lua is loaded because BuildNote (the card-zone harvester under test
+-- below) stamps its note through CBH.UI.Stamp/Colour, same as fav_test.lua
+-- needs it for Fav.Command's printed rows.
+load("SpawnDB.lua"); load("UI.lua"); load("QuestWatcher.lua"); load("Advisor.lua")
 function CBH.Arrow.Refresh() end
 function CBH.Arrow.GetTargetXY() return nil end
 local QW, Advisor = CBH.QuestWatcher, CBH.Advisor
@@ -192,6 +195,68 @@ QUESTLOG = {
 }
 QW.Update(true)
 check("Crystalsong (no spawn data) resolves", Advisor.ResolveDestination(), "Crystalsong Forest")
+
+print("")
+print("== BuildNote harvests card zones (reported 2026-08-31) ==")
+-- The actual reported card, verbatim, has no verb at all: "10 Earthbound
+-- Revenant in Wintergrasp". The original pattern required a literal "Kill "
+-- prefix, so this never matched and cardZones never learned Wintergrasp for
+-- that objective - see the end-to-end reproduction further down.
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+Advisor.BuildNote("10 Earthbound Revenant in Wintergrasp")
+check("verb-less card, no period", CBH.db.cardZones["Earthbound Revenant"], "Wintergrasp")
+check("  ...marked verified", CBH.db.cardZoneVerified["Earthbound Revenant"], true)
+
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+Advisor.BuildNote("10 Earthbound Revenant in Wintergrasp.")
+check("verb-less card, with period", CBH.db.cardZones["Earthbound Revenant"], "Wintergrasp")
+
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+Advisor.BuildNote("Kill 10 Azure Manashaper in Crystalsong Forest.")
+check("the original 'Kill N X in Zone.' shape still learns",
+   CBH.db.cardZones["Azure Manashaper"], "Crystalsong Forest")
+
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+Advisor.BuildNote("Slay 10 Earthbound Revenant in Wintergrasp.")
+check("a leading 'Slay' also learns", CBH.db.cardZones["Earthbound Revenant"], "Wintergrasp")
+
+-- "in" is an everyday word - a non-kill card can contain it without naming a
+-- zone at all. The trailing text must be an EXACT real map zone before it is
+-- trusted, or this would harvest "the Nexus" as if it were one.
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+Advisor.BuildNote("5 Frozen Orb in the Nexus")
+check("fake trailing zone -> nothing written (KnownMapZone guard)",
+   CBH.db.cardZones["Frozen Orb"], nil)
+Advisor.BuildNote("Collect 5 Frozen Orb in the Nexus")
+check("  ...the verbed 'Collect' form doesn't harvest a zone either",
+   CBH.db.cardZones["Frozen Orb"], nil)
+
+print("")
+print("== card zone outranks a mislabelled header (reported 2026-08-31) ==")
+-- The actual user report: v1.10.2, a brand-new install (no learned kills), a
+-- card reading "10 Earthbound Revenant in Wintergrasp" but the quest log
+-- files "Population Management: Earthbound Revenant" under a "Winterspring"
+-- header - Wintergrasp (Northrend) and Winterspring (Kalimdor) share nothing
+-- but a spelling coincidence. Neither the quest title nor its objective names
+-- any zone, so with no card seen yet and no kill history, resolution used to
+-- fall straight through to the header and teleport across the world.
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+CBH.db.learnedKills = {}
+CURRENT_ZONE = "Dalaran"
+QUESTLOG = {
+   { title = "Winterspring", header = true },
+   { title = "Population Management: Earthbound Revenant",
+     objectives = { "Earthbound Revenant slain: 0/10" } },
+}
+QW.Update(true)
+check("the header alone would say Winterspring", Advisor.ZoneFromQuestHeader(2), "Winterspring")
+check("before the card is ever seen, the header decides (wrongly)",
+   Advisor.ResolveDestination(), "Winterspring")
+-- Simulate the callboard card being on screen, exactly as BuildNote sees it.
+Advisor.BuildNote("10 Earthbound Revenant in Wintergrasp")
+check("THE BUG: routes to Wintergrasp, not Winterspring",
+   Advisor.ResolveDestination(), "Wintergrasp")
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
 
 print("")
 print("== curated override still beats the general zone scan ==")

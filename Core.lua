@@ -27,6 +27,10 @@ local DEFAULTS = {
    learned = {},      -- rare sightings: [zone][npcID/name] = {points}
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
    cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
+   cardZoneVerified = {}, -- [objectiveName] = true if that harvest passed
+      -- SpawnDB.KnownMapZone; only these outrank the quest-log header (see
+      -- ZoneFromVerifiedCard in Advisor.lua) - an old, unvalidated cardZones
+      -- entry from before this table existed stays below the header instead
    cardCatalogue = {},-- [card text] = {n, lo, hi, where, at}: every card ever seen
    favourites = {},    -- [questTarget] = true; see Favourites.lua
    callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }

@@ -45,11 +45,36 @@ local function CountPoints(zone, name)
    return list and #list or 0
 end
 
+-- Card shapes this server actually deals. "Kill 10 Azure Manashaper in
+-- Crystalsong Forest." was the only one BuildNote ever learned from, but a
+-- new user's real card read "10 Earthbound Revenant in Wintergrasp" - no
+-- verb at all - and matched nothing. cardZones never learned Wintergrasp for
+-- that objective, so it had no vote against this server's Winterspring
+-- quest-log header (see the "Thinning the Herd" case below), and the player
+-- got ported across the world. "Slay" covers the same shape with the other
+-- verb seen on this board; kept short rather than guessing at more.
+local KILL_CARD_PATTERNS = {
+   "^Kill (%d+) (.-) in (.-)%.?$",
+   "^Slay (%d+) (.-) in (.-)%.?$",
+   "^(%d+) (.-) in (.-)%.?$",
+}
+
 local function BuildNote(desc)
-   -- "Kill 10 Azure Manashaper in Crystalsong Forest." (period sometimes absent)
-   local _, _, n, mob, zone = string.find(desc, "^Kill (%d+) (.-) in (.-)%.?$")
+   local n, mob, zoneRaw
+   for _, pat in ipairs(KILL_CARD_PATTERNS) do
+      local _, _, a, b, c = string.find(desc, pat)
+      if b then n, mob, zoneRaw = a, b, c; break end
+   end
    if mob then
-      if CBH.db then CBH.db.cardZones[mob] = zone end
+      -- "in" is an ordinary word ("Collect 5 Frozen Orb in the Nexus" fits the
+      -- same shape), so the raw capture is trusted only once it names an EXACT
+      -- real map zone - which also normalises whatever casing the card used.
+      local zone = CBH.SpawnDB.KnownMapZone and CBH.SpawnDB.KnownMapZone(zoneRaw)
+      if not zone then return nil end
+      if CBH.db then
+         CBH.db.cardZones[mob] = zone
+         if CBH.db.cardZoneVerified then CBH.db.cardZoneVerified[mob] = true end
+      end
       local pts = CountPoints(zone, mob)
       local here = (GetRealZoneText() == zone) and " (current zone)" or ""
       if pts > 0 then
@@ -75,6 +100,7 @@ local function BuildNote(desc)
    end
    return nil
 end
+Advisor.BuildNote = BuildNote  -- exposed so tests can harvest a card in isolation
 
 local function RefreshCards()
    for i = 1, 3 do
@@ -523,6 +549,25 @@ local function ZoneFromLearnedKills(name)
 end
 Advisor.ZoneFromLearnedKills = ZoneFromLearnedKills
 
+-- A card zone BuildNote harvested AND validated against a real map zone (see
+-- cardZoneVerified in BuildNote). Deliberately narrower than "any cardZones
+-- entry": the one-time repair in Core.lua only strips entries worth exactly
+-- "Alterac Mountains", the one false positive the pre-1.5.0 POI sweep is
+-- documented to have produced, so an upgraded database can still be carrying
+-- some OTHER stale sweep guess under cardZones that nothing has ever
+-- disproven. Trusting every cardZones entry over the header would let a
+-- guess like that outrank a header that happens to be correct. A freshly
+-- verified entry carries no such history - it is this server's own card text
+-- for THIS objective, checked against the real zone list just now - so only
+-- those are allowed to outrank the header.
+local function ZoneFromVerifiedCard(name)
+   if not (CBH.db and CBH.db.cardZoneVerified and CBH.db.cardZoneVerified[name]) then
+      return nil
+   end
+   return CBH.db.cardZones and CBH.db.cardZones[name]
+end
+Advisor.ZoneFromVerifiedCard = ZoneFromVerifiedCard
+
 -- Last resort: sweep every zone map looking for the quest's POI marker.
 -- Changes the displayed map, so only used on an actual Port click (which is
 -- about to set the map anyway).
@@ -593,11 +638,29 @@ local function ResolveKill(name, ko, allowSweep)
    --   1. a zone we ship spawn data for, named in the text, or a curated override
    --   2. where you have actually killed this objective before (ground truth)
    --   3. any real zone named in the text  - a quest TITLE can be wrong
-   --   4. the quest log's zone header
-   --   5. a cached card zone (yours, else the bundled defaults - CardZoneFor)
+   --   4. a card zone BuildNote harvested and validated - the server's own
+   --      statement of where the mobs are, for objectives whose quest-log
+   --      text names no zone at all. cardZoneVerified is a SAVED flag, not a
+   --      one-time check: once a card is harvested this way it outranks the
+   --      header on every login from then on, until that card is harvested
+   --      again and overwrites the entry - trusted until re-harvested, not
+   --      just in the instant it was seen. Outranks the header on purpose:
+   --      "Population Management: Earthbound Revenant" sits under a
+   --      "Winterspring" header on this server but its card reads "10
+   --      Earthbound Revenant in Wintergrasp" - the header is a category this
+   --      server mislabels, the card is the mobs' actual location.
+   --   5. the quest log's zone header
+   --   6. CBH.SpawnDB.CardZoneFor(name): the player's own cached card zone if
+   --      one exists, else a bundled SpawnDB.CARD_ZONES default. Neither is
+   --      confirmed by anything THIS player did, so both rank below the
+   --      header rather than above it - a legacy cardZones entry can still
+   --      hold a pre-1.5.0 POI-sweep guess nothing has disproven (see
+   --      ZoneFromVerifiedCard), and a bundled default is someone else's
+   --      harvest, not this player's observation.
    local zone, isDungeon, via = ZoneFromQuestText(ko)
    zone = zone or ZoneFromLearnedKills(name)
    zone = zone or ZoneFromAnyMapName(ko)
+   zone = zone or ZoneFromVerifiedCard(name)
    zone = zone or ZoneFromQuestHeader(ko.questIndex)
    zone = zone or CBH.SpawnDB.CardZoneFor(name)
    if zone then
