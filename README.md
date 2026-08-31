@@ -51,8 +51,11 @@ detection/announce/targeting → kill learning → port back to the board.**
 - **Party announces** (`/cbh party`, off by default) — rare spotted, counted
   kills' completion, and kill progress on rare deaths.
 - **Config panel** (`/cbh config`) — dark, colorblind-safe panel for all
-  toggles, your **home callboard** (`/cbh sethome`), and **blocked checkpoints**
-  (ones that drop you inside a dungeon are skipped in auto-routing).
+  toggles, your **home callboard** (`/cbh sethome`), **blocked checkpoints**
+  (ones that drop you inside a dungeon are skipped in auto-routing), and a
+  **favourites** list — pick a quest target to hunt for (`/cbh hunt`) before
+  you've ever seen its card, from the bundled database plus whatever the
+  catalogue has learned.
 
 See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 
