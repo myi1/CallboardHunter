@@ -365,6 +365,93 @@ function SpawnDB.ClassifyCard(text)
    return "other"
 end
 
+-- A callboard title reads "<flavour prefix>: <target>". The prefix is
+-- decorative and the target is the job: "Dungeon Crawl: Loken" and
+-- "Wanted: Loken" are the same contract, which is why favourites key on the
+-- target rather than the whole title. Splits on the FIRST colon only, so a
+-- target containing one ("SI:7 Insignia") survives intact.
+function SpawnDB.TargetOf(title)
+   if type(title) ~= "string" or title == "" then return nil end
+   -- Description lines ("Collect 20 Eternal Air.") are not titles.
+   if string.sub(title, -1) == "." then return nil end
+   local _, _, target = string.find(title, "^[^:]-:%s*(.+)$")
+   local out = target or title
+   out = string.gsub(out, "^%s+", "")
+   out = string.gsub(out, "%s+$", "")
+   if out == "" then return nil end
+   return out
+end
+
+-- Bundled quest targets, harvested from real cards (see the spec's Evidence
+-- section). lo/hi are the level band the target was observed at. This is the
+-- starting list; at runtime it merges with whatever the catalogue has learned,
+-- and pooled exports grow it each release.
+SpawnDB.QUESTS = {
+   { target = "Adamantite Bar", lo = 67, hi = 69 },
+   { target = "Adder's Tongue", lo = 77, hi = 80 },
+   { target = "Ancient Lichen", lo = 68, hi = 73 },
+   { target = "Anub'arak", lo = 74, hi = 80 },
+   { target = "Ashtongue Handler", lo = 67, hi = 70 },
+   { target = "Azure Manashaper", lo = 79, hi = 80 },
+   { target = "Azure Scalebane", lo = 80, hi = 80 },
+   { target = "Banthar", lo = 64, hi = 67 },
+   { target = "Black Lotus", lo = 64, hi = 64 },
+   { target = "Blood Scythe", lo = 64, hi = 64 },
+   { target = "Carrion Eater", lo = 73, hi = 75 },
+   { target = "Charlga Razorflank", lo = 35, hi = 35 },
+   { target = "Cobalt Bar", lo = 77, hi = 77 },
+   { target = "Core Leather", lo = 64, hi = 64 },
+   { target = "Deadnettle", lo = 75, hi = 75 },
+   { target = "Earthbound Revenant", lo = 80, hi = 80 },
+   { target = "Eternal Earth", lo = 77, hi = 80 },
+   { target = "Eternal Life", lo = 77, hi = 80 },
+   { target = "Eternal Shadow", lo = 77, hi = 80 },
+   { target = "Eternal Water", lo = 76, hi = 80 },
+   { target = "Felsteel Bar", lo = 64, hi = 64 },
+   { target = "Felweed", lo = 64, hi = 64 },
+   { target = "Frost Lotus", lo = 80, hi = 80 },
+   { target = "Gal'darah", lo = 80, hi = 80 },
+   { target = "Gigantaur", lo = 75, hi = 75 },
+   { target = "Goldclover", lo = 77, hi = 77 },
+   { target = "Harbinger Skyriss", lo = 70, hi = 74 },
+   { target = "High Shaman Bloodpaw", lo = 73, hi = 73 },
+   { target = "Ingvar the Plunderer", lo = 72, hi = 80 },
+   { target = "Kelidan the Breaker", lo = 64, hi = 70 },
+   { target = "Kelthuzad", lo = 80, hi = 80 },
+   { target = "Khorium Bar", lo = 70, hi = 74 },
+   { target = "King Bangalash", lo = 35, hi = 35 },
+   { target = "King Ymiron", lo = 80, hi = 80 },
+   { target = "Lichbloom", lo = 80, hi = 80 },
+   { target = "Loken", lo = 80, hi = 80 },
+   { target = "Magister Keldonus", lo = 74, hi = 74 },
+   { target = "Mossy Rampager", lo = 72, hi = 76 },
+   { target = "Netherbloom", lo = 70, hi = 74 },
+   { target = "Netherweave Cloth", lo = 64, hi = 65 },
+   { target = "Nexus-Prince Shaffar", lo = 70, hi = 75 },
+   { target = "Old Kingdom", lo = 77, hi = 80 },
+   { target = "Omor the Unscarred", lo = 64, hi = 71 },
+   { target = "Primal Air", lo = 67, hi = 67 },
+   { target = "Primal Earth", lo = 67, hi = 67 },
+   { target = "Primal Shadow", lo = 65, hi = 70 },
+   { target = "Primal Water", lo = 65, hi = 65 },
+   { target = "Ravaged Ghoul", lo = 79, hi = 80 },
+   { target = "Shadowcloth", lo = 71, hi = 71 },
+   { target = "Shadoweave Cloth", lo = 71, hi = 71 },
+   { target = "Shadowmoon Slayer", lo = 70, hi = 70 },
+   { target = "Skeletal Archmage", lo = 80, hi = 80 },
+   { target = "Spellcloth", lo = 70, hi = 70 },
+   { target = "Spellfire Cloth", lo = 72, hi = 72 },
+   { target = "Talandra's Rose", lo = 73, hi = 77 },
+   { target = "Talon King Ikiss", lo = 70, hi = 75 },
+   { target = "Terocone", lo = 64, hi = 64 },
+   { target = "The Oculus", lo = 77, hi = 80 },
+   { target = "The Prophet Tharon'ja", lo = 76, hi = 80 },
+   { target = "Tiger Lily", lo = 72, hi = 77 },
+   { target = "Titanium Bar", lo = 80, hi = 80 },
+   { target = "Whispering Wind", lo = 80, hi = 80 },
+   { target = "Yogg-Saron", lo = 80, hi = 80 },
+}
+
 -- Does this text name the dungeon itself, or one of its bosses? Used to decide
 -- whether a callboard card belongs to the instance the player is standing in.
 function SpawnDB.TextMatchesDungeon(text, dungeon)

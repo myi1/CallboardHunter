@@ -119,5 +119,31 @@ check("  ...but Culling of Stratholme still Tanaris",
    zone("The Culling of Stratholme"), "Tanaris")
 
 print("")
+print("== target extraction (prefixes are decorative) ==")
+check("strips a flavour prefix", S.TargetOf("Dungeon Crawl: Loken"), "Loken")
+check("same target, other prefix", S.TargetOf("Wanted: Loken"), "Loken")
+check("multi-word target", S.TargetOf("Bulk Order: Eternal Earth"), "Eternal Earth")
+check("colon inside the target survives", S.TargetOf("Wanted: SI:7 Insignia"), "SI:7 Insignia")
+check("no colon -> whole title", S.TargetOf("Beasts of the Plains"), "Beasts of the Plains")
+check("description line -> nil", S.TargetOf("Collect 20 Eternal Air."), nil)
+check("empty -> nil", S.TargetOf(""), nil)
+check("nil -> nil", S.TargetOf(nil), nil)
+
+print("")
+print("== bundled quest database ==")
+local byTarget = {}
+for _, q in ipairs(S.QUESTS) do byTarget[q.target] = q end
+check("has the seed rows", #S.QUESTS >= 60, true)
+check("Loken is present", byTarget["Loken"] ~= nil, true)
+check("  ...with a level band", byTarget["Loken"].hi ~= nil, true)
+check("Azure Scalebane is level 80", byTarget["Azure Scalebane"].hi, 80)
+check("every row has a target", (function()
+   for _, q in ipairs(S.QUESTS) do
+      if type(q.target) ~= "string" or q.target == "" then return false end
+   end
+   return true
+end)(), true)
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end
