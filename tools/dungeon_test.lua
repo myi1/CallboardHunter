@@ -1,4 +1,5 @@
--- Executes the REAL Dungeon.lua against stubbed board frames, popups and money.
+-- Executes the REAL Dungeon.lua (over the REAL Board.lua it now drives) against
+-- stubbed board frames, popups and money.
 local ADDON = ADDON_DIR
 -- WoW 3.3.5 is Lua 5.1 (global unpack); fengari is 5.3 (table.unpack).
 unpack = unpack or table.unpack
@@ -40,8 +41,10 @@ CBH.db = { options = { dungeonAuto = true, dungeonRerollMax = 10,
                        dungeonGoldReserve = 0, dungeonShare = true,
                        dungeonHintsShown = 0 } }
 local function load(f) local c, e = loadfile(ADDON .. "/" .. f); if not c then error(e) end; c() end
-load("SpawnDB.lua"); load("Dungeon.lua")
+load("SpawnDB.lua"); load("Board.lua"); load("Dungeon.lua")
 local D = CBH.Dungeon
+-- The reroll loop and its run state live in Board.lua now; Dungeon drives it.
+local B = CBH.Board
 
 -- ---- board builder ----------------------------------------------------------
 local board, rerollBtn
@@ -85,58 +88,58 @@ INSIDE, ZONE = true, "Utgarde Keep"
 print("== only runs inside a dungeon ==")
 INSIDE = false
 BuildBoard({ "Kill 10 Azure Manashaper in Crystalsong Forest." })
-D.run = nil; NOW = 1; D.Poll(NOW)
-check("outdoors -> no run started", D.run, nil)
+B.run = nil; NOW = 1; D.Poll(NOW)
+check("outdoors -> no run started", B.run, nil)
 INSIDE = true
 
 print("")
 print("== matching ==")
 BuildBoard({ "Slay Ingvar the Plunderer in Utgarde Keep.", "Collect 40 Icethorn.", "Kill 10 Murloc." })
-check("card naming the dungeon", (D.MatchCard(D.ReadCards(), "Utgarde Keep")), 1)
+check("card naming the dungeon", (D.MatchCard(B.ReadCards(), "Utgarde Keep")), 1)
 BuildBoard({ "Collect 40 Icethorn.", "Slay Ingvar the Plunderer.", "Kill 10 Murloc." })
-check("card naming a boss of it", (D.MatchCard(D.ReadCards(), "Utgarde Keep")), 2)
+check("card naming a boss of it", (D.MatchCard(B.ReadCards(), "Utgarde Keep")), 2)
 BuildBoard({ "Slay King Ymiron." })
-check("boss of a different dungeon is not a match", D.MatchCard(D.ReadCards(), "Utgarde Keep"), nil)
+check("boss of a different dungeon is not a match", D.MatchCard(B.ReadCards(), "Utgarde Keep"), nil)
 
 print("")
 print("== accepts a matching card without rerolling ==")
 BuildBoard({ "Slay Ingvar the Plunderer in Utgarde Keep." })
-D.run = nil; NOW = 10; D.Poll(NOW)
+B.run = nil; NOW = 10; D.Poll(NOW)
 check("clicked Select", board._children[1].sel._clicks, 1)
 check("no rerolls needed", rerollBtn._clicks, 0)
 
 print("")
 print("== SAFETY: refuses to confirm a popup that is not the reroll dialog ==")
 BuildBoard({ "Collect 40 Icethorn." })
-D.run = nil; NOW = 20; D.Poll(NOW)
+B.run = nil; NOW = 20; D.Poll(NOW)
 check("reroll clicked", rerollBtn._clicks, 1)
 Popup("Are you sure you want to DELETE this item?")
 NOW = 21; D.Poll(NOW)
 check("did NOT click the wrong dialog", _G["StaticPopup1Button1"]._clicks, 0)
-check("  ...and stopped the run", D.run, nil)
+check("  ...and stopped the run", B.run, nil)
 
 print("")
 print("== confirms the real reroll dialog and counts the spend ==")
 BuildBoard({ "Collect 40 Icethorn." })
 MONEY = 5000000
-D.run = nil; NOW = 30; D.Poll(NOW)
+B.run = nil; NOW = 30; D.Poll(NOW)
 Popup("Reroll selection for 10g 40s?")
 MONEY = 5000000 - 104000
 NOW = 31; D.Poll(NOW)
 check("clicked Confirm", _G["StaticPopup1Button1"]._clicks, 1)
-check("counted one reroll", D.run.rerolls, 1)
-check("learned the real cost", D.lastCost, 104000)
-check("tracked the spend", D.run.spent, 104000)
+check("counted one reroll", B.run.rerolls, 1)
+check("learned the real cost", B.lastCost, 104000)
+check("tracked the spend", B.run.spent, 104000)
 
 print("")
 print("== reroll cap stops the loop ==")
 CBH.db.options.dungeonRerollMax = 2
 BuildBoard({ "Collect 40 Icethorn." })
-D.run = nil; NOW = 40; D.Poll(NOW)
-D.run.rerolls = 2
-D.run.phase = "match"; D.run.at = 0
+B.run = nil; NOW = 40; D.Poll(NOW)
+B.run.rerolls = 2
+B.run.phase = "match"; B.run.at = 0
 NOW = 41; D.Poll(NOW)
-check("stopped at the cap", D.run, nil)
+check("stopped at the cap", B.run, nil)
 CBH.db.options.dungeonRerollMax = 10
 
 print("")
@@ -144,35 +147,35 @@ print("== gold reserve stops the loop before spending below it ==")
 CBH.db.options.dungeonGoldReserve = 1000000
 MONEY = 1050000
 BuildBoard({ "Collect 40 Icethorn." })
-D.run = nil; NOW = 50; D.Poll(NOW)
+B.run = nil; NOW = 50; D.Poll(NOW)
 check("refused to reroll", rerollBtn._clicks, 0)
-check("  ...and stopped", D.run, nil)
+check("  ...and stopped", B.run, nil)
 CBH.db.options.dungeonGoldReserve = 0
 MONEY = 5000000
 
 print("")
 print("== board despawning stops the run ==")
 BuildBoard({ "Collect 40 Icethorn." })
-D.run = nil; NOW = 60; D.Poll(NOW)
-check("run active", D.run ~= nil, true)
+B.run = nil; NOW = 60; D.Poll(NOW)
+check("run active", B.run ~= nil, true)
 board._shown = false
 NOW = 61; D.Poll(NOW)
-check("stopped when board vanished", D.run, nil)
+check("stopped when board vanished", B.run, nil)
 
 print("")
 print("== missing Reroll button stops rather than guessing ==")
 BuildBoard({ "Collect 40 Icethorn." }, "Something Else")
-D.run = nil; NOW = 70; D.Poll(NOW)
-check("stopped, clicked nothing", D.run, nil)
+B.run = nil; NOW = 70; D.Poll(NOW)
+check("stopped, clicked nothing", B.run, nil)
 
 print("")
 print("== sharing: once, and only in a group ==")
 PARTY, PUSHED = 0, 0
-D.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
+B.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
 D.OnQuestAccepted(7)
 check("solo -> not shared", PUSHED, 0)
 PARTY, PUSHED = 4, 0
-D.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
+B.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
 D.OnQuestAccepted(7)
 check("in a group -> shared", PUSHED, 1)
 check("  ...selected the right quest", SELECTED, 7)
@@ -180,7 +183,7 @@ D.OnQuestAccepted(7)
 check("second call does not re-share", PUSHED, 1)
 CBH.db.options.dungeonShare = false
 PARTY, PUSHED = 4, 0
-D.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
+B.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
 D.OnQuestAccepted(7)
 check("sharing off is respected", PUSHED, 0)
 CBH.db.options.dungeonShare = true
@@ -189,8 +192,8 @@ print("")
 print("== disabled by default means nothing happens ==")
 CBH.db.options.dungeonAuto = false
 BuildBoard({ "Collect 40 Icethorn." })
-D.run = nil; NOW = 80; D.Poll(NOW)
-check("opt-out honoured", D.run, nil)
+B.run = nil; NOW = 80; D.Poll(NOW)
+check("opt-out honoured", B.run, nil)
 check("  ...no clicks", rerollBtn._clicks, 0)
 
 print("")
@@ -235,12 +238,12 @@ print("== raids automate too (boss-only card, raid instance) ==")
 INSIDE, INSTANCE_KIND, ZONE = true, "raid", "Icecrown Citadel"
 CBH.db.options.dungeonAuto = true
 BuildBoard({ "Collect 40 Icethorn.", "Wanted: Festergut", "Kill 10 Murloc." })
-D.run = nil; NOW = 200; D.Poll(NOW)
+B.run = nil; NOW = 200; D.Poll(NOW)
 check("matched the raid boss card", board._children[2].sel._clicks, 1)
 check("  ...without rerolling", rerollBtn._clicks, 0)
 -- a boss from a DIFFERENT raid must not match
 BuildBoard({ "Wanted: Yogg-Saron" })
-check("other raid's boss is not a match", D.MatchCard(D.ReadCards(), "Icecrown Citadel"), nil)
+check("other raid's boss is not a match", D.MatchCard(B.ReadCards(), "Icecrown Citadel"), nil)
 -- raid instances are recognised for the entry announcement too
 PRINTED = {}; D.announced = nil
 D.OnZoneChanged()

@@ -15,6 +15,7 @@ Announce.lua
 Advisor.lua
 Route.lua
 Comm.lua
+Board.lua
 Dungeon.lua
 Export.lua
 Config.lua
