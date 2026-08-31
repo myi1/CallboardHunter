@@ -25,7 +25,7 @@ local function CardTexts(card)
       local r = select(i, card:GetRegions())
       -- Skip the note WE attached to this card, or the catalogue records our own
       -- annotations as if they were callboard text.
-      if r ~= card.cbhNote
+      if r ~= card.cbhNote and r ~= (card.cbhStar and card.cbhStar.label)
          and r and r.GetObjectType and r:GetObjectType() == "FontString" then
          local t = r:GetText()
          if t and t ~= "" then table.insert(texts, t) end
@@ -91,6 +91,31 @@ local function RefreshCards()
             card.cbhNote:SetPoint("BOTTOM", card, "BOTTOM", 0, 92) -- clear of the Select button
             card.cbhNote:SetWidth(card:GetWidth() - 16)
             card.cbhNote:SetJustifyH("CENTER")
+         end
+         -- Favourite toggle. The card's own title is the first FontString, so
+         -- the target comes from there rather than from the note we drew.
+         if not card.cbhStar then
+            card.cbhStar = CreateFrame("Button", nil, card)
+            card.cbhStar:SetWidth(22); card.cbhStar:SetHeight(18)
+            card.cbhStar:SetPoint("TOPRIGHT", card, "TOPRIGHT", -6, -6)
+            card.cbhStar.label = CBH.UI.Text(card.cbhStar, "label",
+               CBH.UI.INK_SOFT, CBH.UI.FONT_META)
+            card.cbhStar.label:SetPoint("CENTER", card.cbhStar, "CENTER", 0, 0)
+            card.cbhStar:SetScript("OnClick", function(self)
+               if self.cbhTarget then
+                  CBH.Favourites.Toggle(self.cbhTarget)
+                  self.label:SetText(CBH.Favourites.StarText(self.cbhTarget))
+               end
+            end)
+         end
+         local title = CardTexts(card)[1]
+         local target = title and CBH.SpawnDB.TargetOf(title) or nil
+         card.cbhStar.cbhTarget = target
+         if target then
+            card.cbhStar.label:SetText(CBH.Favourites.StarText(target))
+            card.cbhStar:Show()
+         else
+            card.cbhStar:Hide()
          end
          card.cbhNote:SetText(note or "")
       end

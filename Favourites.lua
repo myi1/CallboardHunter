@@ -123,6 +123,14 @@ function Fav.Poll(now)
    end
 end
 
+-- A filled vs hollow bracket, never colour alone: keepsy is colourblind, and
+-- the whole UI system holds to shape-plus-word. Drawn on the server's light
+-- card art, so it uses the ink tiers rather than the dark-surface ones.
+function Fav.StarText(target)
+   local on = Fav.IsFavourite(target)
+   return CBH.UI.Colour(on and "brassInk" or "inkSoft", on and "[*]" or "[ ]")
+end
+
 function Fav.Command(arg)
    arg = string.lower(arg or "")
    if arg == "hunt" then

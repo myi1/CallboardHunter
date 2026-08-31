@@ -263,5 +263,22 @@ check("refuses with no board", Fav.Hunt(), false)
 board._shown = true
 
 print("")
+print("== the star reads as a shape, not a colour ==")
+CBH.db.favourites = {}
+local off = Fav.StarText("Loken")
+Fav.Toggle("Loken")
+local on = Fav.StarText("Loken")
+check("off and on differ", off ~= on, true)
+local function strip(s)
+   s = string.gsub(s, "|c%x%x%x%x%x%x%x%x", "")
+   return (string.gsub(s, "|r", ""))
+end
+check("still differ with colour stripped", strip(off) ~= strip(on), true)
+check("off is the hollow glyph", strip(off), "[ ]")
+check("on is the filled glyph", strip(on), "[*]")
+check("unknown target still renders", strip(Fav.StarText("Nobody")), "[ ]")
+CBH.db.favourites = {}
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end
