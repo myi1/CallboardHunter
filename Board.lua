@@ -23,22 +23,42 @@ CBH.Board = Board
 local DEFAULT_REROLL_COST = 104000     -- 10g 40s in copper, until we observe one
 local SETTLE = 0.6                     -- seconds to let the board redraw
 local MAX_UNCHANGED = 3                -- rerolls that changed nothing -> give up
+-- How long Board.Accept waits for a caller to claim the run before ending it
+-- itself. See Board.Poll: without this the engine depends on every caller having
+-- an event hook, and the one that does not spends gold after it has already won.
+local ACCEPT_GRACE = 2
+
+-- The board always has three card slots, and any of them can be empty.
+Board.SLOTS = 3
 
 Board.run = nil        -- active run state, or nil
 Board.lastCost = DEFAULT_REROLL_COST
 
 -- ------------------------------------------------------------------ helpers
 
--- Text of every card currently on the board, indexed by card number.
+-- Text of every card currently on the board, keyed by SLOT NUMBER 1..Board.SLOTS.
+--
+-- SPARSE ON PURPOSE: a slot whose frame is hidden gets no entry, so slot 2 can
+-- exist while slot 1 does not. Iterate with `for i = 1, CBH.Board.SLOTS`, never
+-- ipairs - ipairs stops dead at the first hole, and a matcher that stops early
+-- silently declares "no match" and pays 10g for a reroll while the card it
+-- wanted is sitting right there on slot 2.
 function Board.ReadCards()
    local out = {}
-   for i = 1, 3 do
+   for i = 1, Board.SLOTS do
       local card = _G["ObjectiveFrame" .. i]
       if card and card.IsShown and card:IsShown() then
          local texts = {}
          for r = 1, select("#", card:GetRegions()) do
             local reg = select(r, card:GetRegions())
-            if reg and reg.GetObjectType and reg:GetObjectType() == "FontString" then
+            -- Skip the note CBH itself drew on this card. Advisor.lua:26-32 has
+            -- the same skip for the same reason: 1.9.7 catalogued its own
+            -- annotations and read them back as if the server had written them.
+            -- Here the damage is worse than a dirty catalogue - the note names a
+            -- zone ("Dungeon/raid: Naxxramas"), so a matcher keying on card text
+            -- can match CBH's own words and accept the wrong quest.
+            if reg ~= card.cbhNote
+               and reg and reg.GetObjectType and reg:GetObjectType() == "FontString" then
                local t = reg:GetText()
                if t and t ~= "" then texts[#texts + 1] = t end
             end
@@ -141,6 +161,15 @@ end
 -- target on my list". Refusing to start a second run is what keeps the two of
 -- them from fighting over one board.
 --
+-- THE MATCH CONTRACT. `match(cards)` receives exactly what Board.ReadCards
+-- returns: a table keyed by SLOT NUMBER 1..Board.SLOTS, SPARSE, because a
+-- hidden card slot has no entry. Walk it with `for i = 1, CBH.Board.SLOTS do
+-- local c = cards[i]; if c then ... end end`; ipairs stops at the first hole and
+-- turns a card that IS on the board into a paid reroll. Return the slot number
+-- of the winning card (plus an optional reason string), or nil for no match. The
+-- number must be a slot that exists in `cards` - naming one that does not stops
+-- the run rather than falling through to the reroll path.
+--
 -- The cap and the reserve arrive as numbers rather than being read from saved
 -- variables here, so the engine never has to know whose settings they are. The
 -- run snapshots them at Start, which is also when the player last had a chance
@@ -168,6 +197,17 @@ end
 function Board.Poll(now)
    local r = Board.run
    if not r then return end
+   if r.phase == "accepted" then
+      -- The hunt is already won. A caller may want the run to outlive the click
+      -- for a moment (Dungeon reads its quest-log index off QUEST_ACCEPTED and
+      -- ends the run there), so give it a grace window - then end the run
+      -- ourselves. Neither half of this is optional: without the return the next
+      -- 0.5s tick clicks Select again, and without the clear a caller with no
+      -- event hook leaves Board.run set forever, which blocks every later run
+      -- from BOTH features until a /reload.
+      if not r.doneAt or now >= r.doneAt then Board.run = nil end
+      return
+   end
    if r.phase == "confirm" then Board.TickConfirm(now) else Board.Tick(now) end
 end
 
@@ -183,7 +223,7 @@ function Board.Tick(now)
 
    local cards = Board.ReadCards()
    local sig = ""
-   for i = 1, 3 do sig = sig .. "|" .. ((cards[i] and cards[i].text) or "") end
+   for i = 1, Board.SLOTS do sig = sig .. "|" .. ((cards[i] and cards[i].text) or "") end
 
    if r.phase == "wait" then
       -- Waiting for a reroll to actually change the cards.
@@ -201,7 +241,14 @@ function Board.Tick(now)
    end
 
    local idx, why = r.match(cards)
-   if idx and cards[idx] then
+   if idx then
+      -- A caller that names an empty slot used to fall through to "no match",
+      -- which is the PAID branch. Say so and stop instead: a matcher that has
+      -- lost track of the board is not a reason to spend the player's gold.
+      if not cards[idx] then
+         Board.Stop("the match callback named a card that is not on the board")
+         return
+      end
       Board.Accept(cards[idx], why)
       return
    end
@@ -290,6 +337,8 @@ function Board.Accept(card, why)
           .. (r.rerolls == 1 and "" or "s") .. ", " .. Gold(r.spent)) or "") .. ".")
    CBH.Log("board", "ACCEPT " .. reason .. " rerolls=" .. r.rerolls .. " spent=" .. r.spent)
    r.phase = "accepted"
+   -- Deadline for a caller to claim the run; Board.Poll ends it after this.
+   r.doneAt = ((GetTime and GetTime()) or 0) + ACCEPT_GRACE
    sel:Click()
    -- The caller decides what "accepted" means for it - Dungeon shares the quest
    -- on QUEST_ACCEPTED, which is the event that tells it the quest log index.

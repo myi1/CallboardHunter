@@ -4,7 +4,15 @@ function GetMapContinents() return "Northrend" end
 function GetMapZones() return "Dragonblight", "Icecrown", "Howling Fjord", "Dalaran" end
 -- Core.lua REASSIGNS the CallboardHunter global at load, so it must be loaded
 -- before anything caches a reference to it.
-function CreateFrame() local f = {} setmetatable(f, {__index=function() return function() end end}) return f end
+-- SetScript is captured rather than swallowed by the noop metatable, so the
+-- ADDON_LOADED handler Core.lua installs can be fired at the end of this file -
+-- the one-time database repairs live inside it and are reachable no other way.
+function CreateFrame()
+   local f = { _scripts = {} }
+   function f:SetScript(k, fn) self._scripts[k] = fn end
+   setmetatable(f, {__index=function() return function() end end})
+   return f
+end
 DEFAULT_CHAT_FRAME = { AddMessage = function() end }
 SlashCmdList = {}
 function IsInInstance() return INSIDE end
@@ -70,6 +78,43 @@ INSIDE = true
 PRINTED = {}
 check("refused", CBH.SetHomeHere(), false)
 check("  ...with a reason", string.find(PRINTED[1] or "", "instance") ~= nil, true)
+
+print("")
+print("== ADDON_LOADED purges 1.9.7's self-annotations from the catalogue ==")
+-- CBH.RecordCard only gained its |c guard in 1.9.8; databases written before it
+-- still hold CBH's own card notes as if the server had written them (one real
+-- one: 97 of 346 entries). They surface in the favourites picker as rows no card
+-- can ever match, so favouriting one buys a hunt that rerolls to the cap and
+-- cannot win. Fired through the real event handler because that is where the
+-- one-time repairs live - a purge nothing runs is not a purge.
+-- Last in the file: this REPLACES CBH.db with the saved-variables table.
+local poisoned = "|cff322516Dungeon/raid: Naxxramas|r"
+CallboardHunterDB = { version = 1, cardCatalogue = {
+   [poisoned] = { n = 4, lo = 80, hi = 80 },
+   ["|cff4a3105> READY|r |cff160f083 known spots in Icecrown|r"] = { n = 2 },
+   ["Wanted: Loken"] = { n = 9, lo = 80, hi = 80 },
+} }
+INSIDE = nil
+PRINTED = {}
+CBH.frame._scripts.OnEvent(CBH.frame, "ADDON_LOADED", "CallboardHunter")
+local cat = CallboardHunterDB.cardCatalogue
+check("the annotation is gone from the database", cat[poisoned], nil)
+check("  ...and so is the other one", (function()
+   local left = 0
+   for k in pairs(cat) do if string.find(k, "|c", 1, true) then left = left + 1 end end
+   return left
+end)(), 0)
+check("a genuine card is untouched", cat["Wanted: Loken"].n, 9)
+check("the player is told what was cleared",
+   string.find(table.concat(PRINTED, " "), "own card notes", 1, true) ~= nil, true)
+
+-- Once, not every login: the flag is the whole point, so a player who has
+-- deliberately kept something is not re-purged behind their back.
+cat[poisoned] = { n = 1 }
+PRINTED = {}
+CBH.frame._scripts.OnEvent(CBH.frame, "ADDON_LOADED", "CallboardHunter")
+check("the second login leaves the catalogue alone", cat[poisoned] ~= nil, true)
+check("  ...and says nothing", #PRINTED, 0)
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)

@@ -50,14 +50,23 @@ end
 -- the instance outright ("Slay X in Utgarde Keep"), then one naming a boss of
 -- it - a boss is decisive because SpawnDB knows bosses per DUNGEON, so Utgarde
 -- Keep and Utgarde Pinnacle are not confused despite sharing a zone.
+--
+-- Slot-indexed, not ipairs: Board.ReadCards is sparse by contract (see its
+-- header), and an ipairs walk stops at the first hidden slot - which would call
+-- a board holding this instance's card "no match" and pay 10g to reroll it away.
 function D.MatchCard(cards, instance)
    if not instance then return nil end
+   cards = cards or {}
    local low = string.lower(instance)
-   for i, c in ipairs(cards) do
-      if string.find(string.lower(c.text), low, 1, true) then return i, "names the dungeon" end
+   for i = 1, CBH.Board.SLOTS do
+      local c = cards[i]
+      if c and string.find(string.lower(c.text), low, 1, true) then
+         return i, "names the dungeon"
+      end
    end
-   for i, c in ipairs(cards) do
-      if CBH.SpawnDB.TextMatchesDungeon
+   for i = 1, CBH.Board.SLOTS do
+      local c = cards[i]
+      if c and CBH.SpawnDB.TextMatchesDungeon
          and CBH.SpawnDB.TextMatchesDungeon(c.text, instance) then
          return i, "names one of its bosses"
       end
@@ -70,10 +79,13 @@ end
 -- Share the freshly accepted quest, once, and only when there is a group.
 -- QUEST_ACCEPTED fires for every quest from every source, so the run has to be
 -- ours before we end it and push it to the party.
+--
+-- Ending the run IS what makes this once-only - a second QUEST_ACCEPTED finds no
+-- run and returns. (There was also an r.shared flag here, set on the line before
+-- the run was nil'd, so nothing could ever read it back.)
 function D.OnQuestAccepted(questIndex)
    local r = CBH.Board and CBH.Board.run
-   if not r or r.label ~= "dungeon" or r.shared then return end
-   r.shared = true
+   if not r or r.label ~= "dungeon" then return end
    CBH.Board.run = nil
    if not Opt("dungeonShare", true) then return end
    local party = (GetNumPartyMembers and GetNumPartyMembers()) or 0
@@ -164,6 +176,15 @@ function D.Command(arg)
       CBH.print("Dungeon callboard automation " .. (o.dungeonAuto and "ON" or "OFF")
          .. ((verb == "on") and " - you still cast Summon Callboard yourself;"
              .. " CBH takes over when the board appears." or "."))
+      -- Turning it off with a run in flight used to strand that run: D.Poll
+      -- returns on the off switch before it reaches either the despawn stop or
+      -- the label guard, so nothing polled it and nothing expired it. Board.run
+      -- is shared now, so a stranded dungeon run also refused every /cbh hunt
+      -- with "already working the board" until a /reload. Stopped after the line
+      -- above so the player reads the switch, then what it did to the run.
+      if verb == "off" and CBH.Board.run and CBH.Board.run.label == "dungeon" then
+         CBH.Board.Stop("dungeon automation turned off")
+      end
    elseif verb == "rerolls" then
       if rest == "unlimited" or rest == "0" then
          o.dungeonRerollMax = 0

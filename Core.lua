@@ -16,6 +16,10 @@ local DEFAULTS = {
       -- which is the player's call to make knowingly. See Dungeon.lua.
       dungeonAuto = false, dungeonRerollMax = 10, dungeonGoldReserve = 0,
       dungeonHintsShown = 0,
+      -- favRerollMax / favGoldReserve (/cbh hunt) are deliberately absent here:
+      -- Favourites.lua falls back to the dungeon numbers above while they are
+      -- unset, so a reserve the player typed once covers both features. Giving
+      -- them defaults here would break that inheritance on the first login.
       -- Route only objectives the callboard actually gave you (see
       -- CBH.IsCallboardObjective). Auto-inactive until a board has been seen.
       callboardOnly = true,
@@ -284,6 +288,29 @@ local function OnEvent(self, event, ...)
                   .. (dropped == 1 and "" or "es") .. " left by an old routing bug.")
             end
          end
+         -- One-time repair, same shape: before 1.9.8 the catalogue recorded
+         -- CBH's own card annotations as if the server had written them (the
+         -- |c guard in CBH.RecordCard is newer than the databases it protects),
+         -- and a real one measured 97 such entries out of 346. They are keys no
+         -- callboard can ever produce, so they show up in the favourites picker
+         -- as rows that look real and can never be matched - favourite one and
+         -- the next hunt rerolls to the cap with no possible win. Colour escapes
+         -- identify them exactly; nothing genuine carries one.
+         if not CBH.db.purgedSelfNotes then
+            local dropped = 0
+            for key in pairs(CBH.db.cardCatalogue or {}) do
+               if string.find(key, "|c", 1, true) then
+                  CBH.db.cardCatalogue[key] = nil
+                  dropped = dropped + 1
+               end
+            end
+            CBH.db.purgedSelfNotes = true
+            if dropped > 0 then
+               CBH.print("Cleared " .. dropped .. " catalogue entr"
+                  .. (dropped == 1 and "y" or "ies") .. " that were CBH's own"
+                  .. " card notes, not callboard quests.")
+            end
+         end
       end
    elseif event == "PLAYER_LOGIN" then
       CBH.safeCall(CBH.Announce.Init)
@@ -399,7 +426,9 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
    elseif cmd == "catalogue" or cmd == "catalog" then
       if CBH.Catalogue then CBH.safeCall(CBH.Catalogue, arg) end
    elseif cmd == "hunt" then
-      if CBH.Favourites then CBH.safeCall(CBH.Favourites.Hunt) end
+      -- The arg carries "stop", the only way to call off a hunt short of closing
+      -- the board (and /cbh hunt itself refuses while a run is live).
+      if CBH.Favourites then CBH.safeCall(CBH.Favourites.Hunt, arg) end
    elseif cmd == "fav" or cmd == "favourites" then
       if CBH.Favourites then CBH.safeCall(CBH.Favourites.Command, arg) end
    elseif cmd == "export" then

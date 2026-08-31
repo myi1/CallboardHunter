@@ -11,23 +11,7 @@ local CBH = CallboardHunter
 local UI = CBH.UI
 local Fav = CBH.Favourites
 
-local WHITE8 = "Interface\\Buttons\\WHITE8X8"
-local TEAL = "|cff33ff99"
-local ACCENT = { 0.20, 1.00, 0.60 }
-local T_PRIMARY = { 0.86, 0.88, 0.87 }
-local T_MUTED = { 0.50, 0.58, 0.55 }
-
 local panel, rows, favRows = nil, {}, {}
-
--- Fav.StarText colours its brackets for the CARD ground (brassInk / inkSoft -
--- near-black browns tuned to read on bright parchment). Printing that string
--- unmodified on THIS panel, which is the addon's own dark surface, reproduces
--- 1.10.0 in reverse: near-black text on a near-black background. Same bracket
--- glyph - shape still carries the on/off meaning without colour - just
--- recoloured for wood instead of ink.
-local function FavGlyph(on)
-  return UI.Colour(on and "verdigris" or "muted", on and "[*]" or "[ ]")
-end
 
 -- "[74-80]", or "[64]" for a target only ever seen at one level, or "" for a
 -- catalogue entry the game never tagged with a level. Mirrors the bracket
@@ -103,7 +87,11 @@ local function RefreshConfig()
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", panel.favContent, "TOPLEFT", 0, -fy)
     local target = entry.target
-    row.text:SetText(FavGlyph(entry.favourite) .. " " .. target)
+    -- Fav.StarText owns the bracket glyphs for both grounds; no second argument
+    -- means the dark-surface tier, which is what this panel is. Passing the
+    -- parchment tier here would reproduce 1.10.0 in reverse - near-black ink
+    -- text on a near-black panel.
+    row.text:SetText(Fav.StarText(target) .. " " .. target)
     row.band:SetText(BandText(entry.lo, entry.hi))
     row:SetScript("OnClick", function()
       Fav.Toggle(target)

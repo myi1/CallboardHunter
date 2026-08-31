@@ -109,7 +109,7 @@ local function RefreshCards()
             card.cbhStar:SetScript("OnClick", function(self)
                if self.cbhTarget then
                   CBH.Favourites.Toggle(self.cbhTarget)
-                  self.label:SetText(CBH.Favourites.StarText(self.cbhTarget))
+                  self.label:SetText(CBH.Favourites.StarText(self.cbhTarget, true))
                end
             end)
          end
@@ -117,7 +117,7 @@ local function RefreshCards()
          local target = title and CBH.SpawnDB.TargetOf(title) or nil
          card.cbhStar.cbhTarget = target
          if target then
-            card.cbhStar.label:SetText(CBH.Favourites.StarText(target))
+            card.cbhStar.label:SetText(CBH.Favourites.StarText(target, true))
             card.cbhStar:Show()
          else
             card.cbhStar:Hide()

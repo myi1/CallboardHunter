@@ -19,18 +19,13 @@ local function mk(kind, name)
 end
 local function fs(text) local r = mk("FontString"); r._text = text; return r end
 function CreateFrame() return mk("Frame") end
+-- The whole stub surface the engine touches: a clock and a purse. There is no
+-- IsInInstance, no GetRealZoneText, no quest-sharing here on purpose - stubs the
+-- engine never calls would quietly contradict the header above, and a file that
+-- LOOKS like it knows about dungeons invites the next edit to make it so.
 function GetTime() return NOW or 0 end
 MONEY = 5000000
 function GetMoney() return MONEY end
-function IsInInstance() return INSIDE, INSTANCE_KIND or "party" end
-function GetRealZoneText() return ZONE or "Utgarde Keep" end
-function GetNumPartyMembers() return PARTY or 0 end
-function GetNumRaidMembers() return 0 end
-PUSHED, SELECTED = 0, nil
-function SelectQuestLogEntry(i) SELECTED = i end
-function QuestLogPushQuest() PUSHED = PUSHED + 1 end
-function GetMapContinents() return "Northrend" end
-function GetMapZones() return "Howling Fjord", "Icecrown" end
 
 CallboardHunter = { SpawnDB = {} }
 local CBH = CallboardHunter
@@ -41,7 +36,9 @@ function CBH.safeCall(fn, ...) if fn then fn(...) end end
 -- Deliberately no CBH.db: the engine takes its cap and reserve as numbers from
 -- the caller, so it must run with no saved variables in existence at all.
 local function load(f) local c, e = loadfile(ADDON .. "/" .. f); if not c then error(e) end; c() end
-load("SpawnDB.lua"); load("Board.lua")
+-- Board.lua only: SpawnDB is the dungeon/favourites vocabulary, and the engine
+-- has no business needing it loaded to run.
+load("Board.lua")
 
 -- ---- board builder ----------------------------------------------------------
 local board, rerollBtn
@@ -81,7 +78,6 @@ local function check(label, got, want)
 end
 
 local B = CBH.Board
-INSIDE = true
 
 print("== the engine honours a supplied match callback ==")
 BuildBoard({ "Alpha", "Beta", "Gamma" })
@@ -149,6 +145,105 @@ check("a second Start is refused while a run is live",
    B.Start({ label = "second", match = function() return 1 end }), false)
 B.run = nil
 check("a Start with no match callback is refused", B.Start({ label = "third" }), false)
+
+print("")
+print("== a hidden slot leaves a HOLE, and the contract is walk 1..SLOTS ==")
+-- ReadCards writes out[i] only for a SHOWN card, so slot 2 can exist while slot
+-- 1 does not. Every caller used to walk the result with ipairs, which stops dead
+-- at the hole - and "no match" is the branch that spends 10g on a reroll.
+BuildBoard({ "Alpha", "Beta", "Gamma" })
+_G["ObjectiveFrame1"]._shown = false
+local sparse = B.ReadCards()
+check("the engine publishes how many slots to walk", B.SLOTS, 3)
+check("the hidden slot has no entry", sparse[1], nil)
+check("  ...but the slots behind it still do", sparse[2] ~= nil and sparse[3] ~= nil, true)
+local viaIpairs = 0
+for _ in ipairs(sparse) do viaIpairs = viaIpairs + 1 end
+local viaSlots = 0
+for i = 1, B.SLOTS do if sparse[i] then viaSlots = viaSlots + 1 end end
+check("ipairs finds none of the two live cards", viaIpairs, 0)
+check("the slot walk finds both", viaSlots, 2)
+B.run = nil; NOW = 300
+B.Start({ label = "test", match = function(cs)
+   for i = 1, B.SLOTS do
+      local c = cs[i]
+      if c and string.find(c.text, "Beta", 1, true) then return i, "beta on slot 2" end
+   end
+end })
+B.Poll(NOW)
+check("accepted slot 2 with slot 1 hidden", board._children[2].sel._clicks, 1)
+check("  ...paying for no reroll", rerollBtn._clicks, 0)
+B.run = nil
+
+print("")
+print("== the engine never reads CBH's own card note back as card text ==")
+-- 1.9.7 shipped this class of bug once already: CBH catalogued its own
+-- annotations and read them back as evidence. Here it is worse than a dirty
+-- catalogue - the note NAMES A ZONE, so a matcher keying on card text can match
+-- CBH's own words. The note also joined the settle rail's signature, so
+-- redrawing it looked like the board had changed.
+BuildBoard({ "Slay Loken in Halls of Lightning." })
+local noted = _G["ObjectiveFrame1"]
+local note = fs("|cff322516Dungeon/raid: Naxxramas|r")
+noted._regions[#noted._regions + 1] = note
+noted.cbhNote = note
+local read = B.ReadCards()
+check("the server's own card text survives",
+   string.find(read[1].text, "Slay Loken", 1, true) ~= nil, true)
+check("our annotation does not", string.find(read[1].text, "Naxxramas", 1, true), nil)
+
+print("")
+print("== a won run ends itself when no caller claims it ==")
+-- Board.Accept clicks Select and sets phase; nothing here cleared Board.run.
+-- The dungeon caller survives only because QUEST_ACCEPTED nils it. A caller
+-- without that hook kept polling a won run: Select clicked again every tick,
+-- then a paid reroll once the taken card left the board.
+BuildBoard({ "Alpha" })
+B.run = nil; NOW = 400
+B.Start({ label = "test", match = function() return 1, "always" end })   -- no onAccept
+B.Poll(NOW)
+check("accepted once", board._children[1].sel._clicks, 1)
+NOW = 400.5; B.Poll(NOW)
+check("the next tick does not click Select again", board._children[1].sel._clicks, 1)
+check("  ...and the run is still claimable inside the grace window", B.run ~= nil, true)
+NOW = 403; B.Poll(NOW)
+check("the grace window expires and the run ends", B.run, nil)
+check("  ...having never touched Reroll", rerollBtn._clicks, 0)
+
+print("")
+print("== a match naming a card that is not on the board stops, it does not pay ==")
+-- Unreachable through either shipped matcher, but this is the gold-spending
+-- branch: an out-of-board index used to fall through to "no match" and reroll.
+BuildBoard({ "Alpha" })
+_G["ObjectiveFrame2"]._shown = false
+_G["ObjectiveFrame3"]._shown = false
+B.run = nil; NOW = 500; PRINTED = {}
+B.Start({ label = "test", match = function() return 2, "a slot that is not there" end })
+B.Poll(NOW)
+check("stopped the run", B.run, nil)
+check("  ...clicked no Reroll", rerollBtn._clicks, 0)
+check("  ...and named the real fault",
+   string.find(table.concat(PRINTED, " "), "not on the board", 1, true) ~= nil, true)
+
+print("")
+print("== rerolling that changes nothing gives up (the settle rail) ==")
+-- MAX_UNCHANGED had no coverage in any suite. It is the only thing between a
+-- server that silently refuses to reroll and a loop that pays for the same
+-- three cards until it hits the cap - and it is shared by both callers now.
+BuildBoard({ "Alpha", "Beta", "Gamma" })
+Popup(nil)   -- this server rerolls with no confirmation dialog
+B.run = nil; NOW = 600; PRINTED = {}
+B.Start({ label = "test", match = function() return nil end })
+B.Poll(600)   -- clicks Reroll, hands off to the confirm step
+B.Poll(601)   -- no popup: counts the reroll, starts watching for a change
+check("one reroll paid for", rerollBtn._clicks, 1)
+B.Poll(602); check("unchanged once, still going", B.run ~= nil, true)
+B.Poll(603); check("unchanged twice, still going", B.run ~= nil, true)
+B.Poll(604)
+check("unchanged three times, gives up", B.run, nil)
+check("  ...without paying for a second reroll", rerollBtn._clicks, 1)
+check("  ...and says the cards stopped changing",
+   string.find(table.concat(PRINTED, " "), "stopped changing", 1, true) ~= nil, true)
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)

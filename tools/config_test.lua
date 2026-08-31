@@ -59,7 +59,12 @@ local CBH = CallboardHunter
 function CBH.print() end
 
 local function load(f) local c, e = loadfile(ADDON .. "/" .. f); if not c then error(e) end; c() end
-load("UI.lua"); load("SpawnDB.lua"); load("Favourites.lua"); load("Config.lua")
+-- .toc order, Board.lua included: Favourites.lua reads CBH.Board (the shared
+-- slot count, the gold formatter) on paths this file does not currently reach,
+-- and a suite that loads half its dependencies would fail on a nil index the
+-- day it does rather than on whatever it meant to assert.
+load("UI.lua"); load("SpawnDB.lua"); load("Board.lua"); load("Favourites.lua")
+load("Config.lua")
 local Fav = CBH.Favourites
 local HEX = CBH.UI.HEX
 

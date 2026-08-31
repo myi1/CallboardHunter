@@ -263,6 +263,169 @@ check("refuses with no board", Fav.Hunt(), false)
 board._shown = true
 
 print("")
+print("== a won hunt is over: no second accept, and no reroll after the win ==")
+-- Nothing cleared Board.run at the accept, and Favourites has no QUEST_ACCEPTED
+-- hook (Dungeon's nils the run as a side effect). So Fav.Poll kept driving a won
+-- run at the ticker's 0.5s cadence: Select clicked again every tick, and a paid
+-- reroll the moment the taken card left the board. At a permanent callboard
+-- there is no despawn to brake that.
+CBH.db.favourites = { ["Loken"] = true }
+BuildBoard({ "Bulk Order: Eternal Earth", "Wanted: Loken", "No Mercy: Azure Scalebane" })
+CBH.Board.run = nil; NOW = 160
+Fav.Hunt()
+Fav.Poll(NOW)
+check("took the favourite", board._children[2].sel._clicks, 1)
+check("the run ended at the accept", CBH.Board.run, nil)
+NOW = 160.5; Fav.Poll(NOW)
+NOW = 161;   Fav.Poll(NOW)
+NOW = 161.5; Fav.Poll(NOW)
+check("later ticks do not click Select again", board._children[2].sel._clicks, 1)
+check("  ...and never reroll a hunt that already won", rerollBtn._clicks, 0)
+
+-- The other half: the server takes the accepted card off the board and leaves
+-- the board open. A run still live here finds no favourite and pays to reroll.
+BuildBoard({ "Bulk Order: Eternal Earth", "Wanted: Loken", "No Mercy: Azure Scalebane" })
+CBH.Board.run = nil; NOW = 170
+Fav.Hunt(); Fav.Poll(NOW)
+check("accepted", board._children[2].sel._clicks, 1)
+BuildBoard({ "Bulk Order: Eternal Earth", "Collect 40 Icethorn.", "No Mercy: Azure Scalebane" })
+NOW = 171; Fav.Poll(NOW)
+NOW = 172; Fav.Poll(NOW)
+check("the vanished card does not restart the spending", rerollBtn._clicks, 0)
+check("  ...and the run is still gone", CBH.Board.run, nil)
+
+print("")
+print("== a hidden card slot must not hide the favourite behind it ==")
+-- Board.ReadCards is sparse: a hidden slot leaves a hole, and the old ipairs
+-- walk stopped there. With card 1 hidden, Loken on card 2 was invisible and the
+-- hunt paid 10g to reroll a board that already held what it wanted.
+CBH.db.favourites = { ["Loken"] = true }
+BuildBoard({ "Bulk Order: Eternal Earth", "Wanted: Loken", "No Mercy: Azure Scalebane" })
+_G["ObjectiveFrame1"]._shown = false   -- the server drew two cards, not three
+check("MatchCards looks past the hole", (Fav.MatchCards(CBH.Board.ReadCards())), 2)
+CBH.Board.run = nil; NOW = 180
+check("hunt started", Fav.Hunt(), true)
+Fav.Poll(NOW)
+check("took the favourite on slot 2", board._children[2].sel._clicks, 1)
+check("  ...instead of paying to reroll a board that already had it",
+   rerollBtn._clicks, 0)
+CBH.Board.run = nil
+
+print("")
+print("== CBH's own card note is not evidence (1.9.7's bug, now in the engine) ==")
+-- Advisor draws "Dungeon/raid: Naxxramas" onto the card, and UI.Colour wraps it
+-- in |cff..|r - whose own pipes split it into a clean-looking title line for
+-- MatchCards, which then reads OUR text as a card and takes the wrong quest.
+CBH.db.favourites = { ["Naxxramas"] = true }
+BuildBoard({ "Slay Loken in Halls of Lightning." })
+local annotated = _G["ObjectiveFrame1"]
+local note = fs(CBH.UI.Colour("inkSoft", "Dungeon/raid: Naxxramas"))
+annotated._regions[#annotated._regions + 1] = note
+annotated.cbhNote = note
+check("the note is not in what the engine reads",
+   string.find(CBH.Board.ReadCards()[1].text, "Naxxramas", 1, true), nil)
+check("  ...so our own annotation is never a favourite match",
+   Fav.MatchCards(CBH.Board.ReadCards()), nil)
+CBH.db.favourites = {}
+
+print("")
+print("== pre-1.9.8 self-annotations are not pickable favourites ==")
+-- CBH.RecordCard gained a |c guard, but nothing purged what 1.9.7 had already
+-- written: one real database held 97 such entries out of 346. Left in, they are
+-- rows that look real and can never match a card - favourite one and the next
+-- hunt rerolls to the cap with no possible win.
+CBH.db.favourites = {}
+CBH.db.cardCatalogue = {
+   ["Sweep and Clear: Brand New Mob"] = { n = 1, lo = 80, hi = 80 },
+   ["|cff322516Dungeon/raid: Naxxramas|r"] = { n = 4, lo = 80, hi = 80 },
+   ["|cff4a3105> READY|r |cff160f083 known spots in Icecrown|r"] = { n = 2 },
+}
+local poisoned, clean = 0, false
+for _, e in ipairs(Fav.List()) do
+   if string.find(e.target, "|", 1, true) then poisoned = poisoned + 1 end
+   if e.target == "Brand New Mob" then clean = true end
+end
+check("no colour-escaped row survives the merge", poisoned, 0)
+check("a genuine learned target still does", clean, true)
+CBH.db.cardCatalogue = {}
+
+print("")
+print("== a hunt inherits the dungeon brakes, and says the bound out loud ==")
+-- Board.Start defaults to reserve 0 / cap 10 and Fav.Hunt passed neither, so a
+-- player who had set /cbh dungeon reserve 500 got exactly no reserve the moment
+-- they typed /cbh hunt. And the first thing they heard from a gold-spending
+-- loop was "reroll 1 - spent 10g 40s".
+CBH.db.favourites = { ["Loken"] = true }
+CBH.db.options = { dungeonRerollMax = 4, dungeonGoldReserve = 5000000 }
+BuildBoard({ "Bulk Order: Eternal Earth" })
+CBH.Board.run = nil; NOW = 190; PRINTED = {}
+check("started", Fav.Hunt(), true)
+check("inherited the dungeon reroll cap", CBH.Board.run.rerollMax, 4)
+check("inherited the dungeon gold reserve", CBH.Board.run.goldReserve, 5000000)
+local said = table.concat(PRINTED, " ")
+check("said the cap before spending anything",
+   string.find(said, "up to 4 reroll", 1, true) ~= nil, true)
+check("  ...and the reserve", string.find(said, "500g", 1, true) ~= nil, true)
+check("  ...with nothing clicked yet", rerollBtn._clicks, 0)
+NOW = 191; Fav.Poll(NOW)
+check("the inherited reserve actually stops the spend", rerollBtn._clicks, 0)
+check("  ...and stops the run", CBH.Board.run, nil)
+-- A favourites-side number, once set, wins over the inherited one.
+CBH.db.options.favRerollMax = 2
+CBH.db.options.favGoldReserve = 100000
+CBH.Board.run = nil
+Fav.Hunt()
+check("fav cap overrides the dungeon cap", CBH.Board.run.rerollMax, 2)
+check("fav reserve overrides the dungeon reserve", CBH.Board.run.goldReserve, 100000)
+CBH.Board.run = nil
+CBH.db.options = nil
+
+print("")
+print("== /cbh hunt stop calls a hunt off without closing the board ==")
+CBH.db.favourites = { ["Loken"] = true }
+BuildBoard({ "Bulk Order: Eternal Earth" })
+CBH.Board.run = nil; NOW = 200; PRINTED = {}
+Fav.Hunt()
+check("running", CBH.Board.run ~= nil, true)
+check("stop reports it stopped one", Fav.Hunt("stop"), true)
+check("  ...and the run is gone", CBH.Board.run, nil)
+check("  ...so a fresh hunt can start again", Fav.Hunt(), true)
+CBH.Board.run = nil
+check("stop with nothing running says so", Fav.Hunt("stop"), false)
+-- Not a licence to kill someone else's run.
+CBH.Board.run = { label = "dungeon", subject = "dungeon", match = function() end,
+   rerolls = 0, spent = 0, rerollMax = 10, goldReserve = 0, unchanged = 0, at = 0,
+   phase = "match", lastSig = nil }
+check("refuses to stop a dungeon run", Fav.Hunt("stop"), false)
+check("  ...and leaves it alone", CBH.Board.run ~= nil, true)
+CBH.Board.run = nil
+
+print("")
+print("== /cbh fav reports the limits a hunt would work within ==")
+-- The list branch prints per-favourite rows through DEFAULT_CHAT_FRAME rather
+-- than CBH.print, so it needs the real chat frame to exist - and it now also
+-- reads the inherited reserve, which is a nil index away from throwing.
+DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) PRINTED[#PRINTED + 1] = tostring(m) end }
+CBH.db.favourites = { ["Loken"] = true }
+CBH.db.options = { dungeonGoldReserve = 2500000 }
+PRINTED = {}
+Fav.Command("")
+local listed = table.concat(PRINTED, " ")
+check("lists the favourite", string.find(listed, "Loken", 1, true) ~= nil, true)
+check("names the reserve it inherited, before any of it is spent",
+   string.find(listed, "250g", 1, true) ~= nil, true)
+CBH.db.options = nil
+CBH.db.favourites = {}
+
+print("")
+print("== an unrecognised /cbh fav argument explains itself ==")
+PRINTED = {}
+Fav.Command("wibble")
+local out = table.concat(PRINTED, " ")
+check("said it did not understand", string.find(out, "wibble", 1, true) ~= nil, true)
+check("  ...and printed the usage line", string.find(out, "/cbh fav", 1, true) ~= nil, true)
+
+print("")
 print("== the star reads as a shape, not a colour ==")
 CBH.db.favourites = {}
 local off = Fav.StarText("Loken")
@@ -279,6 +442,24 @@ check("on is the filled glyph", strip(on), "[*]")
 Fav.Toggle("Loken")
 check("toggling off reverts the glyph", strip(Fav.StarText("Loken")), "[ ]")
 check("unknown target still renders", strip(Fav.StarText("Nobody")), "[ ]")
+
+-- One function, two grounds (Config.lua had a near-miss copy of the glyphs
+-- called FavGlyph, so a shape change would have landed in one place only).
+-- The glyph is identical either way; only the ink tier moves.
+CBH.db.favourites = { ["Loken"] = true }
+local HEX = CBH.UI.HEX
+check("the same shape on both grounds",
+   strip(Fav.StarText("Loken", true)), strip(Fav.StarText("Loken")))
+check("on a card: verdigris INK, not a dark-panel tier",
+   string.find(Fav.StarText("Loken", true), HEX.verdigrisInk, 1, true) ~= nil, true)
+check("on a card: NOT brass - UI.Stamp(\"ready\") already spends brass there",
+   string.find(Fav.StarText("Loken", true), HEX.brassInk, 1, true) ~= nil, false)
+check("on a panel: the dark-surface verdigris",
+   string.find(Fav.StarText("Loken"), HEX.verdigris, 1, true) ~= nil, true)
+check("off on a card stays ink", string.find(Fav.StarText("Nobody", true),
+   HEX.inkSoft, 1, true) ~= nil, true)
+check("off on a panel stays muted", string.find(Fav.StarText("Nobody"),
+   HEX.muted, 1, true) ~= nil, true)
 CBH.db.favourites = {}
 
 print("")
