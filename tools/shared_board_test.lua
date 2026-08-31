@@ -163,5 +163,75 @@ B.run = nil
 CBH.db.favourites = {}
 
 print("")
+print("== one auto-started run per board, however the last one ended ==")
+-- The grace rail above is what makes this reachable, and the two callers differ
+-- here: Favourites nils the run inside its own onAccept, but Dungeon leaves the
+-- run standing so QUEST_ACCEPTED can read the quest log index off it. When that
+-- event is genuinely lost, the rail releases the run 2s after the click - which
+-- is correct, the shared board must not stay locked - and D.Poll then saw
+-- `Board.run == nil` with the board still up and started a SECOND run against
+-- the board it had just taken a card from.
+--
+-- That restart is the PAID branch: the card it took is gone, so nothing matches,
+-- so it rerolls - up to the cap, at 10g 40s a go - off one dropped event. Before
+-- the grace rail existed the same lost event merely re-clicked Select every 0.5s
+-- and cost nothing, so this is a regression the rail introduced, not an old bug.
+PARTY = 0
+BuildBoard({ "Slay Ingvar the Plunderer in Utgarde Keep." })
+B.run = nil; NOW = 50
+D.Poll(NOW)
+check("took the dungeon's card", board._children[1].sel._clicks, 1)
+NOW = 53; D.Poll(NOW)                 -- the event never comes; the rail lets go
+check("the lost event still releases the shared board", B.run, nil)
+-- The board keeps its other cards, but not the one we just took. That is what
+-- makes the restart cost gold rather than merely click Select twice.
+_G["ObjectiveFrame1"]._regions[1]._text = "Collect 40 Icethorn."
+NOW = 54; D.Poll(NOW)
+check("no second run against the board we already worked", B.run, nil)
+check("  ...so a dropped event buys no rerolls", rerollBtn._clicks, 0)
+check("  ...and Select is not clicked a second time",
+   board._children[1].sel._clicks, 1)
+
+-- Same guard, no dropped event needed: any stop leaves Board.run nil with the
+-- board still up. A restart begins at rerolls = 0, so the per-summon cap the
+-- player set becomes a per-run figure that the board's 30s life resets over and
+-- over. Here the run stops on the cards-stopped-changing rail after one reroll;
+-- unguarded, D.Poll starts again and pays for another, indefinitely.
+BuildBoard({ "Collect 40 Icethorn.", "Kill 10 Murloc.", "Bulk Order: Eternal Earth" })
+B.run = nil; NOW = 60
+D.Poll(NOW)                                       -- no match -> click Reroll
+check("no card for this instance, so it rerolled", rerollBtn._clicks, 1)
+NOW = 60.6; D.Poll(NOW)                           -- confirm (no popup on this server)
+for i = 1, 3 do NOW = 61.2 + (i - 1) * 0.6; D.Poll(NOW) end   -- 3 unchanged -> stop
+check("the run gave up on the unchanging board", B.run, nil)
+for i = 1, 6 do NOW = 63 + i; D.Poll(NOW) end
+check("a stopped run does not restart on the same board", B.run, nil)
+check("  ...so the reroll cap is not reset back to zero", rerollBtn._clicks, 1)
+
+-- The guard must not curdle into "dungeon automation runs once per session".
+-- In game the board is ONE long-lived frame that summons show and despawns
+-- hide, so a resummon has the same identity as the board we just worked and the
+-- despawn tick is the only thing that can re-arm it. Reusing the frame here is
+-- the point of this check, not an economy.
+board._shown = false
+NOW = 70; D.Poll(NOW)                    -- the 30s window expires
+_G["ObjectiveFrame1"]._regions[1]._text = "Slay Ingvar the Plunderer in Utgarde Keep."
+board._shown = true                      -- ...and the player summons another
+B.run = nil; NOW = 71
+D.Poll(NOW)
+check("a resummon onto the same frame re-arms the automation",
+   board._children[1].sel._clicks, 1)
+B.run = nil
+
+-- And a board that is a different frame is a different board whatever we saw,
+-- which is what keeps the guard from leaking across dungeon_test.lua's scenarios.
+BuildBoard({ "Slay Ingvar the Plunderer in Utgarde Keep." })
+B.run = nil; NOW = 80
+D.Poll(NOW)
+check("so does a board that is a different frame entirely",
+   board._children[1].sel._clicks, 1)
+B.run = nil
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end

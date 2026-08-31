@@ -139,25 +139,60 @@ end
 -- this file contributes: rerolling, the verified confirm, the cap and the
 -- reserve live in Board.lua and are shared with favourites.
 function D.Poll(now)
-   if not Opt("dungeonAuto", false) then return end
    local board = _G["ObjectivesMainFrame"]
-   if not (board and board.IsShown and board:IsShown()) then
+   local shown = board and board.IsShown and board:IsShown()
+   -- Cleared AHEAD of the off-switch gate on purpose: a despawn is an
+   -- observation about the world, not an action on it. Behind the gate, turning
+   -- automation off mid-summon would leave D.worked set after the board went
+   -- away, and the next board would be refused as though it were the one we had
+   -- already worked. This is the release that matters in game, where the board
+   -- is one long-lived frame that summons show and despawns hide.
+   if not shown then D.worked = nil end
+   if not Opt("dungeonAuto", false) then return end
+   if not shown then
       if CBH.Board.run and CBH.Board.run.label == "dungeon" then
          CBH.Board.Stop("the board despawned")
       end
       return
    end
    if not CBH.Board.run then
+      -- ONE auto-started run per board. Board.run going nil does NOT mean the
+      -- board is fresh - it means our last run ended, and every way it can end
+      -- leaves this board already worked:
+      --
+      --   * Accepted, and QUEST_ACCEPTED never arrived. Board.Poll's grace rail
+      --     releases the run 2s after the click (Board.lua:200-209), so without
+      --     this guard the very next tick starts a SECOND run against the board
+      --     we just took a card from - and the card is gone, so it does not
+      --     match, so it rerolls, at 10g 40s a go up to the cap.
+      --   * Stopped on the reroll cap. A fresh run starts at rerolls = 0, which
+      --     turns the cap into a per-run figure the board's 30s lifetime resets
+      --     over and over, instead of the per-summon limit the player set.
+      --
+      -- Two things release it, and both mean "a different board". The despawn
+      -- above is the one that fires in game. This one compares the frame we
+      -- worked against the frame in front of us now: a board we have never seen
+      -- before is unambiguously not the board we already worked, however it got
+      -- here. It can only ever release the guard for a genuinely new frame, so
+      -- it cannot mask the case above.
+      --
+      -- NOT released by a manual reroll: spotting one means tracking card
+      -- signatures outside a run, and re-arming on it puts us straight back on
+      -- the paid path. The player who rerolls by hand can take the card by hand
+      -- - the board is theirs for ~30s.
+      if D.worked == board then return end
       local instance = D.CurrentInstance()
       if not instance then return end   -- only automate inside dungeons
       D.instance = instance
-      CBH.Board.Start({
+      -- Marked on START, not on accept: what makes a restart cost gold is that a
+      -- run happened here at all, not how it ended.
+      if CBH.Board.Start({
          label = "dungeon",
          subject = instance,   -- what the player reads: "the Utgarde Keep quest"
          match = function(cards) return D.MatchCard(cards, D.instance) end,
          rerollMax = Opt("dungeonRerollMax", 10),
          goldReserve = Opt("dungeonGoldReserve", 0),
-      })
+      }) then D.worked = board end
    end
    -- Drive our own run and nobody else's. Not politeness: a run that accepted
    -- without ever rerolling still has at = 0, so nothing rate-limits a second

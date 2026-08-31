@@ -50,6 +50,18 @@ GitHub releases and the `.toc`.
 - **`/cbh dungeon off` mid-run stops the run** instead of orphaning it. The run
   state is shared with `/cbh hunt` now, so an orphan answered every later hunt
   with "already working the board" until a `/reload`.
+- **A dungeon board is worked once, not once per tick.** `D.Poll` started a
+  fresh run whenever the shared run slot was empty and the board was still up,
+  and nothing recorded that a card had already been taken from that board. The
+  accept grace added above made that reachable: when `QUEST_ACCEPTED` is
+  genuinely lost the grace releases the run 2s after the click — correctly, so
+  the board is not left locked — and the next tick then started a SECOND run
+  against the board CBH had just taken a card from. That card is gone, so
+  nothing matched, so it rerolled, at 10g 40s a go up to the cap. The same
+  restart also reset the reroll counter to zero, quietly turning the per-summon
+  cap into a per-run figure that the board's 30s life could reset over and over.
+  CBH now auto-starts one run per board and re-arms only once that board has
+  despawned; a board you reroll by hand after that is yours to take by hand.
 
 ## [1.10.2] - 2026-08-31
 ### Fixed
