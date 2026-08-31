@@ -82,6 +82,32 @@ GitHub releases and the `.toc`.
   time rather than staying blind forever. The entry announcement now says
   which of the two it will do, instead of always promising the reroll.
 
+- **A Wintergrasp quest sent new players to Winterspring.** Reported from live
+  play. CBH harvests a card's zone from text like *"Kill 10 X in Zone."*, but the
+  pattern demanded a literal `Kill ` and this server also words cards without a
+  verb - *"10 Earthbound Revenant in Wintergrasp"*. So nothing was learned, every
+  real source came up empty, and routing fell through to the last-resort map
+  sweep, which guessed. It only ever bit people with no history: anyone who had
+  already seen the `Kill ` wording of that card had the right answer cached and
+  never saw the bug. The harvest now reads the verb-less shape, validates the
+  captured zone against the real map-zone list before trusting it, and a
+  card-harvested zone outranks the quest-log header - which this server
+  mislabels for exactly these quests.
+- **Card zones are no longer harvested from text that only looks like a zone.**
+  `in` is an ordinary word, so *"Kill 10 Lady in Waiting in Wintergrasp"* used to
+  store the zone as *"Waiting in Wintergrasp"*. Anything that is not an exact map
+  zone is now refused - and refused for the write only, so a dungeon card like
+  *"Slay 10 Scourge in Naxxramas."* keeps its `Dungeon/raid:` note.
+- **A fresh install is no longer empty.** `SpawnDB.CARD_ZONES` ships 77 vetted
+  mob-to-zone defaults, so routing works before you have personally seen a single
+  card. Your own harvested zones always win; the bundle is a fallback and is
+  never written into your saved variables. Entries that named an instance rather
+  than an outdoor zone were translated to the zone that contains them, and nine
+  rows were dropped as unfit to ship - one that contradicted the instance data
+  (Vault of Archavon is in Wintergrasp, not Dragonblight) and eight that were
+  objective phrasings or bare words like `Rare`, which would have pointed every
+  rare hunt at Icecrown.
+
 ## [1.10.2] - 2026-08-31
 ### Fixed
 - **More contrast on card notes.** The 1.10.1 ink was still a mid-tone and washed
