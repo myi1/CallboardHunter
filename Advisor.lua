@@ -60,6 +60,16 @@ local KILL_CARD_PATTERNS = {
 }
 
 local function BuildNote(desc)
+   -- Rare-hunt cards mention "Rare" ("3 Rare creatures in Icecrown" is a real
+   -- shape) and, since the verb-less pattern below exists, that shape ALSO
+   -- fits "<n> <mob> in <zone>" - "Icecrown" is a real map zone, so it would
+   -- otherwise be swallowed as a kill objective (writing the nonsense mob key
+   -- "Rare creatures" into cardZones and showing "no camp data" instead of
+   -- the rare stamp). Checked first so a rare card can never be shadowed by a
+   -- shape that only exists to harvest kill objectives.
+   if string.find(string.lower(desc), "rare") then
+      return CBH.UI.Stamp("active", true) .. " " .. CBH.UI.Colour("ink", "rare hunt")
+   end
    local n, mob, zoneRaw
    for _, pat in ipairs(KILL_CARD_PATTERNS) do
       local _, _, a, b, c = string.find(desc, pat)
@@ -70,19 +80,25 @@ local function BuildNote(desc)
       -- same shape), so the raw capture is trusted only once it names an EXACT
       -- real map zone - which also normalises whatever casing the card used.
       local zone = CBH.SpawnDB.KnownMapZone and CBH.SpawnDB.KnownMapZone(zoneRaw)
-      if not zone then return nil end
-      if CBH.db then
-         CBH.db.cardZones[mob] = zone
-         if CBH.db.cardZoneVerified then CBH.db.cardZoneVerified[mob] = true end
+      -- A failed check refuses only the WRITE, not the note: fall through to
+      -- the branches below instead of ending the function here, or a real
+      -- dungeon/raid card like "Slay 10 Scourge in Naxxramas." (Naxxramas is
+      -- not an outdoor map zone, so it correctly fails this check) would lose
+      -- its "Dungeon/raid:" note along with the write it was right to refuse.
+      if zone then
+         if CBH.db then
+            CBH.db.cardZones[mob] = zone
+            if CBH.db.cardZoneVerified then CBH.db.cardZoneVerified[mob] = true end
+         end
+         local pts = CountPoints(zone, mob)
+         local here = (GetRealZoneText() == zone) and " (current zone)" or ""
+         if pts > 0 then
+            return CBH.UI.Stamp("ready", true) .. " " .. CBH.UI.Colour("ink",
+               pts .. " known spot" .. (pts > 1 and "s" or "") .. " in " .. zone .. here)
+         end
+         return CBH.UI.Stamp("idle", true) .. " " .. CBH.UI.Colour("inkSoft",
+            "no camp data - " .. zone .. here)
       end
-      local pts = CountPoints(zone, mob)
-      local here = (GetRealZoneText() == zone) and " (current zone)" or ""
-      if pts > 0 then
-         return CBH.UI.Stamp("ready", true) .. " " .. CBH.UI.Colour("ink",
-            pts .. " known spot" .. (pts > 1 and "s" or "") .. " in " .. zone .. here)
-      end
-      return CBH.UI.Stamp("idle", true) .. " " .. CBH.UI.Colour("inkSoft",
-         "no camp data - " .. zone .. here)
    end
    -- "Slay Kelthuzad in Naxxramas."
    local _, _, boss, place = string.find(desc, "^Slay (.-) in (.-)%.?$")
@@ -93,10 +109,6 @@ local function BuildNote(desc)
    local _, _, cn, item = string.find(desc, "^Collect (%d+) (.-)%.?$")
    if item then
       return CBH.UI.Colour("inkSoft", "Collection: " .. item)
-   end
-   -- Rare trophy cards mention "Rare"
-   if string.find(string.lower(desc), "rare") then
-      return CBH.UI.Stamp("active", true) .. " " .. CBH.UI.Colour("ink", "rare hunt")
    end
    return nil
 end
@@ -550,16 +562,20 @@ end
 Advisor.ZoneFromLearnedKills = ZoneFromLearnedKills
 
 -- A card zone BuildNote harvested AND validated against a real map zone (see
--- cardZoneVerified in BuildNote). Deliberately narrower than "any cardZones
--- entry": the one-time repair in Core.lua only strips entries worth exactly
--- "Alterac Mountains", the one false positive the pre-1.5.0 POI sweep is
--- documented to have produced, so an upgraded database can still be carrying
--- some OTHER stale sweep guess under cardZones that nothing has ever
--- disproven. Trusting every cardZones entry over the header would let a
--- guess like that outrank a header that happens to be correct. A freshly
--- verified entry carries no such history - it is this server's own card text
--- for THIS objective, checked against the real zone list just now - so only
--- those are allowed to outrank the header.
+-- cardZoneVerified in BuildNote). Deliberately narrower than "whatever
+-- CBH.SpawnDB.CardZoneFor(name) returns" (source 6 below, the player's own
+-- unverified cardZones entry or a bundled default): the one-time repair in
+-- Core.lua only strips entries worth exactly "Alterac Mountains", the one
+-- false positive the pre-1.5.0 POI sweep is documented to have produced, so
+-- an upgraded database can still be carrying some OTHER stale sweep guess
+-- under cardZones that nothing has ever disproven, and a bundled default is
+-- someone else's harvest rather than this player's own. Trusting either of
+-- those over the header would let an unconfirmed guess outrank a header that
+-- happens to be correct. cardZoneVerified is a SAVED flag, not a momentary
+-- check: once BuildNote validates a card, this objective outranks the header
+-- on every login from then on, until that card is harvested again and
+-- overwrites the entry - trusted until re-harvested, not just in the instant
+-- it was seen.
 local function ZoneFromVerifiedCard(name)
    if not (CBH.db and CBH.db.cardZoneVerified and CBH.db.cardZoneVerified[name]) then
       return nil

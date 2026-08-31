@@ -231,6 +231,40 @@ Advisor.BuildNote("Collect 5 Frozen Orb in the Nexus")
 check("  ...the verbed 'Collect' form doesn't harvest a zone either",
    CBH.db.cardZones["Frozen Orb"], nil)
 
+-- A failed KnownMapZone check must refuse only the WRITE, not the note: a
+-- real dungeon/raid card ("Naxxramas" is not an outdoor map zone, so the
+-- count-card branch above correctly declines it) still has to fall through
+-- to the "Slay <boss> in <place>" branch below it, or the correct
+-- "Dungeon/raid:" note silently disappears along with the write.
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+check("dungeon count-card falls through to the boss/raid note",
+   Advisor.BuildNote("Slay 10 Scourge in Naxxramas."),
+   CBH.UI.Colour("inkSoft", "Dungeon/raid: Naxxramas"))
+check("  ...and still writes nothing to cardZones",
+   CBH.db.cardZones["Scourge"], nil)
+-- Same shape, "Kill" instead of "Slay": no boss/Collect/rare branch matches a
+-- "Kill N X in Dungeon." card, so this one falls all the way through to no
+-- note at all - correct, since CBH has nothing useful to say about it, and
+-- confirms the fallthrough doesn't fabricate a note for a shape nothing
+-- recognises.
+check("dungeon count-card with no matching fallback note -> nil",
+   Advisor.BuildNote("Kill 10 Murloc in Utgarde Keep."), nil)
+check("  ...and still writes nothing to cardZones", CBH.db.cardZones["Murloc"], nil)
+
+-- Rare-hunt cards are checked BEFORE the count-card patterns: "Icecrown" is a
+-- real map zone, so "3 Rare creatures in Icecrown" also fits the verb-less
+-- "<n> <mob> in <zone>" shape and would otherwise be swallowed as a kill
+-- objective - writing the nonsense mob key "Rare creatures" into cardZones
+-- and showing "no camp data" instead of the rare stamp. Pinned here so this
+-- specific priority inversion cannot regress again.
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+check("a rare-hunt card is not mistaken for a kill objective",
+   Advisor.BuildNote("3 Rare creatures in Icecrown"),
+   CBH.UI.Stamp("active", true) .. " " .. CBH.UI.Colour("ink", "rare hunt"))
+check("  ...and doesn't pollute cardZones",
+   CBH.db.cardZones["Rare creatures"], nil)
+CBH.db.cardZones, CBH.db.cardZoneVerified = {}, {}
+
 print("")
 print("== card zone outranks a mislabelled header (reported 2026-08-31) ==")
 -- The actual user report: v1.10.2, a brand-new install (no learned kills), a
