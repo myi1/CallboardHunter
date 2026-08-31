@@ -8,6 +8,19 @@
 -- suite can see - one feature stranding the board and locking the other out of
 -- it until a /reload. dungeon_test.lua is additionally frozen at 37 assertions
 -- as the extraction's regression gate, so dungeon-side coverage lands here.
+--
+-- A HARNESS ASSUMPTION WORTH KNOWING BEFORE YOU ADD PER-BOARD STATE TO
+-- Dungeon.lua: dungeon_test.lua builds a NEW board frame between scenarios and
+-- never simulates the old one despawning, so D.Poll there never sees a tick
+-- with the board hidden. Any state that only clears on despawn therefore stays
+-- armed across its scenarios and fails it - the once-per-board guard below cost
+-- 33/37 as a plain boolean before it was keyed on the board frame instead. The
+-- freeze is on that file's ASSERTIONS, so the fix is to make the guard survive
+-- a board swap, not to reach over and edit the gate.
+--
+-- This suite is the place to exercise the despawn path directly, because it can
+-- hide and re-show ONE frame - which is what the game actually does, where
+-- ObjectivesMainFrame is long-lived and summons only show and hide it.
 local ADDON = ADDON_DIR
 -- WoW 3.3.5 is Lua 5.1 (global unpack); fengari is 5.3 (table.unpack).
 unpack = unpack or table.unpack

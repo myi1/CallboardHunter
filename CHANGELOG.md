@@ -57,9 +57,17 @@ GitHub releases and the `.toc`.
   genuinely lost the grace releases the run 2s after the click — correctly, so
   the board is not left locked — and the next tick then started a SECOND run
   against the board CBH had just taken a card from. That card is gone, so
-  nothing matched, so it rerolled, at 10g 40s a go up to the cap. The same
-  restart also reset the reroll counter to zero, quietly turning the per-summon
-  cap into a per-run figure that the board's 30s life could reset over and over.
+  nothing matched, so it rerolled, at 10g 40s a go up to the cap. That half is a
+  1.11.0 regression: before the grace existed, the same lost event merely
+  re-clicked Select every 0.5s and spent nothing.
+
+  The restart also reset the reroll counter to zero, and **that half is not new**
+  — it needs no dropped event and predates the extraction. Every stop nils the
+  run with the board still up, and 1.10.2's `D.Poll`/`D.Start` had the identical
+  shape, so the per-summon reroll cap has never actually been enforced within a
+  single board's 30s life: it just started counting again. If you set a cap of
+  10 and the board outlived the run, you could be charged for more than 10.
+
   CBH now auto-starts one run per board and re-arms only once that board has
   despawned; a board you reroll by hand after that is yours to take by hand.
 
