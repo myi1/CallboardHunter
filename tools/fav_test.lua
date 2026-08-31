@@ -276,6 +276,8 @@ end
 check("still differ with colour stripped", strip(off) ~= strip(on), true)
 check("off is the hollow glyph", strip(off), "[ ]")
 check("on is the filled glyph", strip(on), "[*]")
+Fav.Toggle("Loken")
+check("toggling off reverts the glyph", strip(Fav.StarText("Loken")), "[ ]")
 check("unknown target still renders", strip(Fav.StarText("Nobody")), "[ ]")
 CBH.db.favourites = {}
 

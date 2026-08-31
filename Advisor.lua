@@ -24,8 +24,13 @@ local function CardTexts(card)
    for i = 1, select("#", card:GetRegions()) do
       local r = select(i, card:GetRegions())
       -- Skip the note WE attached to this card, or the catalogue records our own
-      -- annotations as if they were callboard text.
-      if r ~= card.cbhNote and r ~= (card.cbhStar and card.cbhStar.label)
+      -- annotations as if they were callboard text (1.9.7 shipped exactly that
+      -- bug). The star's label needs no matching check here: UI.Text parents
+      -- it to card.cbhStar, the button - a child FRAME of card - and
+      -- GetRegions() only enumerates regions parented directly to card, never
+      -- descending into child frames. That structural fact is what keeps the
+      -- star out of this list, not an entry in this condition.
+      if r ~= card.cbhNote
          and r and r.GetObjectType and r:GetObjectType() == "FontString" then
          local t = r:GetText()
          if t and t ~= "" then table.insert(texts, t) end
