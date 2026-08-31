@@ -204,6 +204,58 @@ Fav.Poll(NOW)
 check("clicked reroll", rerollBtn._clicks, 1)
 
 print("")
+print("== hunt refuses to start while any run is already live ==")
+-- Not the empty-list branch and not the no-board branch: the board is open
+-- and favourites still holds Loken from two tests ago. This is specifically
+-- the "someone already owns the board" refusal, and it must fire even for a
+-- FOREIGN run's label - Fav.Hunt is not supposed to special-case whose run it
+-- is, only whether one exists.
+BuildBoard({ "Wanted: Loken" })
+CBH.Board.run = { label = "dungeon", subject = "dungeon", match = function() end,
+   rerolls = 0, spent = 0, rerollMax = 10, goldReserve = 0, unchanged = 0, at = 0,
+   phase = "match", lastSig = nil }
+PRINTED = {}
+check("refused while a run is live", Fav.Hunt(), false)
+check("  ...for the right reason", string.find(string.lower(table.concat(PRINTED, " ")),
+   "already", 1, true) ~= nil, true)
+check("  ...touched nothing on the board", rerollBtn._clicks, 0)
+CBH.Board.run = nil
+
+print("")
+print("== Fav.Poll never drives a run it does not own (the double-click guard) ==")
+-- This is the guard the whole label/ownership scheme exists for: if Fav.Poll
+-- ever drove a run labelled "dungeon", the Dungeon poller and this one would
+-- both advance the SAME run in one ticker pass and click Select or Reroll
+-- twice - real gold, spent twice per tick. The foreign run's match always
+-- misses, so if the guard were ever dropped this poll would click Reroll;
+-- assert on that counter, not just "no error was raised".
+BuildBoard({ "Wanted: Loken" })
+CBH.Board.run = { label = "dungeon", subject = "dungeon", match = function() return nil end,
+   rerolls = 0, spent = 0, rerollMax = 10, goldReserve = 0, unchanged = 0, at = 0,
+   phase = "match", lastSig = nil }
+NOW = 140
+Fav.Poll(NOW)
+check("left the foreign run's reroll button untouched", rerollBtn._clicks, 0)
+check("left the foreign run's Select buttons untouched", board._children[1].sel._clicks, 0)
+check("did not advance the foreign run's state", CBH.Board.run.rerolls, 0)
+CBH.Board.run = nil
+
+print("")
+print("== reroll cap stops the hunt through Fav.Poll, not just the engine ==")
+-- board_test.lua and dungeon_test.lua already prove Board.lua's own cap
+-- works; this proves Favourites is actually WIRED to it - a future edit to
+-- Fav.Hunt's Board.Start call (say, dropping the implicit rerollMax default)
+-- could break that wiring without failing anything else in this file.
+BuildBoard({ "Bulk Order: Eternal Earth" })   -- no favourite present -> would reroll forever
+CBH.Board.run = nil; NOW = 150
+Fav.Hunt()
+CBH.Board.run.rerolls = 10   -- Board's default cap; pretend we already got there
+CBH.Board.run.phase = "match"; CBH.Board.run.at = 0
+NOW = 151
+Fav.Poll(NOW)
+check("stopped at the cap", CBH.Board.run, nil)
+
+print("")
 print("== hunt needs an open board ==")
 board._shown = false
 CBH.Board.run = nil; PRINTED = {}

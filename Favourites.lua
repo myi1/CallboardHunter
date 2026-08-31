@@ -99,10 +99,24 @@ function Fav.Hunt()
    end
    return CBH.Board.Start({
       label = "favourites",
+      -- "label" is the ownership token ("favourites"); "subject" is what the
+      -- player reads. Leaving subject unset would fall back to the label
+      -- itself and print "taking the favourites quest" - grammatically off,
+      -- and a wasted chance to reuse Task 2's label/subject split the way
+      -- Dungeon.lua does ("taking the Utgarde Keep quest").
+      subject = "favourite",
       match = Fav.MatchCards,
    })
 end
 
+-- No Favourites equivalent of Dungeon.OnQuestAccepted (which shares the quest
+-- with the group on QUEST_ACCEPTED). Deliberate: hunting a favourite has no
+-- group-sharing use case, and if the player accepts a quest by hand mid-hunt
+-- - from the quest log, say, rather than through Board.Accept - the run does
+-- not need to notice. The next Fav.Poll just re-reads the board and re-runs
+-- Fav.MatchCards; if the accepted quest is gone from the board it simply
+-- finds no match and rerolls again, still bounded by the same cap and
+-- reserve as any other tick. No event hook is needed to keep that safe.
 function Fav.Poll(now)
    if CBH.Board.run and CBH.Board.run.label == "favourites" then
       CBH.Board.Poll(now)
