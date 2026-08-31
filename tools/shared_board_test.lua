@@ -21,6 +21,15 @@
 -- This suite is the place to exercise the despawn path directly, because it can
 -- hide and re-show ONE frame - which is what the game actually does, where
 -- ObjectivesMainFrame is long-lived and summons only show and hide it.
+--
+-- The instance-coverage gate below (D.declinedInstance) adds per-entry state to
+-- the same function and does NOT share the landmine above: it clears when
+-- D.OnZoneChanged sees the player leave the instance, not when the board
+-- despawns, and dungeon_test.lua exercises that leave-transition directly
+-- (INSIDE = false, both explicit and via manual D.announced resets) rather than
+-- assuming it. Board identity was the wrong key for it anyway - the gate is a
+-- fact about the INSTANCE ("has a quest ever been seen here"), not about which
+-- physical board frame is in front of the player.
 local ADDON = ADDON_DIR
 -- WoW 3.3.5 is Lua 5.1 (global unpack); fengari is 5.3 (table.unpack).
 unpack = unpack or table.unpack
@@ -244,6 +253,71 @@ D.Poll(NOW)
 check("so does a board that is a different frame entirely",
    board._children[1].sel._clicks, 1)
 B.run = nil
+
+print("")
+print("== instance coverage gate: no known quest -> no paid reroll hunt ==")
+-- The reported live bug: Icecrown Citadel has boss data in SpawnDB (Board.lua
+-- needs it to MATCH a card that names Festergut, say), but this server has
+-- never issued an ICC callboard quest at all, so D.Poll used to reroll to its
+-- cap (~104g) chasing a card that could never appear. None of these cards name
+-- ICC or one of its bosses, so there is no free match to fall back on either -
+-- this is the actual shape of the reported loss, not a contrived board.
+INSIDE, ZONE = true, "Icecrown Citadel"
+D.announced, D.declinedInstance = nil, nil
+BuildBoard({ "Collect 40 Icethorn.", "Kill 10 Murloc.", "Bulk Order: Eternal Earth" })
+B.run = nil; NOW = 100; PRINTED = {}
+D.Poll(NOW)
+check("no run started for an uncovered instance", B.run, nil)
+-- The click counter, not B.run, is the load-bearing assertion here: a version
+-- that started the run and then let the reserve/cap logic stop it on the very
+-- first tick would also read B.run == nil, while having already paid for one
+-- reroll on the way there.
+check("  ...critically, no Reroll click - not just no run", rerollBtn._clicks, 0)
+check("told the player once, rather than failing silently", #PRINTED, 1)
+check("  ...and named the instance", string.find(PRINTED[1], "Icecrown Citadel") ~= nil, true)
+NOW = 100.5; D.Poll(NOW)
+check("does not repeat the decline every tick", #PRINTED, 1)
+
+print("")
+print("== instance coverage gate: a known quest still automates ==")
+-- Utgarde Keep is covered by the bundled "Ingvar the Plunderer" quest (SpawnDB
+-- QUESTS), so the gate must not disable the feature for the common case - this
+-- board has no free match either, so a reroll click here proves the loop still
+-- runs, not just that Board.run got created.
+INSIDE, ZONE = true, "Utgarde Keep"
+D.announced, D.declinedInstance = nil, nil
+BuildBoard({ "Collect 40 Icethorn." })
+B.run = nil; NOW = 110; PRINTED = {}
+D.Poll(NOW)
+check("still starts a run - the bundled Ingvar quest covers it", B.run ~= nil, true)
+check("  ...and rerolls looking for it, same as before the fix", rerollBtn._clicks, 1)
+B.run = nil
+
+print("")
+print("== instance coverage gate: the catalogue teaches it ==")
+check("Halls of Stone starts uncovered (no bundled quest names it)",
+   CBH.SpawnDB.InstanceHasKnownQuest("Halls of Stone"), false)
+CBH.db.cardCatalogue["Slay Krystallus in Halls of Stone."] = { n = 1 }
+CBH.SpawnDB.InvalidateCoverage()
+check("a catalogued card now covers the instance",
+   CBH.SpawnDB.InstanceHasKnownQuest("Halls of Stone"), true)
+INSIDE, ZONE = true, "Halls of Stone"
+D.announced, D.declinedInstance = nil, nil
+BuildBoard({ "Collect 40 Icethorn." })
+B.run = nil; NOW = 120
+D.Poll(NOW)
+check("the gate now lets automation run for a taught instance", B.run ~= nil, true)
+B.run = nil
+-- A pre-1.9.8 self-annotation (Advisor.lua's own "Dungeon/raid: X" card note,
+-- colour-coded) must not count as evidence a real card exists - it is CBH
+-- talking to itself, not something the server ever wrote. Fav.List skips the
+-- same |c-tainted keys for the same reason.
+CBH.db.cardCatalogue[CBH.UI.Colour("inkSoft", "Dungeon/raid: Trial of the Champion")] = { n = 1 }
+CBH.SpawnDB.InvalidateCoverage()
+check("a |c-tainted catalogue key grants no coverage",
+   CBH.SpawnDB.InstanceHasKnownQuest("Trial of the Champion"), false)
+CBH.db.cardCatalogue = {}
+CBH.SpawnDB.InvalidateCoverage()
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)

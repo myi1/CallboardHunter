@@ -113,6 +113,7 @@ function D.OnZoneChanged()
    local instance = D.CurrentInstance()
    if not instance then
       D.announced = nil
+      D.declinedInstance = nil   -- leaving resets the once-per-entry gate notice too
       return
    end
    if D.announced == instance then return end
@@ -183,6 +184,25 @@ function D.Poll(now)
       if D.worked == board then return end
       local instance = D.CurrentInstance()
       if not instance then return end   -- only automate inside dungeons
+      -- Reported bug: Icecrown Citadel has boss data (needed for MatchCard) but
+      -- this server has never issued an ICC callboard quest, so the automation
+      -- rerolled to its cap (~104g) chasing a card that could never appear.
+      -- Refuse to REROLL for an instance with no evidence a card exists - but a
+      -- card that already happens to be showing costs nothing to take, and
+      -- taking it is also how the catalogue learns this instance for next
+      -- time, so a lucky match is let through regardless of prior evidence.
+      local known = CBH.SpawnDB and CBH.SpawnDB.InstanceHasKnownQuest
+         and CBH.SpawnDB.InstanceHasKnownQuest(instance)
+      if not known and not D.MatchCard(CBH.Board.ReadCards(), instance) then
+         if D.declinedInstance ~= instance then
+            D.declinedInstance = instance
+            CBH.print(CBH.UI.Stamp("idle") .. " " .. instance .. ": CBH has never"
+               .. " seen a callboard quest for this instance, so it will not"
+               .. " spend your gold rerolling for one that may not exist. Take"
+               .. " one here by hand and CBH will remember it for next time.")
+         end
+         return
+      end
       D.instance = instance
       -- Marked on START, not on accept: what makes a restart cost gold is that a
       -- run happened here at all, not how it ended.

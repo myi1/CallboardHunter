@@ -474,6 +474,61 @@ function SpawnDB.TextMatchesDungeon(text, dungeon)
    return false
 end
 
+-- Which instances does CBH have ANY evidence a callboard quest exists for?
+-- Reported bug: Icecrown Citadel has bosses in DUNGEONS above (needed so a card
+-- naming Festergut MATCHES it), but this server has never issued an ICC
+-- callboard quest at all - D.Poll used to reroll the automation to its cap
+-- (~104g) chasing a card that can never appear. DUNGEONS answers "would this
+-- card be for that instance"; this answers the different question "has a card
+-- for that instance ever actually existed", from what has actually been SEEN:
+-- the bundled quest list, plus every card this player's catalogue has caught.
+--
+-- Memoised: this is reachable from the 0.5s Advisor ticker (D.Poll), and
+-- InstanceInText is an O(instances * names) scan run once per source string -
+-- fine for one lookup, far too slow to repeat every tick against a catalogue
+-- that can hold hundreds of keys. Built once, lazily, and invalidated only when
+-- the catalogue actually gains a key (CBH.RecordCard in Export.lua flips the
+-- dirty flag) - a card re-seen for the tenth time does not cost a rebuild.
+local coverage, coverageDirty = nil, true
+
+function SpawnDB.InvalidateCoverage()
+   coverageDirty = true
+end
+
+local function BuildCoverage()
+   coverage = {}
+   for _, q in ipairs(SpawnDB.QUESTS) do
+      local inst = SpawnDB.InstanceInText(q.target)
+      if inst then coverage[inst] = true end
+   end
+   local cat = CBH.db and CBH.db.cardCatalogue
+   if cat then
+      for key in pairs(cat) do
+         -- Pre-1.9.8 databases catalogued CBH's own colour-coded card notes
+         -- (e.g. "Dungeon/raid: Naxxramas|r") as if the server had written
+         -- them. Fav.List skips the same |c-tainted keys for the same reason:
+         -- they are not evidence of a real card, they are CBH talking to
+         -- itself. Core.lua purges them once per DB, but this must not trust
+         -- that has already run.
+         if not string.find(key, "|c", 1, true) then
+            local inst = SpawnDB.InstanceInText(key)
+            if inst then coverage[inst] = true end
+         end
+      end
+   end
+   coverageDirty = false
+end
+
+-- Has a callboard quest for this instance ever actually been seen - bundled,
+-- or learned from this player's own catalogue? False does not mean "never
+-- will"; it means "not yet", which is why the caller's response to false must
+-- be to decline spending gold, never to declare the instance uncovered forever.
+function SpawnDB.InstanceHasKnownQuest(instance)
+   if not instance then return false end
+   if coverageDirty then BuildCoverage() end
+   return coverage[instance] == true
+end
+
 -- Outdoor callboard targets whose quest text names neither an outdoor zone nor a
 -- rare we already have points for. Extend as new ones are reported.
 local TARGET_ZONE = {

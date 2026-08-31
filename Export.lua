@@ -105,6 +105,12 @@ function CBH.RecordCard(text)
                    and CBH.SpawnDB.ClassifyCard(key) or nil,
                 where = (GetRealZoneText and GetRealZoneText()) or nil,
                 at = date("%Y-%m-%d") }
+   -- A brand-new key can widen instance coverage (e.g. the first-ever ICC
+   -- card this player has seen), so the dungeon gate's memo must not go stale
+   -- and leave automation refusing an instance it has just learned about. A
+   -- repeat sighting only bumps .n above and does not reach this line, so the
+   -- memo is not rebuilt on every card re-seen - only on real growth.
+   if CBH.SpawnDB and CBH.SpawnDB.InvalidateCoverage then CBH.SpawnDB.InvalidateCoverage() end
 end
 
 -- /cbh catalogue [dump]
