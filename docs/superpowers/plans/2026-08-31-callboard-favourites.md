@@ -24,7 +24,7 @@
 | File | Responsibility |
 |---|---|
 | `Board.lua` *(new)* | The reroll engine. Reads cards, finds the Reroll button, verifies the confirm dialog, enforces cap/reserve/expiry, calls a supplied `match(cards)`, accepts the winner. Knows nothing about dungeons or favourites. |
-| `Dungeon.lua` *(modified)* | Keeps instance detection, the entry reminder, quest sharing. Its loop is deleted and replaced by a `Board.Run` call with an instance-match callback. |
+| `Dungeon.lua` *(modified)* | Keeps instance detection, the entry reminder, quest sharing. Its loop is deleted and replaced by a `Board.Start` call with an instance-match callback. |
 | `Favourites.lua` *(new)* | The favourites set, target extraction, the pickable list (bundled ∪ catalogue), `/cbh hunt`, and the star widget on cards. |
 | `SpawnDB.lua` *(modified)* | Gains `QUESTS` (63 seed rows) and `SpawnDB.TargetOf(title)`. |
 | `Core.lua` *(modified)* | `favourites = {}` default, `/cbh hunt` and `/cbh fav` commands. |
