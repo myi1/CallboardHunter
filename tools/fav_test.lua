@@ -96,6 +96,19 @@ BuildBoard({ "Bulk Order: Eternal Earth" })
 check("no favourite present", Fav.MatchCards(ReadCardsStub()), nil)
 
 print("")
+print("== an empty favourites list refuses to match anything ==")
+-- The hunt command (a later task) treats "no match" as license to keep
+-- rerolling. An empty list must never look like a hit, or hunting with
+-- nothing favourited would burn gold forever with no way to stop. Restore the
+-- prior set afterward - this suite has a history of one test's leftover state
+-- silently changing a later one's result.
+local savedFavourites = CBH.db.favourites
+CBH.db.favourites = {}
+BuildBoard({ "Wanted: Loken" })
+check("empty favourites, no match", Fav.MatchCards(ReadCardsStub()), nil)
+CBH.db.favourites = savedFavourites
+
+print("")
 print("== progress counters do not break matching ==")
 CBH.db.favourites = { ["Azure Scalebane"] = true }
 BuildBoard({ "No Mercy: Azure Scalebane", "Azure Scalebane slain: 3/10" })
@@ -125,6 +138,25 @@ check("no duplicates", (function()
    return dupes
 end)(), 0)
 check("count reflects the set", Fav.Count(), 1)
+
+print("")
+print("== List merges lo/hi when a target appears in both sources ==")
+-- "Loken" is already bundled at lo=80,hi=80 (see SpawnDB.QUESTS). A catalogue
+-- sighting outside that band must widen the row, not duplicate it - Fav.List
+-- is the only place both sources meet, so this merge path would otherwise
+-- ship untested.
+CBH.db.cardCatalogue = { ["Wanted: Loken"] = { n = 1, lo = 75, hi = 85 } }
+local list3 = Fav.List()
+local seenLoken, mergedLoken = 0, nil
+for _, e in ipairs(list3) do
+   if e.target == "Loken" then
+      seenLoken = seenLoken + 1
+      mergedLoken = e
+   end
+end
+check("merged target appears exactly once", seenLoken, 1)
+check("lo widened down to the catalogue's band", mergedLoken and mergedLoken.lo, 75)
+check("hi widened up to the catalogue's band", mergedLoken and mergedLoken.hi, 85)
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)

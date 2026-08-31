@@ -37,7 +37,14 @@ function Fav.MatchCards(cards)
       -- A card's text is every FontString joined; check each line, because the
       -- title and the objective are separate lines on the same card.
       for line in string.gmatch(c.text or "", "[^|]+") do
-         local target = CBH.SpawnDB.TargetOf((string.gsub(line, "^%s+", "")))
+         -- Trim BOTH ends before TargetOf sees it: Board.ReadCards joins lines
+         -- with " | ", so every non-final line carries a trailing space, and
+         -- TargetOf's description-line guard checks for a trailing "." on the
+         -- raw string. Left-trimming only would let a stray trailing space
+         -- hide that "." and let a description line slip through as a target.
+         local trimmed = string.gsub(line, "^%s+", "")
+         trimmed = string.gsub(trimmed, "%s+$", "")
+         local target = CBH.SpawnDB.TargetOf(trimmed)
          if target and Fav.IsFavourite(target) then
             return i, "favourite: " .. target
          end
