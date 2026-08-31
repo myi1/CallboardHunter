@@ -38,9 +38,8 @@ PRINTED = {}
 function CBH.print(m) PRINTED[#PRINTED + 1] = tostring(m) end
 function CBH.Log() end
 function CBH.safeCall(fn, ...) if fn then fn(...) end end
-CBH.db = { options = { dungeonAuto = true, dungeonRerollMax = 10,
-                       dungeonGoldReserve = 0, dungeonShare = true,
-                       dungeonHintsShown = 0 } }
+-- Deliberately no CBH.db: the engine takes its cap and reserve as numbers from
+-- the caller, so it must run with no saved variables in existence at all.
 local function load(f) local c, e = loadfile(ADDON .. "/" .. f); if not c then error(e) end; c() end
 load("SpawnDB.lua"); load("Board.lua")
 
@@ -101,10 +100,9 @@ check("no reroll needed", rerollBtn._clicks, 0)
 
 print("")
 print("== no match -> rerolls, then stops at the cap ==")
-CBH.db.options.dungeonRerollMax = 1
 BuildBoard({ "Alpha", "Beta", "Gamma" })
 B.run = nil; NOW = 10
-B.Start({ label = "test", match = function() return nil end })
+B.Start({ label = "test", rerollMax = 1, match = function() return nil end })
 B.Poll(NOW)
 check("clicked reroll", rerollBtn._clicks, 1)
 Popup("Reroll selection for 10g 40s?")
@@ -114,7 +112,6 @@ BuildBoard({ "Delta", "Epsilon", "Zeta" })
 NOW = 12; B.Poll(NOW)
 NOW = 13; B.Poll(NOW)
 check("stopped at the cap", B.run, nil)
-CBH.db.options.dungeonRerollMax = 10
 
 print("")
 print("== SAFETY: still refuses a non-reroll dialog ==")
@@ -140,6 +137,18 @@ check("onAccept received the reason", gotWhy, "first card")
 -- Same board as the first case, different callback, different card: the engine
 -- takes whichever card the caller names, not one of its own choosing.
 check("a swapped callback moves the pick to card 1", board._children[1].sel._clicks, 1)
+
+print("")
+print("== one run at a time, and never one without a question to ask ==")
+-- Both ownership guards in Dungeon.lua lean on this: a second caller must not
+-- be able to take over a board mid-run.
+BuildBoard({ "Alpha" })
+B.run = nil; NOW = 40
+B.Start({ label = "first", match = function() return nil end })
+check("a second Start is refused while a run is live",
+   B.Start({ label = "second", match = function() return 1 end }), false)
+B.run = nil
+check("a Start with no match callback is refused", B.Start({ label = "third" }), false)
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)

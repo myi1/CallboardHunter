@@ -171,11 +171,11 @@ check("stopped, clicked nothing", B.run, nil)
 print("")
 print("== sharing: once, and only in a group ==")
 PARTY, PUSHED = 0, 0
-B.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
+B.run = { label = "dungeon", instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
 D.OnQuestAccepted(7)
 check("solo -> not shared", PUSHED, 0)
 PARTY, PUSHED = 4, 0
-B.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
+B.run = { label = "dungeon", instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
 D.OnQuestAccepted(7)
 check("in a group -> shared", PUSHED, 1)
 check("  ...selected the right quest", SELECTED, 7)
@@ -183,7 +183,7 @@ D.OnQuestAccepted(7)
 check("second call does not re-share", PUSHED, 1)
 CBH.db.options.dungeonShare = false
 PARTY, PUSHED = 4, 0
-B.run = { instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
+B.run = { label = "dungeon", instance = "Utgarde Keep", rerolls = 0, spent = 0, shared = false }
 D.OnQuestAccepted(7)
 check("sharing off is respected", PUSHED, 0)
 CBH.db.options.dungeonShare = true

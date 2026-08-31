@@ -68,9 +68,11 @@ end
 -- ------------------------------------------------------------------ the run
 
 -- Share the freshly accepted quest, once, and only when there is a group.
+-- QUEST_ACCEPTED fires for every quest from every source, so the run has to be
+-- ours before we end it and push it to the party.
 function D.OnQuestAccepted(questIndex)
    local r = CBH.Board and CBH.Board.run
-   if not r or r.shared then return end
+   if not r or r.label ~= "dungeon" or r.shared then return end
    r.shared = true
    CBH.Board.run = nil
    if not Opt("dungeonShare", true) then return end
@@ -139,10 +141,16 @@ function D.Poll(now)
       D.instance = instance
       CBH.Board.Start({
          label = "dungeon",
+         subject = instance,   -- what the player reads: "the Utgarde Keep quest"
          match = function(cards) return D.MatchCard(cards, D.instance) end,
+         rerollMax = Opt("dungeonRerollMax", 10),
+         goldReserve = Opt("dungeonGoldReserve", 0),
       })
    end
-   CBH.Board.Poll(now)
+   -- Drive our own run and nobody else's. Not politeness: a run that accepted
+   -- without ever rerolling still has at = 0, so nothing rate-limits a second
+   -- poll in the same pass, and it would click Select on the same card twice.
+   if CBH.Board.run and CBH.Board.run.label == "dungeon" then CBH.Board.Poll(now) end
 end
 
 -- /cbh dungeon ...

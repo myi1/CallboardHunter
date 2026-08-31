@@ -27,12 +27,6 @@ local MAX_UNCHANGED = 3                -- rerolls that changed nothing -> give u
 Board.run = nil        -- active run state, or nil
 Board.lastCost = DEFAULT_REROLL_COST
 
-local function Opt(key, default)
-   local o = CBH.db and CBH.db.options
-   if not o or o[key] == nil then return default end
-   return o[key]
-end
-
 -- ------------------------------------------------------------------ helpers
 
 -- Text of every card currently on the board, indexed by card number.
@@ -134,9 +128,10 @@ function Board.Stop(reason)
       .. " spent=" .. r.spent)
 end
 
--- Can we afford another reroll without eating into the reserve?
-function Board.CanAffordReroll()
-   local reserve = Opt("dungeonGoldReserve", 0)
+-- Can we afford another reroll without eating into the reserve? The reserve is
+-- the caller's number, not ours - see Board.Start.
+function Board.CanAffordReroll(reserve)
+   reserve = reserve or 0
    local have = (GetMoney and GetMoney()) or 0
    return (have - Board.lastCost) >= reserve, have, reserve
 end
@@ -145,11 +140,24 @@ end
 -- "is this card for the instance I am in", Favourites passes "is this card's
 -- target on my list". Refusing to start a second run is what keeps the two of
 -- them from fighting over one board.
+--
+-- The cap and the reserve arrive as numbers rather than being read from saved
+-- variables here, so the engine never has to know whose settings they are. The
+-- run snapshots them at Start, which is also when the player last had a chance
+-- to change their mind.
+--
+-- `label` is identity - it is what a caller compares to decide whether a live
+-- run is its own. `subject` is display - it is the noun the player reads in
+-- "taking the Utgarde Keep quest". Keeping them apart matters because the
+-- ownership guards would otherwise be tied to whatever reads well in a sentence.
 function Board.Start(opts)
    if Board.run then return false end
    if not (opts and opts.match) then return false end
    Board.run = { label = opts.label or "board", match = opts.match,
+                 subject = opts.subject or opts.label or "board",
                  onAccept = opts.onAccept, rerolls = 0, spent = 0,
+                 rerollMax = opts.rerollMax or 10,
+                 goldReserve = opts.goldReserve or 0,
                  unchanged = 0, at = 0, phase = "match", lastSig = nil }
    CBH.Log("board", "START " .. tostring(opts.label))
    return true
@@ -199,12 +207,12 @@ function Board.Tick(now)
    end
 
    -- No match: consider rerolling.
-   local cap = Opt("dungeonRerollMax", 10)
+   local cap = r.rerollMax
    if cap > 0 and r.rerolls >= cap then
-      Board.Stop("reroll limit reached (" .. cap .. ") with no matching card")
+      Board.Stop("reroll limit reached (" .. cap .. ") with no card for " .. r.subject)
       return
    end
-   local ok, have, reserve = Board.CanAffordReroll()
+   local ok, have, reserve = Board.CanAffordReroll(r.goldReserve)
    if not ok then
       Board.Stop("that would drop you below your " .. Gold(reserve) .. " reserve (you have "
          .. Gold(have) .. ")")
@@ -277,7 +285,7 @@ function Board.Accept(card, why)
    -- A reason is optional in the match contract, so the message survives without
    -- one rather than erroring mid-click and leaving the run half-done.
    local reason = why or "it matched"
-   CBH.print("Callboard: taking a " .. r.label .. " quest (" .. reason .. ")"
+   CBH.print("Callboard: taking the " .. r.subject .. " quest (" .. reason .. ")"
       .. (r.rerolls > 0 and (" after " .. r.rerolls .. " reroll"
           .. (r.rerolls == 1 and "" or "s") .. ", " .. Gold(r.spent)) or "") .. ".")
    CBH.Log("board", "ACCEPT " .. reason .. " rerolls=" .. r.rerolls .. " spent=" .. r.spent)
