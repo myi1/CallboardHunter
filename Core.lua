@@ -24,6 +24,7 @@ local DEFAULTS = {
    learnedKills = {}, -- callboard kill objectives: [zone][objectiveName] = {points}
    cardZones = {},    -- [objectiveName] = zone, harvested from callboard cards
    cardCatalogue = {},-- [card text] = {n, lo, hi, where, at}: every card ever seen
+   favourites = {},    -- [questTarget] = true; see Favourites.lua
    callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }
    portOverrides = {},-- [objectiveZone] = checkpointZone to route via instead
    mapOverrides = {}, -- [zone] = which zone's MAP to scan for its checkpoint

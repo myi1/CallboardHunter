@@ -17,5 +17,6 @@ Route.lua
 Comm.lua
 Board.lua
 Dungeon.lua
+Favourites.lua
 Export.lua
 Config.lua
