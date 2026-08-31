@@ -17,30 +17,63 @@ Parses every `.lua` in a folder as Lua 5.1 (the client's version).
 node luacheck.js ..
 ```
 
-## Route state-machine tests
+## Test suites
 
-`Route.lua` is a state machine over the fast-prestige route, so it can be run
-head-first against a stubbed WoW API. [fengari](https://fengari.io/) is a Lua VM
-in JavaScript; `run_lua.js` loads a script into it.
+Ten fengari suites execute the addon's OWN source — not a reimplementation of
+it — against a stubbed WoW 3.3.5 API. [fengari](https://fengari.io/) is a Lua VM
+in JavaScript; `run_lua.js` loads a script into it and `run_all.js` runs every
+`*_test.lua` in this folder in one pass.
 
 ```bash
-node run_lua.js route_test.lua
-node run_lua.js cp_test.lua
+node run_all.js                    # everything, with per-suite assertion counts
+node run_lua.js <suite>.lua        # one suite, e.g. dungeon_test.lua
+node run_lua.js <suite>.lua -v     # verbose: prints every check, not just failures
 ```
 
-- **`route_test.lua`** walks a full lap and asserts where the step pointer lands
-  at each transition, then drives the auto accept / turn-in engine through the
-  real event wiring. Load-bearing cases: the backtrack one (leaving Zul'Drak must
-  not un-complete the Zul'Drak port and send the route round in a circle), the
-  apostrophe one (the server spells a quest title with a curly `’`), and the
-  hand-in detection that reads the server's own `"<quest> completed."` line.
+Point a suite at another checkout with `CBH_ADDON=/path/to/CallboardHunter`.
+`route_test.lua` and `cp_test.lua` instead take `CBH_ROUTE=/path/to/Route.lua`,
+for pointing just that one file elsewhere.
+
+- **`cb_zone_test.lua`** — which zones are valid `Port: Callboard` destinations
+  (never an instance), the one-time purge of unreachable callboards, and
+  refusing to set home while inside an instance.
+- **`comm_test.lua`** — the addon-message payload round-trip, the anti-flood
+  floor, per-transport availability gating, self-echo vs peer-message counting,
+  and that joining the channel actually registers a display filter rather than
+  silently unhooking it.
 - **`cp_test.lua`** covers checkpoint harvesting off the world map, the
   locked/unlocked read, the Argent Stand prerequisite block, and the
   name-mismatch warning if the server renumbers a checkpoint.
+- **`dungeon_test.lua`** — the dungeon-board auto-select/reroll loop: card
+  matching (including raid boss cards), never confirming the wrong popup
+  dialog, the gold-reserve and reroll-cap limits, sharing the accepted quest
+  with the group, and the instance-entry reminder.
+- **`export_test.lua`** — SpawnDB corroboration counts and the legacy
+  2-element point migration, the shape (and privacy) of the exported table,
+  and the card catalogue's classification and progress-counter normalisation.
+- **`header_test.lua`** — Advisor's zone resolution: inferring a zone from the
+  quest-log header, curated checkpoint overrides beating both the header and
+  learned kills, raid bosses being routable, the callboard-only whitelist, and
+  the Dalaran-floats-over-Crystalsong map redirect.
+- **`rare_test.lua`** — rare-hunt quest completion tracking, and the regression
+  where a finished rare quest could hijack the Port button ahead of a
+  genuinely active objective.
+- **`resolve_test.lua`** — the zone-routing table for dungeon/raid/Classic/Outland
+  bosses and instance aliases, instance-name detection (longest match wins),
+  and card-type classification.
+- **`route_test.lua`** walks a full lap and asserts where the step pointer
+  lands at each transition, then drives the auto accept / turn-in engine
+  through the real event wiring. Load-bearing cases: the backtrack one (leaving
+  Zul'Drak must not un-complete the Zul'Drak port and send the route round in a
+  circle), the apostrophe one (the server spells a quest title with a curly
+  `’`), and the hand-in detection that reads the server's own
+  `"<quest> completed."` line.
+- **`ui_test.lua`** — the colour-blind-safe status stamps (glyph and word,
+  never colour alone), the type scale, and WCAG contrast ratios for text on
+  both the dark UI ground and the parchment card art.
 
-Point them at another copy with `CBH_ROUTE=/path/to/Route.lua`.
-
-Both exit non-zero on failure, so they work as a pre-commit gate.
+All exit non-zero on failure, so `run_all.js` — or any suite run individually —
+works as a pre-commit gate.
 
 ## wdbquests.js — harvest quest text from the client cache
 
