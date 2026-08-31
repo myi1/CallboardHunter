@@ -23,9 +23,12 @@ for (const s of suites) {
   // route_test.lua and cp_test.lua print "<n> checks, 0 failed" instead of
   // "ALL <n> PASS" — recognise both so a passing suite isn't reported as FAIL.
   const m = out.match(/ALL (\d+) PASS/) || out.match(/(\d+) checks, 0 failed/);
-  if (m) { total += Number(m[1]); console.log(`  ok    ${s.padEnd(20)} ${m[1]} assertions`); }
+  // The exit code is authoritative: a suite is "ok" only if it BOTH exited
+  // zero AND printed a recognised success line. A non-zero exit after a
+  // success line (e.g. a Lua error in a cleanup phase past "ALL n PASS")
+  // must still show as FAIL, not contradict itself by printing "ok".
+  if (ok && m) { total += Number(m[1]); console.log(`  ok    ${s.padEnd(20)} ${m[1]} assertions`); }
   else { failed++; console.log(`  FAIL  ${s}`); console.log(out.trim().split('\n').slice(-6).join('\n')); }
-  if (!ok && m) failed++;
 }
 
 console.log(`\n${suites.length} suites, ${total} assertions, ${failed} failing`);
