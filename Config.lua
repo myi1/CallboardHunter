@@ -2,6 +2,14 @@
 -- system: flat dark panel, teal accent, sections, colorblind-safe (words, not
 -- color). Controls the same settings as the slash commands.
 local CBH = CallboardHunter
+-- Every function below reads bare UI.xxx, but nothing in this file ever bound
+-- UI to anything - there is no build step to concatenate addon files, so each
+-- .lua is its own Lua chunk and UI.lua's `local UI` never left UI.lua. That
+-- left the whole panel one `/cbh config` away from "attempt to index a nil
+-- value (global 'UI')". Same story for Fav below: every call in this file
+-- needs the real CBH.Favourites, not an unbound global.
+local UI = CBH.UI
+local Fav = CBH.Favourites
 
 local WHITE8 = "Interface\\Buttons\\WHITE8X8"
 local TEAL = "|cff33ff99"
@@ -9,7 +17,26 @@ local ACCENT = { 0.20, 1.00, 0.60 }
 local T_PRIMARY = { 0.86, 0.88, 0.87 }
 local T_MUTED = { 0.50, 0.58, 0.55 }
 
-local panel, rows = nil, {}
+local panel, rows, favRows = nil, {}, {}
+
+-- Fav.StarText colours its brackets for the CARD ground (brassInk / inkSoft -
+-- near-black browns tuned to read on bright parchment). Printing that string
+-- unmodified on THIS panel, which is the addon's own dark surface, reproduces
+-- 1.10.0 in reverse: near-black text on a near-black background. Same bracket
+-- glyph - shape still carries the on/off meaning without colour - just
+-- recoloured for wood instead of ink.
+local function FavGlyph(on)
+  return UI.Colour(on and "verdigris" or "muted", on and "[*]" or "[ ]")
+end
+
+-- "[74-80]", or "[64]" for a target only ever seen at one level, or "" for a
+-- catalogue entry the game never tagged with a level. Mirrors the bracket
+-- format /cbh catalogue dump already uses (Export.lua).
+local function BandText(lo, hi)
+  if not lo then return "" end
+  if hi and hi ~= lo then return "[" .. lo .. "-" .. hi .. "]" end
+  return "[" .. lo .. "]"
+end
 
 local function RefreshConfig()
   if not (panel and CBH.db) then return end
@@ -53,6 +80,41 @@ local function RefreshConfig()
   for i = #names + 1, #rows do rows[i]:Hide() end
   panel.blockContent:SetHeight(math.max(y, 10))
   if #names == 0 then panel.blockEmpty:Show() else panel.blockEmpty:Hide() end
+
+  -- Favourite rows: the PICKABLE list (bundled 63 targets plus whatever the
+  -- catalogue has learned), not just what is already starred. This is where
+  -- you add a favourite you have not met on a card yet - the card star can
+  -- only toggle a target you are currently looking at.
+  local favList = Fav.List()
+  local fy = 0
+  for i, entry in ipairs(favList) do
+    local row = favRows[i]
+    if not row then
+      row = CreateFrame("Button", nil, panel.favContent)
+      row:SetWidth(226); row:SetHeight(19)
+      row.text = UI.Text(row, "body", UI.TEXT_SECONDARY)
+      row.text:SetPoint("LEFT", row, "LEFT", 2, 0)
+      row.text:SetWidth(165); row.text:SetJustifyH("LEFT")
+      row.band = UI.Text(row, "meta", UI.TEXT_MUTED, UI.FONT_META)
+      row.band:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+      row.band:SetWidth(55); row.band:SetJustifyH("RIGHT")
+      favRows[i] = row
+    end
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", panel.favContent, "TOPLEFT", 0, -fy)
+    local target = entry.target
+    row.text:SetText(FavGlyph(entry.favourite) .. " " .. target)
+    row.band:SetText(BandText(entry.lo, entry.hi))
+    row:SetScript("OnClick", function()
+      Fav.Toggle(target)
+      RefreshConfig()
+    end)
+    row:Show()
+    fy = fy + 19
+  end
+  for i = #favList + 1, #favRows do favRows[i]:Hide() end
+  panel.favContent:SetHeight(math.max(fy, 10))
+  if #favList == 0 then panel.favEmpty:Show() else panel.favEmpty:Hide() end
 end
 CBH.RefreshConfig = RefreshConfig
 
@@ -81,7 +143,7 @@ function CBH.OpenConfig()
     return
   end
   panel = CreateFrame("Frame", "CallboardHunterConfig", UIParent)
-  panel:SetWidth(280); panel:SetHeight(414)
+  panel:SetWidth(280); panel:SetHeight(536)
   panel:SetPoint("CENTER", UIParent, "CENTER", -160, 0)
   panel:SetMovable(true); panel:EnableMouse(true); panel:RegisterForDrag("LeftButton")
   panel:SetScript("OnDragStart", function(s) s:StartMoving() end)
@@ -143,6 +205,17 @@ function CBH.OpenConfig()
   panel.blockEmpty = UI.Text(panel, "meta", UI.TEXT_FAINT, UI.FONT_META)
   panel.blockEmpty:SetPoint("TOPLEFT", scroll, "TOPLEFT", 2, -2)
   panel.blockEmpty:SetText("(none)")
+
+  Section("FAVOURITES", -342)
+  local favScroll = CreateFrame("ScrollFrame", "CallboardHunterFavScroll", panel, "UIPanelScrollFrameTemplate")
+  favScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -360)
+  favScroll:SetWidth(226); favScroll:SetHeight(100)
+  panel.favContent = CreateFrame("Frame", nil, favScroll)
+  panel.favContent:SetWidth(226); panel.favContent:SetHeight(10)
+  favScroll:SetScrollChild(panel.favContent)
+  panel.favEmpty = UI.Text(panel, "meta", UI.TEXT_FAINT, UI.FONT_META)
+  panel.favEmpty:SetPoint("TOPLEFT", favScroll, "TOPLEFT", 2, -2)
+  panel.favEmpty:SetText("(none)")
 
   local hint = UI.Text(panel, "meta", UI.TEXT_MUTED, UI.FONT_META)
   hint:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 20, 46)

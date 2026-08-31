@@ -4,6 +4,38 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.11.0] - 2026-08-31
+### Added
+- **Favourites.** Star a callboard quest and CBH remembers it, and `/cbh hunt`
+  rerolls the open board until one shows up. Favourites key on the **quest's
+  target**, not its title: a callboard title reads `<flavour prefix>: <target>`,
+  and the prefix is decorative - *"Dungeon Crawl: Loken"* and *"Wanted: Loken"*
+  are the same contract. Favouriting the title would have missed the same job
+  under a different prefix.
+- **The star, on every card** — `[*]` filled / `[ ]` hollow, so the on/off state
+  is carried by shape and survives colour being stripped out. Click it to
+  toggle; a matching FAVOURITES list in `/cbh config` lets you pick quests you
+  have not met yet, not just ones already sitting on a card.
+- **`/cbh hunt`** refuses outright, with an explanation, when you have no
+  favourites set — not a silent no-op. An empty list would otherwise reroll
+  forever with nothing to stop for.
+- **A bundled 63-target database** (`SpawnDB.QUESTS`) so favourites and their
+  level bands are pickable before you have ever personally seen the card; it
+  keeps growing from whatever `/cbh catalogue` has learned on your account.
+### Changed
+- **`Board.lua` extracted from `Dungeon.lua`.** The reroll/accept/share engine
+  that used to be dungeon-only now drives both `/cbh dungeon` and `/cbh hunt`
+  through a caller-supplied match callback. Internal only — no user-facing
+  change.
+### Fixed
+- **`/cbh config` could not open.** Every function in `Config.lua` reads bare
+  `UI.xxx`, but the file never bound `UI` to anything. There is no build step
+  that concatenates the addon's files - each `.lua` is its own Lua chunk, so
+  `UI.lua`'s `local UI` never left `UI.lua`. The panel would have thrown
+  "attempt to index a nil value (global 'UI')" on the very first line of
+  `OpenConfig`. Found while wiring up the favourites list above; `Config.lua`
+  now binds `local UI = CBH.UI` (and `Fav`) the way every other file does.
+
 ## [1.10.2] - 2026-08-31
 ### Fixed
 - **More contrast on card notes.** The 1.10.1 ink was still a mid-tone and washed
