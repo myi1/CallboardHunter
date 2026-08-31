@@ -765,6 +765,18 @@ end
 -- purely because nobody's cardZones on their client had ever seen that card.
 -- Shipping the maintainer's history gives every fresh install that same
 -- starting knowledge instead of nothing. [objectiveName] = zone.
+--
+-- Three rows (marked below) were harvested from real "Kill N X in <name>"
+-- card text that named the instance the trash mob lives in, not an outdoor
+-- zone - Centrifuge Construct/Coilfang Myrmidon/Sunseeker Channeler are
+-- Oculus/Coilfang Reservoir/Tempest Keep trash, not bosses, so SpawnDB.DUNGEONS'
+-- boss lists never covered them either; this table was their only record.
+-- Translated to the instance's own SpawnDB.DUNGEONS zone field rather than
+-- left as the instance name (which fails KnownMapZone and can never route
+-- anyone) or dropped (which throws away real information) - the same zone
+-- CBH already routes ordinary dungeon objectives to. If a future re-vet from
+-- raw saved variables finds the instance name again, translate it the same
+-- way rather than "fixing" it back.
 SpawnDB.CARD_ZONES = {
    ["Ashtongue Handler"] = "Shadowmoon Valley",
    ["Azure Manashaper"] = "Crystalsong Forest",
@@ -774,8 +786,8 @@ SpawnDB.CARD_ZONES = {
    ["Blockade Pirate"] = "Howling Fjord",
    ["Bloodscale Slavedriver"] = "Zangarmarsh",
    ["Carrion Eater"] = "Zul'Drak",
-   ["Centrifuge Construct"] = "The Oculus",
-   ["Coilfang Myrmidon"] = "Coilfang Reservoir",
+   ["Centrifuge Construct"] = "Borean Tundra",  -- trash in The Oculus (SpawnDB.DUNGEONS)
+   ["Coilfang Myrmidon"] = "Zangarmarsh",  -- trash in Coilfang Reservoir (SpawnDB.DUNGEONS)
    ["Defias Cutpurse"] = "Elwynn Forest",
    ["Dragonflayer Huscarl"] = "Grizzly Hills",
    ["Dreadtalon"] = "Dragonblight",
@@ -830,7 +842,7 @@ SpawnDB.CARD_ZONES = {
    ["Silverbrook Hunter"] = "Grizzly Hills",
    ["Skeletal Archmage"] = "Icecrown",
    ["Small Crag Boar"] = "Coldridge Valley",
-   ["Sunseeker Channeler"] = "Tempest Keep",
+   ["Sunseeker Channeler"] = "Netherstorm",  -- trash in Tempest Keep (SpawnDB.DUNGEONS)
    ["Terrorfiend"] = "Hellfire Peninsula",
    ["Thornvine Creeper"] = "Howling Fjord",
    ["Timberstrider"] = "Azuremyst Isle",
@@ -852,10 +864,11 @@ SpawnDB.CARD_ZONES = {
 -- would blur "seen it myself" with "shipped default", bloat every saved
 -- variables file, and pin a bad bundled entry past the point a later release
 -- could fix it. A bundled zone is checked against KnownMapZone before it is
--- ever handed back: a card's "Kill N X in <name>" text is free-form, and a
--- handful of live entries named an instance (e.g. "The Oculus") rather than
--- the outdoor zone the callboard usually names - those are kept in the table
--- for the record but never surfaced as a routing answer.
+-- ever handed back: a card's "Kill N X in <name>" text is free-form, so
+-- nothing stops a future bundled row from naming something that isn't a real
+-- outdoor zone (see CARD_ZONES's own header for the three that already did
+-- and were translated rather than shipped as-is) - this gate is what makes
+-- that a loud test failure instead of a silent bad port.
 function SpawnDB.CardZoneFor(name)
    if not name then return nil end
    local mine = CBH.db and CBH.db.cardZones and CBH.db.cardZones[name]

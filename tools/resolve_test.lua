@@ -181,25 +181,34 @@ check("the generic 'Rare' token is not a bundled key", S.CARD_ZONES["Rare"], nil
 check("Archavon (SpawnDB says Wintergrasp, the dropped row claimed Dragonblight)",
    S.CARD_ZONES["Archavon the Stone Watcher"], nil)
 print("")
-print("== every bundled zone is checked against KnownMapZone before it is served ==")
+print("== every bundled zone passes KnownMapZone - no exceptions ==")
+-- Three rows (trash from The Oculus/Coilfang Reservoir/Tempest Keep) were
+-- harvested naming the instance instead of its outdoor zone and used to fail
+-- this check. Translated to SpawnDB.DUNGEONS' own zone field rather than
+-- dropped or left inert - see CARD_ZONES's header. All 77 must pass now, and
+-- this loop is the thing that will catch a future bad row loudly instead of
+-- letting it ship silently.
 local validCount, badKeys = 0, {}
 for mob, z in pairs(S.CARD_ZONES) do
    if S.KnownMapZone(z) then validCount = validCount + 1
    else table.insert(badKeys, mob) end
 end
 table.sort(badKeys)
-check("74 of 77 bundled zones are real, routable outdoor zones", validCount, 74)
--- These 3 were harvested verbatim from real "Kill N X in <name>" card text that
--- named the instance rather than its outdoor zone (see SpawnDB.DUNGEONS: The
--- Oculus/Coilfang Reservoir/Tempest Keep are dungeons/raids, not map zones).
--- Kept in the table per the vetting pass rather than silently dropped, but
--- CardZoneFor's KnownMapZone check means they can never be handed back as a
--- routing answer - a data error fails loudly here instead of shipping silently.
-check("the only invalid rows are the 3 known instance-named exceptions",
-   table.concat(badKeys, ", "),
-   "Centrifuge Construct, Coilfang Myrmidon, Sunseeker Channeler")
-check("an invalid bundled zone is never surfaced by CardZoneFor",
-   S.CardZoneFor("Centrifuge Construct"), nil)
+check("all 77 bundled zones are real, routable outdoor zones", validCount, 77)
+check("  ...zero exceptions", table.concat(badKeys, ", "), "")
+check("the translated Oculus trash routes to Borean Tundra",
+   S.CardZoneFor("Centrifuge Construct"), "Borean Tundra")
+check("the translated Coilfang Reservoir trash routes to Zangarmarsh",
+   S.CardZoneFor("Coilfang Myrmidon"), "Zangarmarsh")
+check("the translated Tempest Keep trash routes to Netherstorm",
+   S.CardZoneFor("Sunseeker Channeler"), "Netherstorm")
+
+print("")
+print("== the KnownMapZone gate still catches a future bad row ==")
+S.CARD_ZONES["__test_bad_row__"] = "Not A Real Zone"
+check("an unroutable bundled zone is never surfaced by CardZoneFor",
+   S.CardZoneFor("__test_bad_row__"), nil)
+S.CARD_ZONES["__test_bad_row__"] = nil
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
