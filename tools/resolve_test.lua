@@ -128,12 +128,17 @@ check("no colon -> whole title", S.TargetOf("Beasts of the Plains"), "Beasts of 
 check("description line -> nil", S.TargetOf("Collect 20 Eternal Air."), nil)
 check("empty -> nil", S.TargetOf(""), nil)
 check("nil -> nil", S.TargetOf(nil), nil)
+check("bare colon -> nil", S.TargetOf(":"), nil)
+check("colon with nothing after it -> nil", S.TargetOf("Wanted:"), nil)
+check("colon with only trailing space -> nil", S.TargetOf("Wanted: "), nil)
+check("trims whitespace around a whole title", S.TargetOf("  Loken  "), "Loken")
+check("trims whitespace around an extracted target", S.TargetOf("Wanted:   Loken   "), "Loken")
 
 print("")
 print("== bundled quest database ==")
 local byTarget = {}
 for _, q in ipairs(S.QUESTS) do byTarget[q.target] = q end
-check("has the seed rows", #S.QUESTS >= 60, true)
+check("has exactly the 63 seed rows", #S.QUESTS, 63)
 check("Loken is present", byTarget["Loken"] ~= nil, true)
 check("  ...with a level band", byTarget["Loken"].hi ~= nil, true)
 check("Azure Scalebane is level 80", byTarget["Azure Scalebane"].hi, 80)
