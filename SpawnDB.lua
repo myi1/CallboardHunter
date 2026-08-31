@@ -515,8 +515,17 @@ local function BuildCoverage()
             if inst then coverage[inst] = true end
          end
       end
+      -- Only a scan that actually consulted the catalogue may call itself
+      -- current. Reviewer-caught: with no CBH.db yet (addon load order, or a
+      -- test harness that attaches it late), this used to mark the memo clean
+      -- off the bundled list alone - and since nothing but CBH.RecordCard ever
+      -- flips coverageDirty, a catalogue that shows up later would never be
+      -- scanned, forever. Leaving it dirty costs one extra bundled-only rescan
+      -- next call - unreachable via the game's own path today (D.Poll's caller
+      -- already requires CBH.db for Opt("dungeonAuto") to be true), but cheap
+      -- enough to not depend on that staying so.
+      coverageDirty = false
    end
-   coverageDirty = false
 end
 
 -- Has a callboard quest for this instance ever actually been seen - bundled,

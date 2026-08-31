@@ -70,6 +70,17 @@ GitHub releases and the `.toc`.
 
   CBH now auto-starts one run per board and re-arms only once that board has
   despawned; a board you reroll by hand after that is yours to take by hand.
+- **Entering an instance the callboard does not serve no longer rerolls to the
+  cap.** Reported live: entering Icecrown Citadel, `/cbh dungeon on` rerolled
+  the board looking for an ICC quest until it hit the ~104g cap — this server
+  has never issued one, so it was paying to chase a card that could never
+  appear. `D.Poll` now requires evidence a callboard quest exists for the
+  instance (the bundled quest list, or anything CBH's own catalogue has
+  caught) before it will spend gold rerolling for one. It still takes a
+  matching card for free if one happens to already be showing, and it learns
+  from any card it sees regardless of coverage, so this teaches itself over
+  time rather than staying blind forever. The entry announcement now says
+  which of the two it will do, instead of always promising the reroll.
 
 ## [1.10.2] - 2026-08-31
 ### Fixed

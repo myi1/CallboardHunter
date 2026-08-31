@@ -119,8 +119,22 @@ function D.OnZoneChanged()
    if D.announced == instance then return end
    D.announced = instance
    if Opt("dungeonAuto", false) then
-      CBH.print(instance .. ": cast Summon Callboard and CBH will reroll to this"
-         .. " instance's quest, accept it, and share it with the group.")
+      -- Branched on the same coverage check D.Poll gates on, so this promise
+      -- and that refusal never contradict each other. Before this branch
+      -- existed, entering Icecrown Citadel (the reported case) printed "CBH
+      -- will reroll to this instance's quest" here, then printed "CBH has
+      -- never seen a callboard quest for this instance" from D.Poll seconds
+      -- later once the board actually opened - two confident, opposite
+      -- claims about the same summon.
+      if CBH.SpawnDB and CBH.SpawnDB.InstanceHasKnownQuest
+         and CBH.SpawnDB.InstanceHasKnownQuest(instance) then
+         CBH.print(instance .. ": cast Summon Callboard and CBH will reroll to this"
+            .. " instance's quest, accept it, and share it with the group.")
+      else
+         CBH.print(instance .. ": CBH has no known callboard quest for this"
+            .. " instance yet, so it will take one if a card for it shows but"
+            .. " will not spend gold rerolling for one.")
+      end
       return
    end
    local o = CBH.db and CBH.db.options
@@ -191,15 +205,33 @@ function D.Poll(now)
       -- card that already happens to be showing costs nothing to take, and
       -- taking it is also how the catalogue learns this instance for next
       -- time, so a lucky match is let through regardless of prior evidence.
+      --
+      -- That "let through" is what makes the free match actually free, and it
+      -- depends on a fact that lives OUTSIDE this function: D.Poll hands the
+      -- SAME tick straight to CBH.Board.Poll below, so Start's first Tick reads
+      -- the identical cards this ReadCards() call just read and accepts on the
+      -- spot - no reroll ever runs for a match this branch already found. Move
+      -- that Board.Poll call to a later tick (or gate it separately) and a
+      -- match found here could still pay to reroll before Board.Start's own
+      -- check runs again. dungeon_test.lua's Icecrown Citadel scenario asserts
+      -- zero reroll clicks for exactly this path, so a reorder fails that gate.
       local known = CBH.SpawnDB and CBH.SpawnDB.InstanceHasKnownQuest
          and CBH.SpawnDB.InstanceHasKnownQuest(instance)
       if not known and not D.MatchCard(CBH.Board.ReadCards(), instance) then
          if D.declinedInstance ~= instance then
             D.declinedInstance = instance
+            -- Not "take one by hand": the gate only reaches here when NO card
+            -- on the board matches, so there is nothing to take. What actually
+            -- teaches CBH is Advisor.lua's RefreshCards, which catalogues every
+            -- CARD IT SEES here regardless of whether anyone takes it - so the
+            -- truthful promise is "keep this addon loaded and open a board",
+            -- not "act on this board". Also names the off switch, symmetric
+            -- with the OFF-hint below naming /cbh dungeon on.
             CBH.print(CBH.UI.Stamp("idle") .. " " .. instance .. ": CBH has never"
                .. " seen a callboard quest for this instance, so it will not"
-               .. " spend your gold rerolling for one that may not exist. Take"
-               .. " one here by hand and CBH will remember it for next time.")
+               .. " spend your gold rerolling for one that may not exist. It"
+               .. " catalogues every card it sees here, so this teaches itself"
+               .. " over time. /cbh dungeon off turns automation off entirely.")
          end
          return
       end
