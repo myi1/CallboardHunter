@@ -374,7 +374,12 @@ function SpawnDB.TargetOf(title)
    if type(title) ~= "string" or title == "" then return nil end
    -- Description lines ("Collect 20 Eternal Air.") are not titles.
    if string.sub(title, -1) == "." then return nil end
+   local hasColon = string.find(title, ":", 1, true) ~= nil
    local _, _, target = string.find(title, "^[^:]-:%s*(.+)$")
+   -- A colon with nothing (or only whitespace) after it, e.g. "Wanted:", is a
+   -- truncated title, not the "no colon at all" case - it must still come out
+   -- nil, not fall back to the raw "Wanted:" prefix.
+   if hasColon and not target then return nil end
    local out = target or title
    out = string.gsub(out, "^%s+", "")
    out = string.gsub(out, "%s+$", "")

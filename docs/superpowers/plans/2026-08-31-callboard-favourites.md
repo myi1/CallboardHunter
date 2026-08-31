@@ -37,7 +37,7 @@
 
 **Files:**
 - Modify: `SpawnDB.lua` (append near `ClassifyCard`)
-- Test: `scratchpad/resolve_test.lua` (append)
+- Test: `tools/resolve_test.lua` (append)
 
 **Interfaces:**
 - Consumes: nothing.
@@ -78,7 +78,7 @@ end)(), true)
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd "C:\Users\Yahya\AppData\Local\Temp\claude\E--Games-Ebonhold-Interface-AddOns-CallboardHunter--claude-worktrees-sleepy-albattani-1dcd8e\ec0ef08b-1ea3-4536-9cab-8fbe19796d2a\scratchpad" && node resolve_test.js
+cd tools && node run_lua.js resolve_test.lua
 ```
 
 Expected: FAIL — `attempt to call a nil value (field 'TargetOf')`.
@@ -106,7 +106,7 @@ function SpawnDB.TargetOf(title)
 end
 ```
 
-Then append the database. **Copy the 63 rows verbatim from `scratchpad/quests_seed.txt`** — they were extracted from the live catalogue and every row traces to a card actually seen:
+Then append the database. **Copy the 63 rows verbatim from `.superpowers/sdd/2026-08-31-callboard-favourites/quests_seed.txt`** — they were extracted from the live catalogue and every row traces to a card actually seen:
 
 ```lua
 -- Bundled quest targets, harvested from real cards (see the spec's Evidence
@@ -116,7 +116,7 @@ Then append the database. **Copy the 63 rows verbatim from `scratchpad/quests_se
 SpawnDB.QUESTS = {
    { target = "Adamantite Bar", lo = 67, hi = 69 },
    { target = "Adder's Tongue", lo = 77, hi = 80 },
-   -- ... all 63 rows from scratchpad/quests_seed.txt, converted to this
+   -- ... all 63 rows from .superpowers/sdd/2026-08-31-callboard-favourites/quests_seed.txt, converted to this
    -- key = value form ...
 }
 ```
@@ -124,7 +124,7 @@ SpawnDB.QUESTS = {
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-node resolve_test.js
+node run_lua.js resolve_test.lua
 ```
 
 Expected: PASS, all assertions.
@@ -144,7 +144,7 @@ git commit -m "feat: target extraction and bundled quest database"
 **Files:**
 - Create: `Board.lua`
 - Modify: `Dungeon.lua` (delete lines currently at 52–75, 93–145, 153–302 — `ReadCards`, `MatchCard`, `FindReroll`, `FindRerollPopup`, `Stop`, `CanAffordReroll`, `Start`, `Tick`, `TickConfirm`, `Accept`), `CallboardHunter.toc`
-- Test: `scratchpad/board_test.lua` *(new)*, `scratchpad/dungeon_test.lua` (unchanged — it is the regression gate)
+- Test: `tools/board_test.lua` *(new)*, `tools/dungeon_test.lua` (unchanged — it is the regression gate)
 
 **Interfaces:**
 - Consumes: `SpawnDB.TargetOf` (Task 1) — not directly, but `Board.lua` loads after `SpawnDB.lua`.
@@ -159,7 +159,7 @@ git commit -m "feat: target extraction and bundled quest database"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `scratchpad/board_test.lua`. Copy the widget stubs verbatim from the top of `dungeon_test.lua` (through `local function Popup(text)` and the `check` helper), replace the module loads with `load("SpawnDB.lua"); load("Board.lua")`, then add:
+Create `tools/board_test.lua`. Copy the widget stubs verbatim from the top of `dungeon_test.lua` (through `local function Popup(text)` and the `check` helper), replace the module loads with `load("SpawnDB.lua"); load("Board.lua")`, then add:
 
 ```lua
 local B = CBH.Board
@@ -223,9 +223,9 @@ check("onAccept received the reason", gotWhy, "first card")
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd "C:\Users\Yahya\AppData\Local\Temp\claude\E--Games-Ebonhold-Interface-AddOns-CallboardHunter--claude-worktrees-sleepy-albattani-1dcd8e\ec0ef08b-1ea3-4536-9cab-8fbe19796d2a\scratchpad"
+cd tools
 sed 's|rare_test.lua|board_test.lua|' rare_test.js > board_test.js
-node board_test.js
+node run_lua.js board_test.lua
 ```
 
 Expected: FAIL — `load Board.lua` errors, file does not exist.
@@ -328,7 +328,7 @@ Dungeon.lua
 - [ ] **Step 6: Run both suites**
 
 ```bash
-node board_test.js && node dungeon_test.js
+node run_lua.js board_test.lua && node run_lua.js dungeon_test.lua
 ```
 
 Expected: `board_test` passes; **`dungeon_test` still reports `ALL 37 PASS`**. If dungeon assertions drop, the extraction changed behaviour — fix before continuing, do not adjust the test.
@@ -348,7 +348,7 @@ git commit -m "refactor: extract the reroll engine into Board.lua"
 **Files:**
 - Create: `Favourites.lua`
 - Modify: `Core.lua` (defaults), `CallboardHunter.toc`
-- Test: `scratchpad/fav_test.lua` *(new)*
+- Test: `tools/fav_test.lua` *(new)*
 
 **Interfaces:**
 - Consumes: `SpawnDB.TargetOf`, `SpawnDB.QUESTS` (Task 1).
@@ -361,7 +361,7 @@ git commit -m "refactor: extract the reroll engine into Board.lua"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `scratchpad/fav_test.lua` with the widget stubs from `dungeon_test.lua`. **Load `UI.lua` as well as `SpawnDB.lua` and `Favourites.lua`** — `Fav.StarText` and `Fav.Command` call `CBH.UI.Colour` / `CBH.UI.Stamp`, so a suite without it dies on a nil index in Tasks 4 and 5:
+Create `tools/fav_test.lua` with the widget stubs from `dungeon_test.lua`. **Load `UI.lua` as well as `SpawnDB.lua` and `Favourites.lua`** — `Fav.StarText` and `Fav.Command` call `CBH.UI.Colour` / `CBH.UI.Stamp`, so a suite without it dies on a nil index in Tasks 4 and 5:
 
 ```lua
 load("UI.lua"); load("SpawnDB.lua"); load("Favourites.lua")
@@ -455,7 +455,7 @@ end
 
 ```bash
 sed 's|rare_test.lua|fav_test.lua|' rare_test.js > fav_test.js
-node fav_test.js
+node run_lua.js fav_test.lua
 ```
 
 Expected: FAIL — `Favourites.lua` does not exist.
@@ -557,7 +557,7 @@ Favourites.lua
 - [ ] **Step 5: Run test to verify it passes**
 
 ```bash
-node fav_test.js
+node run_lua.js fav_test.lua
 ```
 
 Expected: PASS, all assertions.
@@ -576,7 +576,7 @@ git commit -m "feat: favourites set and pickable quest list"
 
 **Files:**
 - Modify: `Favourites.lua`, `Core.lua` (slash command)
-- Test: `scratchpad/fav_test.lua` (append)
+- Test: `tools/fav_test.lua` (append)
 
 **Interfaces:**
 - Consumes: `Board.Start`, `Board.Poll`, `Board.run` (Task 2); `Fav.MatchCards`, `Fav.Count` (Task 3).
@@ -626,7 +626,7 @@ board._shown = true
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-node fav_test.js
+node run_lua.js fav_test.lua
 ```
 
 Expected: FAIL — `attempt to call a nil value (field 'Hunt')`.
@@ -710,7 +710,7 @@ In `Advisor.lua`, beside the existing `CBH.Dungeon.Poll` call in the ticker:
 - [ ] **Step 5: Run test to verify it passes**
 
 ```bash
-node fav_test.js
+node run_lua.js fav_test.lua
 ```
 
 Expected: PASS.
@@ -718,8 +718,7 @@ Expected: PASS.
 - [ ] **Step 6: Lint, run every suite, commit**
 
 ```bash
-cd "C:\Users\Yahya\AppData\Local\Temp\claude\E--Games-Ebonhold-Interface-AddOns-CallboardHunter--claude-worktrees-sleepy-albattani-1dcd8e\ec0ef08b-1ea3-4536-9cab-8fbe19796d2a\scratchpad"
-for t in rare resolve comm export header dungeon cb_zone ui board fav; do printf '%-9s ' "$t"; node ${t}_test.js 2>&1 | tail -1; done
+cd tools && node run_all.js
 cd "E:\Games\Ebonhold\Interface\AddOns\CallboardHunter\.claude\worktrees\sleepy-albattani-1dcd8e" && node tools/luacheck.js . | grep -E "not OK" || echo clean
 git add Favourites.lua Core.lua Advisor.lua
 git commit -m "feat: /cbh hunt - reroll toward a favourite"
@@ -731,7 +730,7 @@ git commit -m "feat: /cbh hunt - reroll toward a favourite"
 
 **Files:**
 - Modify: `Advisor.lua` (`RefreshCards`, around line 84)
-- Test: `scratchpad/fav_test.lua` (append)
+- Test: `tools/fav_test.lua` (append)
 
 **Interfaces:**
 - Consumes: `Fav.Toggle`, `Fav.IsFavourite`, `SpawnDB.TargetOf`.
@@ -762,7 +761,7 @@ check("unknown target still renders", strip(Fav.StarText("Nobody")), "[ ]")
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-node fav_test.js
+node run_lua.js fav_test.lua
 ```
 
 Expected: FAIL — `attempt to call a nil value (field 'StarText')`.
@@ -823,7 +822,7 @@ Also add `card.cbhStar` to the skip list in `CardTexts` so the star is never cat
 - [ ] **Step 5: Run test to verify it passes**
 
 ```bash
-node fav_test.js
+node run_lua.js fav_test.lua
 ```
 
 Expected: PASS.
@@ -866,8 +865,7 @@ Add a `## [1.11.0]` CHANGELOG entry covering: favourites keyed on the quest targ
 - [ ] **Step 4: Run everything**
 
 ```bash
-cd "C:\Users\Yahya\AppData\Local\Temp\claude\E--Games-Ebonhold-Interface-AddOns-CallboardHunter--claude-worktrees-sleepy-albattani-1dcd8e\ec0ef08b-1ea3-4536-9cab-8fbe19796d2a\scratchpad"
-for t in rare resolve comm export header dungeon cb_zone ui board fav; do printf '%-9s ' "$t"; node ${t}_test.js 2>&1 | tail -1; done
+cd tools && node run_all.js
 cd "E:\Games\Ebonhold\Interface\AddOns\CallboardHunter\.claude\worktrees\sleepy-albattani-1dcd8e\tools" && node run_lua.js route_test.lua | tail -1 && node run_lua.js cp_test.lua | tail -1
 ```
 
