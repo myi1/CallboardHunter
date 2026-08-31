@@ -235,6 +235,11 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
    if CBH.Dungeon and CBH.Dungeon.Poll then
       CBH.safeCall(CBH.Dungeon.Poll, GetTime())
    end
+   -- Favourites hunt: explicit-start only (/cbh hunt), so this just drives a run
+   -- that is already live rather than deciding on its own to start one.
+   if CBH.Favourites and CBH.Favourites.Poll then
+      CBH.safeCall(CBH.Favourites.Poll, GetTime())
+   end
    if Advisor.portAt and GetTime() >= Advisor.portAt then
       Advisor.portAt = nil
       CBH.safeCall(Advisor.DoPort)

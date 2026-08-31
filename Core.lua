@@ -398,6 +398,10 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
             or "every tracked objective is routable again."))
    elseif cmd == "catalogue" or cmd == "catalog" then
       if CBH.Catalogue then CBH.safeCall(CBH.Catalogue, arg) end
+   elseif cmd == "hunt" then
+      if CBH.Favourites then CBH.safeCall(CBH.Favourites.Hunt) end
+   elseif cmd == "fav" or cmd == "favourites" then
+      if CBH.Favourites then CBH.safeCall(CBH.Favourites.Command, arg) end
    elseif cmd == "export" then
       if CBH.Export then CBH.safeCall(CBH.Export, arg)
       else CBH.print("Export module unavailable.") end
@@ -504,6 +508,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | catalogue | cbonly | probe | dungeon | reset")
+      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | catalogue | cbonly | probe | dungeon | hunt | fav | reset")
    end
 end

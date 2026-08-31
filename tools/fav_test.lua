@@ -1,8 +1,8 @@
--- Executes the REAL Favourites.lua (over the REAL SpawnDB.TargetOf) against
--- stubbed card frames. UI.lua is loaded too, even though this task's own
--- functions never call it: Fav.StarText and Fav.Command (Tasks 4 and 5) call
--- CBH.UI.Colour / CBH.UI.Stamp, and a suite without UI.lua would die on a nil
--- index in those later tasks rather than on the assertion actually under test.
+-- Executes the REAL Favourites.lua (over the REAL SpawnDB.TargetOf and the REAL
+-- Board.lua reroll engine) against stubbed card frames. UI.lua is loaded because
+-- Fav.Command's /cbh fav list prints CBH.UI.Stamp per row - without it that path
+-- would die on a nil index instead of on the assertion actually under test. The
+-- star widget (Fav.StarText, a later task) will need it too.
 local ADDON = ADDON_DIR
 -- WoW 3.3.5 is Lua 5.1 (global unpack); fengari is 5.3 (table.unpack).
 unpack = unpack or table.unpack
@@ -21,23 +21,40 @@ local function mk(kind, name)
 end
 local function fs(text) local r = mk("FontString"); r._text = text; return r end
 function CreateFrame() return mk("Frame") end
+-- Fav.Hunt drives Board.lua's real reroll loop (see below), which reads the
+-- clock and the player's purse to gate rerolls - stub both so a hunt test can
+-- actually reach a reroll click instead of being refused for poverty.
+function GetTime() return NOW or 0 end
+MONEY = 5000000
+function GetMoney() return MONEY end
 
 CallboardHunter = { SpawnDB = {} }
 local CBH = CallboardHunter
+PRINTED = {}
+function CBH.print(m) PRINTED[#PRINTED + 1] = tostring(m) end
+function CBH.Log() end
 CBH.db = { favourites = {}, cardCatalogue = {} }
 local function load(f) local c, e = loadfile(ADDON .. "/" .. f); if not c then error(e) end; c() end
-load("UI.lua"); load("SpawnDB.lua"); load("Favourites.lua")
+load("UI.lua"); load("SpawnDB.lua"); load("Board.lua"); load("Favourites.lua")
 local Fav = CBH.Favourites
 
 -- ---- board builder (see dungeon_test.lua) -----------------------------------
-local board
-local function BuildBoard(cardTexts)
+-- Each card now carries a Select button and the board a Reroll button, because
+-- Fav.Hunt (Task 4) drives the real Board.lua loop, which clicks both.
+local board, rerollBtn
+local function BuildBoard(cardTexts, rerollLabel)
    board = mk("Frame", "ObjectivesMainFrame")
    for i = 1, 3 do
       local card = mk("Frame", "ObjectiveFrame" .. i)
       card._regions = { fs(cardTexts[i] or "") }
+      local sel = mk("Button"); sel._text = "Select"
+      card._children = { sel }
+      card.sel = sel
       board._children[#board._children + 1] = card
    end
+   rerollBtn = mk("Button")
+   rerollBtn._text = rerollLabel or "Reroll Selection 10g 40s"
+   board._children[#board._children + 1] = rerollBtn
 end
 
 -- Fav.MatchCards takes the card list rather than reading it itself, so tests
@@ -157,6 +174,41 @@ end
 check("merged target appears exactly once", seenLoken, 1)
 check("lo widened down to the catalogue's band", mergedLoken and mergedLoken.lo, 75)
 check("hi widened up to the catalogue's band", mergedLoken and mergedLoken.hi, 85)
+
+print("")
+print("== hunt refuses to start with an empty list ==")
+CBH.db.favourites = {}
+PRINTED = {}
+BuildBoard({ "Alpha", "Beta", "Gamma" })
+CBH.Board.run = nil; NOW = 100
+check("did not start", Fav.Hunt(), false)
+check("  ...and said why", string.find(table.concat(PRINTED, " "), "favourite") ~= nil, true)
+check("  ...clicked nothing", rerollBtn._clicks, 0)
+
+print("")
+print("== hunt takes a favourite that is already on the board ==")
+CBH.db.favourites = { ["Loken"] = true }
+BuildBoard({ "Bulk Order: Eternal Earth", "Wanted: Loken", "No Mercy: Azure Scalebane" })
+CBH.Board.run = nil; NOW = 110
+check("started", Fav.Hunt(), true)
+Fav.Poll(NOW)
+check("took the favourite", board._children[2].sel._clicks, 1)
+check("without rerolling", rerollBtn._clicks, 0)
+
+print("")
+print("== hunt rerolls when no favourite is present ==")
+BuildBoard({ "Bulk Order: Eternal Earth" })
+CBH.Board.run = nil; NOW = 120
+Fav.Hunt()
+Fav.Poll(NOW)
+check("clicked reroll", rerollBtn._clicks, 1)
+
+print("")
+print("== hunt needs an open board ==")
+board._shown = false
+CBH.Board.run = nil; PRINTED = {}
+check("refuses with no board", Fav.Hunt(), false)
+board._shown = true
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)

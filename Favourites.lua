@@ -78,3 +78,52 @@ function Fav.List()
    table.sort(rows, function(a, b) return a.target < b.target end)
    return rows
 end
+
+-- Explicit start only. There is no 30-second timer at a permanent callboard, so
+-- nothing may spend gold without being asked for in that moment - unlike the
+-- dungeon case, where the board despawning is a natural brake.
+function Fav.Hunt()
+   local board = _G["ObjectivesMainFrame"]
+   if not (board and board.IsShown and board:IsShown()) then
+      CBH.print("Open a callboard first, then hunt.")
+      return false
+   end
+   if Fav.Count() == 0 then
+      CBH.print("No favourites yet - click the star on a card, or pick some in"
+         .. " /cbh config. Hunting with an empty list would reroll forever.")
+      return false
+   end
+   if CBH.Board.run then
+      CBH.print("Already working the board - let it finish.")
+      return false
+   end
+   return CBH.Board.Start({
+      label = "favourites",
+      match = Fav.MatchCards,
+   })
+end
+
+function Fav.Poll(now)
+   if CBH.Board.run and CBH.Board.run.label == "favourites" then
+      CBH.Board.Poll(now)
+   end
+end
+
+function Fav.Command(arg)
+   arg = string.lower(arg or "")
+   if arg == "hunt" then
+      Fav.Hunt()
+   elseif arg == "" or arg == "list" then
+      local n = Fav.Count()
+      CBH.print(n .. " favourite" .. (n == 1 and "" or "s") .. ".")
+      if n > 0 then
+         for target in pairs(CBH.db.favourites) do
+            DEFAULT_CHAT_FRAME:AddMessage("  " .. CBH.UI.Stamp("ready") .. " " .. target)
+         end
+      end
+      CBH.print("/cbh fav clear  |  /cbh hunt to reroll toward one.")
+   elseif arg == "clear" then
+      CBH.db.favourites = {}
+      CBH.print("Favourites cleared.")
+   end
+end
