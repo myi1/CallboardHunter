@@ -361,7 +361,13 @@ git commit -m "refactor: extract the reroll engine into Board.lua"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `scratchpad/fav_test.lua` with the widget stubs from `dungeon_test.lua`, loading `SpawnDB.lua` then `Favourites.lua`, then:
+Create `scratchpad/fav_test.lua` with the widget stubs from `dungeon_test.lua`. **Load `UI.lua` as well as `SpawnDB.lua` and `Favourites.lua`** — `Fav.StarText` and `Fav.Command` call `CBH.UI.Colour` / `CBH.UI.Stamp`, so a suite without it dies on a nil index in Tasks 4 and 5:
+
+```lua
+load("UI.lua"); load("SpawnDB.lua"); load("Favourites.lua")
+```
+
+Then:
 
 ```lua
 local Fav = CBH.Favourites
