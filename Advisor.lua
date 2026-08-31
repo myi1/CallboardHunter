@@ -594,12 +594,12 @@ local function ResolveKill(name, ko, allowSweep)
    --   2. where you have actually killed this objective before (ground truth)
    --   3. any real zone named in the text  - a quest TITLE can be wrong
    --   4. the quest log's zone header
-   --   5. a cached card zone - can still hold a pre-1.5.0 POI-sweep guess
+   --   5. a cached card zone (yours, else the bundled defaults - CardZoneFor)
    local zone, isDungeon, via = ZoneFromQuestText(ko)
    zone = zone or ZoneFromLearnedKills(name)
    zone = zone or ZoneFromAnyMapName(ko)
    zone = zone or ZoneFromQuestHeader(ko.questIndex)
-   zone = zone or (CBH.db and CBH.db.cardZones and CBH.db.cardZones[name])
+   zone = zone or CBH.SpawnDB.CardZoneFor(name)
    if zone then
       -- Deliberately NOT cached into cardZones. That table is documented as
       -- "harvested from callboard cards", and writing resolutions into it made

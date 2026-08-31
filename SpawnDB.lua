@@ -756,3 +756,111 @@ function SpawnDB.GetPoints(zoneKey)
    addFrom(CBH.db and CBH.db.learned)
    return out
 end
+
+-- Bundled defaults for CBH.db.cardZones, harvested from the maintainer's own
+-- accumulated saved variables and vetted before shipping. A fresh install's
+-- cardZones is empty, so ResolveKill's card-zone source (the last one before
+-- the fragile POI sweep) had nothing to give it: a new player reported a
+-- Wintergrasp objective (Earthbound Revenant) teleporting them to Winterspring,
+-- purely because nobody's cardZones on their client had ever seen that card.
+-- Shipping the maintainer's history gives every fresh install that same
+-- starting knowledge instead of nothing. [objectiveName] = zone.
+SpawnDB.CARD_ZONES = {
+   ["Ashtongue Handler"] = "Shadowmoon Valley",
+   ["Azure Manashaper"] = "Crystalsong Forest",
+   ["Azure Scalebane"] = "Crystalsong Forest",
+   ["Azure Spellweaver"] = "Crystalsong Forest",
+   ["Banthar"] = "Nagrand",
+   ["Blockade Pirate"] = "Howling Fjord",
+   ["Bloodscale Slavedriver"] = "Zangarmarsh",
+   ["Carrion Eater"] = "Zul'Drak",
+   ["Centrifuge Construct"] = "The Oculus",
+   ["Coilfang Myrmidon"] = "Coilfang Reservoir",
+   ["Defias Cutpurse"] = "Elwynn Forest",
+   ["Dragonflayer Huscarl"] = "Grizzly Hills",
+   ["Dreadtalon"] = "Dragonblight",
+   ["Earthbound Revenant"] = "Wintergrasp",
+   ["Fenclaw Thrasher"] = "Zangarmarsh",
+   ["Flame Revenant"] = "Wintergrasp",
+   ["Forest Spider"] = "Elwynn Forest",
+   ["Forgotten Depths High Priest"] = "Icecrown",
+   ["Frostmane Troll Whelp"] = "Coldridge Valley",
+   ["Gigantaur"] = "Dragonblight",
+   ["Gnarlpine Ambusher"] = "Teldrassil",
+   ["Gnarlpine Warrior"] = "Teldrassil",
+   ["Herald Volazj"] = "Dragonblight",
+   ["High Shaman Bloodpaw"] = "Dragonblight",
+   ["Hive'Ashi Defender"] = "Silithus",
+   ["Hive'Ashi Stinger"] = "Silithus",
+   ["Hive'Ashi Worker"] = "Silithus",
+   ["Hive'Regal Ambusher"] = "Silithus",
+   ["Hive'Regal Slavemaker"] = "Silithus",
+   ["Hive'Regal Spitfire"] = "Silithus",
+   ["Hive'Zora Hive Sister"] = "Silithus",
+   ["Hive'Zora Tunneler"] = "Silithus",
+   ["Ingvar the Plunderer"] = "Howling Fjord",
+   ["Kobold Miner"] = "Elwynn Forest",
+   ["Kobold Tunneler"] = "Elwynn Forest",
+   ["Kobold Vermin"] = "Northshire Valley",
+   ["Kreug Oathbreaker"] = "Dragonblight",
+   ["Loken"] = "The Storm Peaks",
+   ["Magister Keldonus"] = "Dragonblight",
+   ["Malygos"] = "Borean Tundra",
+   ["Mangy Wolf"] = "Elwynn Forest",
+   ["Marshfang Ripper"] = "Zangarmarsh",
+   ["Mindless Zombie"] = "Deathknell",
+   ["Mire Hydra"] = "Zangarmarsh",
+   ["Mossy Rampager"] = "Zul'Drak",
+   ["Mottled Boar"] = "Valley of Trials",
+   ["Murloc"] = "Elwynn Forest",
+   ["Murloc Streamrunner"] = "Elwynn Forest",
+   ["Nathanos Blightcaller"] = "Eastern Plaguelands",
+   ["Nightsaber"] = "Teldrassil",
+   ["Onslaught Commander Iustus"] = "Dragonblight",
+   ["Pathstrider"] = "Eastern Plaguelands",
+   ["Plaguebat"] = "Eastern Plaguelands",
+   ["Plaguehound Runt"] = "Eastern Plaguelands",
+   ["Prairie Wolf"] = "Mulgore",
+   ["Ragemane"] = "Zul'Drak",
+   ["Raging Flame"] = "Wintergrasp",
+   ["Ravaged Ghoul"] = "Icecrown",
+   ["Rockjaw Raider"] = "Dun Morogh",
+   ["Rot Hide Graverobber"] = "Tirisfal Glades",
+   ["Shadowmoon Slayer"] = "Shadowmoon Valley",
+   ["Silverbrook Hunter"] = "Grizzly Hills",
+   ["Skeletal Archmage"] = "Icecrown",
+   ["Small Crag Boar"] = "Coldridge Valley",
+   ["Sunseeker Channeler"] = "Tempest Keep",
+   ["Terrorfiend"] = "Hellfire Peninsula",
+   ["Thornvine Creeper"] = "Howling Fjord",
+   ["Timberstrider"] = "Azuremyst Isle",
+   ["Timberstrider Fledgling"] = "Azuremyst Isle",
+   ["Unyielding Footman"] = "Hellfire Peninsula",
+   ["Volatile Mutation"] = "Ammen Vale",
+   ["Wandering Shadow"] = "Wintergrasp",
+   ["Water Revenant"] = "Wintergrasp",
+   ["Whispering Wind"] = "Wintergrasp",
+   ["Winterfall Shaman"] = "Winterspring",
+   ["Yogg-Saron"] = "The Storm Peaks",
+   ["Young Black Bear"] = "Dun Morogh",
+}
+
+-- Resolve a card-harvested zone for an objective: the player's own observed
+-- CBH.db.cardZones outranks the bundle, because it reflects a card THIS
+-- player actually saw on THIS server, while the bundle is only a shipped
+-- default. Deliberately never copies the bundle into CBH.db.cardZones - that
+-- would blur "seen it myself" with "shipped default", bloat every saved
+-- variables file, and pin a bad bundled entry past the point a later release
+-- could fix it. A bundled zone is checked against KnownMapZone before it is
+-- ever handed back: a card's "Kill N X in <name>" text is free-form, and a
+-- handful of live entries named an instance (e.g. "The Oculus") rather than
+-- the outdoor zone the callboard usually names - those are kept in the table
+-- for the record but never surfaced as a routing answer.
+function SpawnDB.CardZoneFor(name)
+   if not name then return nil end
+   local mine = CBH.db and CBH.db.cardZones and CBH.db.cardZones[name]
+   if mine then return mine end
+   local bundled = SpawnDB.CARD_ZONES[name]
+   if bundled and SpawnDB.KnownMapZone(bundled) then return bundled end
+   return nil
+end

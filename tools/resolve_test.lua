@@ -4,15 +4,18 @@ local ADDON = ADDON_DIR
 function GetMapContinents() return "Eastern Kingdoms", "Kalimdor", "Outland", "Northrend" end
 function GetMapZones(c)
    if c == 4 then return "Borean Tundra", "Dragonblight", "Grizzly Hills", "Howling Fjord",
-      "Icecrown", "Sholazar Basin", "The Storm Peaks", "Zul'Drak", "Wintergrasp", "Dalaran" end
-   if c == 2 then return "Winterspring", "Nagrand", "Tanaris", "Silithus" end
+      "Icecrown", "Sholazar Basin", "The Storm Peaks", "Zul'Drak", "Wintergrasp", "Dalaran",
+      "Crystalsong Forest" end
+   if c == 2 then return "Winterspring", "Nagrand", "Tanaris", "Silithus", "Teldrassil",
+      "Mulgore", "Azuremyst Isle", "Ammen Vale", "Valley of Trials" end
    if c == 3 then return "Zangarmarsh", "Netherstorm", "Shadowmoon Valley", "Terokkar Forest",
       "Hellfire Peninsula", "Blade's Edge Mountains", "Nagrand", "Isle of Quel'Danas" end
-   return "Alterac Mountains", "Western Plaguelands", "Elwynn Forest"
+   return "Alterac Mountains", "Western Plaguelands", "Elwynn Forest", "Coldridge Valley",
+      "Northshire Valley", "Deathknell", "Eastern Plaguelands", "Dun Morogh", "Tirisfal Glades"
 end
 CallboardHunter = { SpawnDB = {} }
 local CBH = CallboardHunter
-CBH.db = { learned = {} }
+CBH.db = { learned = {}, cardZones = {} }
 local c, e = loadfile(ADDON .. "/SpawnDB.lua")
 if not c then error("load SpawnDB: " .. tostring(e)) end
 c()
@@ -148,6 +151,55 @@ check("every row has a target", (function()
    end
    return true
 end)(), true)
+
+print("")
+print("== bundled card-zone defaults (fresh install has no card history) ==")
+-- Reported 2026-08: a new install's cardZones is empty, so a Wintergrasp
+-- objective (Earthbound Revenant) fell through to the POI sweep and ported
+-- the player to Winterspring instead. S.CARD_ZONES ships the maintainer's own
+-- vetted history so a fresh install starts with the same answer.
+check("the bundle has exactly 77 entries", (function()
+   local n2 = 0
+   for _ in pairs(S.CARD_ZONES) do n2 = n2 + 1 end
+   return n2
+end)(), 77)
+CBH.db.cardZones = {}
+check("bundled mob resolves with no card history (the reported case)",
+   S.CardZoneFor("Earthbound Revenant"), "Wintergrasp")
+CBH.db.cardZones["Earthbound Revenant"] = "Icecrown"
+check("the player's own card wins over the bundle",
+   S.CardZoneFor("Earthbound Revenant"), "Icecrown")
+CBH.db.cardZones = {}
+check("a mob in neither table resolves to nil (no accidental catch-all)",
+   S.CardZoneFor("Nobody Ever Vetted This Mob"), nil)
+print("")
+print("== none of the vetting pass's dropped keys reappear ==")
+check("'Beast Kill in <Zone>' objective phrasings are not bundled keys",
+   S.CARD_ZONES["Beast Kill in Wintergrasp"], nil)
+check("the generic 'Beasts' token is not a bundled key", S.CARD_ZONES["Beasts"], nil)
+check("the generic 'Rare' token is not a bundled key", S.CARD_ZONES["Rare"], nil)
+check("Archavon (SpawnDB says Wintergrasp, the dropped row claimed Dragonblight)",
+   S.CARD_ZONES["Archavon the Stone Watcher"], nil)
+print("")
+print("== every bundled zone is checked against KnownMapZone before it is served ==")
+local validCount, badKeys = 0, {}
+for mob, z in pairs(S.CARD_ZONES) do
+   if S.KnownMapZone(z) then validCount = validCount + 1
+   else table.insert(badKeys, mob) end
+end
+table.sort(badKeys)
+check("74 of 77 bundled zones are real, routable outdoor zones", validCount, 74)
+-- These 3 were harvested verbatim from real "Kill N X in <name>" card text that
+-- named the instance rather than its outdoor zone (see SpawnDB.DUNGEONS: The
+-- Oculus/Coilfang Reservoir/Tempest Keep are dungeons/raids, not map zones).
+-- Kept in the table per the vetting pass rather than silently dropped, but
+-- CardZoneFor's KnownMapZone check means they can never be handed back as a
+-- routing answer - a data error fails loudly here instead of shipping silently.
+check("the only invalid rows are the 3 known instance-named exceptions",
+   table.concat(badKeys, ", "),
+   "Centrifuge Construct, Coilfang Myrmidon, Sunseeker Channeler")
+check("an invalid bundled zone is never surfaced by CardZoneFor",
+   S.CardZoneFor("Centrifuge Construct"), nil)
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
