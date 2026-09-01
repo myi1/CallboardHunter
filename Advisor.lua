@@ -869,7 +869,15 @@ Advisor.ResolveDestination = ResolveDestination
 -- apostrophe wrong in "Stars' Rest" was enough to silently do nothing.
 function Advisor.PortVia(arg)
    arg = arg and (arg:gsub("^%s+", ""):gsub("%s+$", "")) or ""
+   -- The objective this command acts on is the one the visible list was
+   -- captured FOR, not whatever is live right now. Reading live state was
+   -- wrong twice: it can be a different quest by the time you type this, and
+   -- for a sweep-only objective it is not knowable between ports at all. The
+   -- listing prints the name it is about, so there is no ambiguity on screen.
    local target, zone = Advisor.lastDestTarget, Advisor.lastDestZone
+   if Advisor.lastCandidates and #Advisor.lastCandidates > 0 then
+      target, zone = Advisor.lastCandidateTarget, Advisor.lastCandidateZone
+   end
    local label = target or zone
 
    -- The captured list belongs to whichever objective was ported LAST. If the
@@ -878,8 +886,6 @@ function Advisor.PortVia(arg)
    local function freshList()
       local c = Advisor.lastCandidates
       if not c or #c == 0 then return nil end
-      if Advisor.lastCandidateTarget ~= target then return nil end
-      if Advisor.lastCandidateZone ~= zone then return nil end
       return c
    end
 
@@ -1149,7 +1155,7 @@ local function DoPort()
          table.insert(Advisor.lastCandidates, n)
       end
    end
-   Advisor.lastCandidateTarget = Advisor.lastDestTarget
+   Advisor.lastCandidateTarget = Advisor.portTarget
    Advisor.lastCandidateZone = Advisor.lastDestZone
 
    local best, bestD, viaHit
@@ -1350,6 +1356,13 @@ function Advisor.Port(zoneArg)
    Advisor.portMapTries = nil
    Advisor.portPoints = pts
    Advisor.portQuestID = qid
+   -- Captured HERE, not read again later, because this resolve ran with the
+   -- POI sweep enabled and the 0.5s button ticker's does not. An objective
+   -- that only resolves through the sweep is therefore unknowable between
+   -- ports: a tick landing in the 0.7s gap before DoPort would clear the
+   -- target and fail to re-find it, and the port would lose track of which
+   -- objective it was for. The port's identity belongs to the port request.
+   Advisor.portTarget = Advisor.lastDestTarget
    Advisor.portPreferPOI = prefer or false
    CBH.Log("port", "REQUEST arg='" .. tostring(zoneArg) .. "' -> dest="
       .. tostring(destZone) .. " pts=" .. ((pts and #pts) or 0)
@@ -1428,6 +1441,10 @@ function Advisor.PortToCallboard()
       .. string.format(" %.2f/%.2f", pick.x or 0, pick.y or 0))
    Advisor.portPoints = { { x = pick.x, y = pick.y } }
    Advisor.portQuestID = nil
+   -- Going home is not objective work, so this port owns no target. Left set,
+   -- the previous objective's name would be stamped onto the checkpoints
+   -- harvested here and /cbh portvia would save a home-zone pick against it.
+   Advisor.portTarget = nil
    Advisor.portPreferPOI = false
    Advisor.lastDestZone = pick.zone
    Advisor.portMapTries = nil

@@ -633,12 +633,15 @@ Advisor.PortVia("9")
 check("an out-of-range number changes nothing",
    CBH.db.portTargets["flame revenant"], "Wintergarde Keep")
 
--- The captured list belongs to whichever objective was ported last. Applying
--- it to a different one would quietly mis-route a quest never touched.
+-- A pick lands on the objective the visible list was captured FOR, never on
+-- whatever happens to be active by the time the player types the number. The
+-- listing prints that name, so what is being set is on screen.
 afterAPort("Whispering Wind", "Dragonblight", DRAGON)
-Advisor.lastDestTarget = "Some Other Mob"   -- switched objective; list is stale
+Advisor.lastDestTarget = "Some Other Mob"   -- something else became active
 Advisor.PortVia("2")
-check("a stale list refuses a numeric pick",
+check("a pick lands on the objective the list was captured for",
+   CBH.db.portTargets["whispering wind"], "Stars' Rest")
+check("  ...not on whatever became active since",
    CBH.db.portTargets["some other mob"], nil)
 
 -- An explicit name still works, for anyone who already knows it.
@@ -716,6 +719,40 @@ print("== the port button does not promise a faction base it cannot confirm ==")
 -- A two-name via is a faction pair; which one exists is only known once the
 -- map is scanned, so the label promises the zone instead of naming a base the
 -- viewer may not be able to use. A single-name via is still shown by name.
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+CBH.db.home, CBH.db.callboards = nil, {}
+QUESTLOG = {
+   { title = "Dragonblight", header = true },
+   { title = "Whispering Wind", objectives = { "Whispering Wind slain: 0/8" } },
+}
+QW.Update(true)
+check("a faction PAIR shows the zone, not a base half of players cannot use",
+   (Advisor.ComputeButton()), "Port: Dragonblight")
+QUESTLOG = {
+   { title = "Dragonblight", header = true },
+   { title = "Flame Revenant", objectives = { "Flame Revenant slain: 0/10" } },
+}
+QW.Update(true)
+check("  ...but a single-name via is still named outright",
+   (Advisor.ComputeButton()), "Port: Fordragon Hold")
+-- And the player's own pick wins over both, because it came off their map.
+CBH.db.portTargets["flame revenant"] = "Wyrmrest Temple"
+check("  ...and your own pick beats the shipped default",
+   (Advisor.ComputeButton()), "Port: Wyrmrest Temple")
+
+print("")
+print("== the port owns its target, so the button ticker cannot wipe it ==")
+-- Advisor.Port resolves WITH the POI sweep; the 0.5s ticker resolves without
+-- it. An objective that only resolves through the sweep is therefore
+-- unknowable to the ticker, and a tick landing in the 0.7s gap before DoPort
+-- used to clear the target and leave DoPort stamping nil - losing the
+-- per-objective granularity that is the whole point of the feature.
+Advisor.portTarget = "Flame Revenant"
+QUESTLOG = {}
+CBH.hotZones, CBH.killObjectives = {}, {}
+Advisor.ComputeButton()          -- a tick with nothing resolvable
+check("the ticker clears the live target", Advisor.lastDestTarget, nil)
+check("  ...but the port keeps its own", Advisor.portTarget, "Flame Revenant")
 CBH.db.portTargets, CBH.db.portOverrides = {}, {}
 
 print("")
