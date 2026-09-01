@@ -145,6 +145,51 @@ function Route.HcTier(which)
   return tonumber(d.hcEnd) or 3
 end
 
+-- The tier you are ACTUALLY on, read out of the server's own run frame.
+-- Route.HcTier is what you asked for; this is what is true. Discovered by
+-- dumping ProjectEbonholdPlayerRunFrame: the tier is a colour-coded FontString
+-- on a Button nested inside it, which is the same shape of custom UI Board.lua
+-- already drives. The old "No API for this" note meant no documented server
+-- function, not an undrivable frame.
+local function TierFromText(t)
+  if not t then return nil end
+  local plain = string.gsub(t, "|c%x%x%x%x%x%x%x%x", "")
+  plain = string.gsub(plain, "|r", "")
+  return tonumber(string.match(plain, "Hardcore%s+(%d)"))
+end
+
+-- The button carrying the tier, so callers can both read AND click it.
+function Route.HcButton()
+  local root = _G["ProjectEbonholdPlayerRunFrame"]
+  if not (root and root.GetChildren) then return nil end
+  local found, tier
+  local function walk(f, depth)
+    if found or depth > 4 or not f.GetChildren then return end
+    for i = 1, select("#", f:GetChildren()) do
+      local c = select(i, f:GetChildren())
+      if c and not found then
+        if c.GetRegions and c.GetObjectType and c:GetObjectType() == "Button" then
+          for j = 1, select("#", c:GetRegions()) do
+            local r = select(j, c:GetRegions())
+            if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+              local n = TierFromText(r:GetText())
+              if n then found, tier = c, n; return end
+            end
+          end
+        end
+        walk(c, depth + 1)
+      end
+    end
+  end
+  walk(root, 0)
+  return found, tier
+end
+
+function Route.HcCurrent()
+  local _, tier = Route.HcButton()
+  return tier
+end
+
 -- Level bands for the 64->80 grind steps, overridable per character.
 function Route.GrindTarget(key, fallback)
   local d = DB()

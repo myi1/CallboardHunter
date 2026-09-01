@@ -420,6 +420,36 @@ W.quests["The Champion's Call!"] = true
 ev._scripts.OnEvent(ev, "QUEST_LOG_UPDATE")
 expect("zd", "quest 3 in the log advances past the pick-up step")
 
+-- ------------------------------------------------------ hardcore tier (read)
+print("")
+print("hardcore tier (read)")
+
+-- The server paints the tier with a colour code; the digit is what matters.
+local function FakeRunFrame(label)
+  local fs = { GetText = function() return label end,
+               GetObjectType = function() return "FontString" end }
+  local btn = { GetObjectType = function() return "Button" end,
+                GetRegions = function() return fs end,
+                GetChildren = function() return end,
+                IsShown = function() return true end }
+  return { GetObjectType = function() return "Frame" end,
+           GetRegions = function() return end,
+           GetChildren = function() return btn end,
+           IsShown = function() return true end }
+end
+
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 5|r")
+check(RT.HcCurrent() == 5, "reads the live tier through its colour code", RT.HcCurrent())
+
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("Hardcore 2")
+check(RT.HcCurrent() == 2, "reads an uncoloured tier too", RT.HcCurrent())
+
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("Softcore")
+check(RT.HcCurrent() == nil, "no tier in the text -> nil", RT.HcCurrent())
+
+_G.ProjectEbonholdPlayerRunFrame = nil
+check(RT.HcCurrent() == nil, "no run frame at all -> nil", RT.HcCurrent())
+
 -- Other surfaces should not throw.
 RT.Why()
 RT.Report(); RT.Api(); RT.Macros(); RT.ListCheckpoints(); RT.Refresh()
