@@ -96,26 +96,16 @@ Route.STEPS = {
   { key = "dala2", kind = "port", cp = "DALARAN",
     text = "Port back to Dalaran",
     detail = "Checkpoint 310." },
-  { key = "hcEnd", kind = "mode", hcStep = true, tierKey = "end",
-    detail = "CBH clicks the tier control on the run frame and checks it took. If the server's UI moves, switch it yourself and Mark done. "
-      .. "The route author's preference is to drop a tier or two once the quest chain is done -- stay put if you can hold the higher one safely." },
-  { key = "bt", kind = "port", cp = "BOREAN",
-    text = "Port to Borean Tundra (Unu'pe)",
-    detail = "Checkpoint 296. Carry on levelling from here." },
-
-  -- 64 -> 80. The route post stops at Unu'pe ("carry on levelling from here"),
-  -- so these two zone/level bands are not transcribed from it -- they come from
-  -- keepsy's own logged runs, which put 66-72 in Borean Tundra and 73-80 in
-  -- Icecrown. Targets are editable with /cbh route grind <level>.
-  { key = "grindBt", kind = "level", target = 72, cp = "BOREAN",
-    text = "Level to 72 in Borean Tundra",
-    detail = "Kill your way up. The button ports you back here if you stray." },
-  { key = "ice", kind = "port", cp = "ICECROWN",
-    text = "Port to Icecrown (The Argent Vanguard)",
-    detail = "Checkpoint 334. Icecrown carries you the rest of the way." },
-  { key = "grindIce", kind = "level", target = 80, cp = "ICECROWN",
-    text = "Level to 80 in Icecrown",
-    detail = "The last stretch. Route ends when you ding 80." },
+  -- The lap used to end with a Borean Tundra / Icecrown zone grind. keepsy runs
+  -- callboard quests instead, so the tail is now: switch tier once, then work
+  -- the callboard from Dalaran until 80. The chain's landing level is NOT fixed
+  -- at 64 -- ash XP nodes move it -- so the grind simply runs until you ding 80
+  -- from wherever the turn-in left you.
+  { key = "hcGrind", kind = "mode", hcStep = true, tierKey = "grind",
+    detail = "Set the tier you can hold for the callboard grind. Done once here, not every quest." },
+  { key = "cbGrind", kind = "level", target = 80, cp = "DALARAN",
+    text = "Level to 80 on callboard quests",
+    detail = "Summon the board, take a quest, run it, come back. The button ports you to Dalaran." },
 }
 
 -- ---------------------------------------------------------------------------
@@ -143,6 +133,8 @@ end
 function Route.HcTier(which)
   local d = DB()
   if which == "start" then return tonumber(d.hcStart) or 5 end
+  -- The grind tier defaults to the levelling one so a first run needs no setup.
+  if which == "grind" then return tonumber(d.hcGrind) or (tonumber(d.hcStart) or 5) end
   return tonumber(d.hcEnd) or 3
 end
 
@@ -228,7 +220,9 @@ function Route.Steps()
         st.tier = Route.HcTier(st.tierKey)
         st.text = (st.tierKey == "start")
           and ("Switch to Hardcore " .. st.tier)
-          or ("Drop to Hardcore " .. st.tier .. " (optional)")
+          or ((st.tierKey == "grind")
+            and ("Switch to Hardcore " .. st.tier .. " for the grind")
+            or ("Drop to Hardcore " .. st.tier .. " (optional)"))
         out[#out + 1] = st
       end
     else
@@ -236,10 +230,16 @@ function Route.Steps()
     end
   end
   -- Grind targets come from saved config so /cbh route grind can retune them.
+  -- cbGrind is the only "level" step left (the old Borean/Icecrown hand-off is
+  -- gone), so its default is the lap's real end, not the old 72 mid-band. Its
+  -- text says "callboard quests" rather than the zone -- that is the whole
+  -- point of this step, and the generic zone phrasing would silently erase it.
   for _, st in ipairs(out) do
     if st.kind == "level" then
-      st.target = Route.GrindTarget(st.key, st.key == "grindIce" and 80 or 72)
-      st.text = "Level to " .. st.target .. " in " .. (Route.CP[st.cp] and Route.CP[st.cp].zone or "?")
+      st.target = Route.GrindTarget(st.key, st.key == "cbGrind" and 80 or 72)
+      st.text = (st.key == "cbGrind")
+        and ("Level to " .. st.target .. " on callboard quests")
+        or ("Level to " .. st.target .. " in " .. (Route.CP[st.cp] and Route.CP[st.cp].zone or "?"))
     end
   end
   return out
@@ -514,6 +514,21 @@ local function StepDone(step, qlog)
     return now ~= nil and now == step.tier
   end
   return false
+end
+
+-- Test seams: the suite needs to ask about a step by key without reaching into
+-- the private step table or duplicating the filtering Route.Steps does.
+function Route.StepIndex(key)
+  for i, st in ipairs(Route.Steps()) do
+    if st.key == key then return i end
+  end
+  return nil
+end
+
+function Route.StepDoneFor(key)
+  local i = Route.StepIndex(key)
+  if not i then return nil end
+  return StepDone(Route.Steps()[i], ScanQuestLog(false, true)) and true or false
 end
 
 local function StepBlocked(step)

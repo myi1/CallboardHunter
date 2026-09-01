@@ -181,12 +181,39 @@ end
 print("PrestigeRoute route walk")
 RT.Init() -- builds both panels AND registers the auto accept / turn-in events
 
+-- The zone grind (Borean Tundra -> Icecrown) is gone; the tail is now a single
+-- tier switch plus a callboard grind that runs from wherever the chain lands
+-- you to 80. Checked structurally before the lap walk below drives it live.
+check(RT.StepIndex("grindBt") == nil, "the zone grind is gone")
+check(RT.StepIndex("grindIce") == nil, "  ...and so is its Icecrown half")
+check(RT.StepIndex("hcGrind") ~= nil, "the grind tier switch exists")
+check(RT.StepIndex("cbGrind") ~= nil, "the callboard grind exists")
+check(RT.StepIndex("hcGrind") < RT.StepIndex("cbGrind"),
+  "the switch comes before the grind")
+
+local grind = RT.Steps()[RT.StepIndex("cbGrind")]
+check(grind.target == 80, "the grind ends at 80", grind.target)
+check(grind.cp == "DALARAN", "its button ports to Dalaran", grind.cp)
+
+CallboardHunter.db.route.hcGrind = 4
+check(RT.HcTier("grind") == 4, "the grind tier is configurable", RT.HcTier("grind"))
+CallboardHunter.db.route.hcGrind = nil
+check(RT.HcTier("grind") == RT.HcTier("start"), "and defaults to the levelling tier",
+  RT.HcTier("grind"))
+
+-- The grind must not assume the chain lands you at 64: ash XP nodes move it.
+W.level = 71
+check(RT.StepDoneFor("cbGrind") == false, "not done at 71")
+W.level = 80
+check(RT.StepDoneFor("cbGrind") == true, "done at 80")
+W.level = 1
+
 -- A fresh level 1 -- any ash level, no prestige preamble. Step 1 is the
 -- hardcore swap, not an ash gate.
 RT.Reset(true, true)
 expect("hcStart", "fresh level 1 -> step 1 is the hardcore swap")
 checks = checks + 1
-if #RT.Steps() == 13 then print("  ok   route is 13 steps, level 1 to 80")
+if #RT.Steps() == 10 then print("  ok   route is 10 steps, level 1 to 80")
 else fails = fails + 1; print("  FAIL step count -> " .. #RT.Steps()) end
 
 -- The run frame already reports the target tier -- the ordinary case of a
@@ -219,39 +246,26 @@ expect("dala2", "quest 3 handed in -> port back to Dalaran")
 
 -- THE REGRESSION: leaving Zul'Drak must not un-complete the Zul'Drak port.
 W.zone = "Dalaran"
-expect("hcEnd", "back in Dalaran -> drop a tier (not zd)")
+-- hcGrind defaults to the levelling tier, which the run frame already reports
+-- (still Hardcore 5 from the top of this lap) -- so give it a distinct target
+-- here, otherwise the step would auto-satisfy with no click and the switch
+-- mechanism itself would go untested for this key.
+CallboardHunter.db.route.hcGrind = 3
+expect("hcGrind", "back in Dalaran -> switch tier for the grind (not zd)")
 
--- hcEnd's default target is Hardcore 3 -- the run frame now reports that.
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 3|r")
-RT.Advance(); expect("bt", "tier drop confirmed -> port to Borean Tundra")
-W.zone = "Borean Tundra"
-expect("grindBt", "arrived in Borean Tundra -> grind to 72")
+RT.Advance(); expect("cbGrind", "tier switch confirmed -> callboard grind")
 
--- 64 -> 80. Bands come from keepsy's own run logs: 66-72 Borean, 73-80 Icecrown.
+-- The chain does not reliably land at 64 -- ash XP nodes move it -- so the
+-- grind has to run from wherever the turn-in actually left you, not a
+-- hardcoded starting level.
 W.level = 71
-expect("grindBt", "still under 72 -> keep grinding")
-W.level = 72
-expect("ice", "hit 72 -> port to Icecrown")
-
-W.zone = "Icecrown"
-expect("grindIce", "arrived in Icecrown -> grind to 80")
+expect("cbGrind", "still under 80 -> keep grinding")
 W.level = 79
-expect("grindIce", "79 is not 80")
+expect("cbGrind", "79 is not 80")
 W.level = 80
 expect("<complete>", "ding 80 -> route complete")
-
--- The bands are retunable per character.
-W.level = 70; W.zone = "Borean Tundra"
-CallboardHunter.db.route.acked.ice = nil
-CallboardHunter.db.route.acked.grindBt = nil
-CallboardHunter.db.route.acked.grindIce = nil
-expect("grindBt", "back on the Borean band at 70")
-RT.Command("grind 68")
-expect("ice", "grind 68 moves the hand-off earlier")
-RT.Command("grind 72")
-
-W.level = 80; W.zone = "Icecrown"
-expect("<complete>", "route complete again at 80")
+CallboardHunter.db.route.hcGrind = nil
 
 -- Back cannot undo a levelling step -- you cannot un-ding. It has to SAY that
 -- rather than look like a dead button; /cbh route reset is the way back.
@@ -282,7 +296,7 @@ else fails = fails + 1; print("  FAIL tier -> " .. tostring(RT.Steps()[1].text))
 RT.Command("hc off")
 expect("dala1", "hc off drops the mode steps entirely")
 checks = checks + 1
-if #RT.Steps() == 11 then print("  ok   route is 11 steps with hardcore off")
+if #RT.Steps() == 8 then print("  ok   route is 8 steps with hardcore off")
 else fails = fails + 1; print("  FAIL step count -> " .. #RT.Steps()) end
 RT.Command("hc 5")
 
