@@ -470,6 +470,9 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       -- Discovery tool for the server's custom UI.
       --   /cbh frames <text>  -> only frames whose text contains <text>, with parent chain
       --   /cbh frames map     -> tree of visible frames under WorldMapFrame (checkpoint POIs)
+      -- Every line also goes to CBH.Log, because chat output dies with the next
+      -- /reload and a dump of the server's custom UI is exactly the thing you
+      -- want to still have afterwards - it is saved-variable data by then.
       local function ParentChain(f)
          local names, p, depth = {}, f, 0
          while p and depth < 6 do
@@ -488,8 +491,10 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
                local c = select(i, f:GetChildren())
                if c and c.IsShown and c:IsShown() then
                   out.n = out.n + 1
-                  DEFAULT_CHAT_FRAME:AddMessage(string.rep("--", depth) ..
-                     tostring(c:GetName()) .. " (" .. c:GetObjectType() .. ")")
+                  local line = string.rep("--", depth) ..
+                     tostring(c:GetName()) .. " (" .. c:GetObjectType() .. ")"
+                  DEFAULT_CHAT_FRAME:AddMessage(line)
+                  CBH.Log("frames", line)
                   walk(c, depth + 1)
                end
             end
@@ -515,8 +520,10 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
                local joined = table.concat(texts, " | ")
                if #texts > 0 and (not filter or string.find(string.lower(joined), filter, 1, true)) then
                   shown = shown + 1
-                  DEFAULT_CHAT_FRAME:AddMessage("  [" .. ParentChain(f) .. "] " ..
-                     string.sub(joined, 1, 150))
+                  local line = "[" .. ParentChain(f) .. "] " ..
+                     string.sub(joined, 1, 150)
+                  DEFAULT_CHAT_FRAME:AddMessage("  " .. line)
+                  CBH.Log("frames", line)
                end
             end
             f = EnumerateFrames(f)
