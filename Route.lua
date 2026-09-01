@@ -97,7 +97,8 @@ Route.STEPS = {
     text = "Port back to Dalaran",
     detail = "Checkpoint 310." },
   { key = "hcEnd", kind = "mode", hcStep = true, tierKey = "end",
-    detail = "CBH clicks the tier control on the run frame and checks it took. If the server's UI moves, switch it yourself and Mark done." },
+    detail = "CBH clicks the tier control on the run frame and checks it took. If the server's UI moves, switch it yourself and Mark done. "
+      .. "Stay put if you can hold the higher one safely." },
   { key = "bt", kind = "port", cp = "BOREAN",
     text = "Port to Borean Tundra (Unu'pe)",
     detail = "Checkpoint 296. Carry on levelling from here." },
@@ -978,6 +979,23 @@ function Route.PointAtQuest(step)
   end
 end
 
+-- Shared by the full panel's Act button AND the compact panel's one-click
+-- Advance -- there is only one "click the tier control and see if it took"
+-- behaviour, and the compact panel is the DEFAULT view, so it needs the same
+-- verification the full panel got or a failed switch is invisible there too.
+-- Acking on success is belt-and-braces: StepDone's own tier check already
+-- catches it, but latching the moment we know it worked means a flaky re-read
+-- immediately afterward can't un-satisfy a step that genuinely just switched.
+local function DoModeSwitch(step)
+  local ok, why = Route.HcSwitch(step.tier)
+  if ok then
+    DB().acked[step.key] = true
+    CBH.print("Now on " .. BRIGHT .. "Hardcore " .. step.tier .. R .. ".")
+  else
+    CBH.print(why)
+  end
+end
+
 function Route.Act()
   local i = Route.Current()
   if not i then
@@ -992,12 +1010,7 @@ function Route.Act()
   elseif step.kind == "quest" then
     Route.PointAtQuest(step)
   elseif step.kind == "mode" then
-    local ok, why = Route.HcSwitch(step.tier)
-    if ok then
-      CBH.print("Now on " .. BRIGHT .. "Hardcore " .. step.tier .. R .. ".")
-    else
-      CBH.print(why)
-    end
+    DoModeSwitch(step)
   end
   Route.Refresh()
 end
@@ -1150,16 +1163,19 @@ local function ActionFor(step, blocked)
       .. (cp and ("  Button ports you back to " .. cp.label .. ".") or "")
 
   elseif step.kind == "mode" then
-    return "I switched to Hardcore " .. step.tier, "mode",
-      "Open the mode popup (starter zone, inn, or capital), slide to Hardcore "
-      .. step.tier .. ", then click. There is no API to read your tier."
+    return "Switch to Hardcore " .. step.tier, "mode",
+      "CBH clicks the tier control on the run frame and checks it took. If the "
+      .. "server's UI moves instead, finish it yourself in the popup, then "
+      .. "/cbh route full and Mark done there."
 
   end
   return step.text, step.kind, (step.detail or "")
 end
 
--- One click = do the next thing. `mode` is the only step with nothing to do but
--- confirm, so there the click IS the confirmation.
+-- One click = do the next thing. `mode` used to be the only step with nothing
+-- to do but confirm; now the click drives the same switch-and-verify as the
+-- full panel's Act button (see DoModeSwitch) -- this is the DEFAULT view, so a
+-- silently-failed switch would otherwise be invisible here.
 function Route.Advance()
   local cur = Route.Current()
   if not cur then Route.Reset() return end
@@ -1172,8 +1188,7 @@ function Route.Advance()
   elseif step.kind == "quest" then
     Route.PointAtQuest(step)
   elseif step.kind == "mode" then
-    DB().acked[step.key] = true
-    CBH.print(VERD .. "Hardcore " .. step.tier .. " confirmed." .. R)
+    DoModeSwitch(step)
   end
   Route.Refresh()
 end

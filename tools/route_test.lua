@@ -118,6 +118,25 @@ EbonholdPlayerRunData = setmetatable({}, { __index = function(_, k)
   if k == "soulPoints" then return W.runAsh end
 end })
 
+-- The server paints the tier with a colour code; the digit is what matters.
+-- Declared up here (not just before the read-tier tests further down) because
+-- Route.Advance now drives a real click through this frame for the mode
+-- steps in the main lap walk below -- the lap can no longer complete a mode
+-- step by acking blind, so the walk needs a run frame that already reports
+-- the target tier, same as a player who is already sitting at it in-game.
+local function FakeRunFrame(label)
+  local fs = { GetText = function() return label end,
+               GetObjectType = function() return "FontString" end }
+  local btn = { GetObjectType = function() return "Button" end,
+                GetRegions = function() return fs end,
+                GetChildren = function() return end,
+                IsShown = function() return true end }
+  return { GetObjectType = function() return "Frame" end,
+           GetRegions = function() return end,
+           GetChildren = function() return btn end,
+           IsShown = function() return true end }
+end
+
 -- --------------------------------------------------------- load the module
 -- Route.lua expects the CallboardHunter namespace and its shared helpers, so
 -- stand up just enough of Core.lua rather than dofile'ing the whole addon.
@@ -170,6 +189,9 @@ checks = checks + 1
 if #RT.Steps() == 13 then print("  ok   route is 13 steps, level 1 to 80")
 else fails = fails + 1; print("  FAIL step count -> " .. #RT.Steps()) end
 
+-- The run frame already reports the target tier -- the ordinary case of a
+-- player who switched (or was already sitting at) Hardcore 5 before clicking.
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 5|r")
 RT.Advance(); expect("dala1", "one click confirms the tier and advances")
 
 W.zone = "Dalaran"
@@ -199,6 +221,8 @@ expect("dala2", "quest 3 handed in -> port back to Dalaran")
 W.zone = "Dalaran"
 expect("hcEnd", "back in Dalaran -> drop a tier (not zd)")
 
+-- hcEnd's default target is Hardcore 3 -- the run frame now reports that.
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 3|r")
 RT.Advance(); expect("bt", "tier drop confirmed -> port to Borean Tundra")
 W.zone = "Borean Tundra"
 expect("grindBt", "arrived in Borean Tundra -> grind to 72")
@@ -282,6 +306,8 @@ check(rawget(mini, "ports") == nil and rawget(mini, "back") == nil
   and rawget(mini, "full") == nil,
   "no port bar / back / done / skip / full buttons remain")
 
+-- hcStart is back to targeting 5 (RT.Command("hc 5") above); match the frame.
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 5|r")
 RT.Advance(); W.zone = "Dalaran"; RT.Refresh()
 check(string.find(mini.go._text or "", "Port to", 1, true) == nil,
   "already in Dalaran, so the port step is behind us", mini.go._text)
@@ -424,20 +450,6 @@ expect("zd", "quest 3 in the log advances past the pick-up step")
 print("")
 print("hardcore tier (read)")
 
--- The server paints the tier with a colour code; the digit is what matters.
-local function FakeRunFrame(label)
-  local fs = { GetText = function() return label end,
-               GetObjectType = function() return "FontString" end }
-  local btn = { GetObjectType = function() return "Button" end,
-                GetRegions = function() return fs end,
-                GetChildren = function() return end,
-                IsShown = function() return true end }
-  return { GetObjectType = function() return "Frame" end,
-           GetRegions = function() return end,
-           GetChildren = function() return btn end,
-           IsShown = function() return true end }
-end
-
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 5|r")
 check(RT.HcCurrent() == 5, "reads the live tier through its colour code", RT.HcCurrent())
 
@@ -458,6 +470,7 @@ print("hardcore tier (switch)")
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 3|r")
 CallboardHunter.db.route.acked = {}
 CallboardHunter.db.route.hcEnd = 3
+check(RT.HcTier("end") == 3, "the config we just set is what HcTier reads back", RT.HcTier("end"))
 check(RT.HcCurrent() == 3, "mode step is done when the tier already matches", RT.HcCurrent())
 
 -- Switching: clicking is attempted, and success is judged by re-reading.
@@ -482,6 +495,52 @@ ok, why = RT.HcSwitch(3)
 check(ok == false, "no control -> not a success", ok)
 check(string.find(tostring(why), "Mark done") ~= nil,
   "  ...and points at manual acknowledgement", why)
+
+-- ------------------------------------------------- compact panel (switch)
+-- The compact panel is the DEFAULT view, so its one button (Route.Advance)
+-- has to run the same switch-and-verify as the full panel's Act button, not
+-- the old rubber-stamp. RT.Command("hc 5") earlier in this file left hcStart
+-- targeting Hardcore 5. World state (frame, zone) is set BEFORE each Reset,
+-- not after: Reset's own Refresh() calls Route.Current(), which LATCHES any
+-- step that already reads done into d.acked -- setting the frame afterward
+-- would be too late to stop a stale match from being latched permanently.
+-- Zone is pulled off Dalaran too, so completing hcStart lands cleanly on
+-- dala1 instead of also auto-completing the port step behind its back.
+print("")
+print("compact panel (switch)")
+
+W.zone = "Elwynn Forest"
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 9|r") -- mismatched: hcStart wants 5
+RT.Reset(true, true)
+local mb = RT.HcButton()
+clicks = 0
+mb.Click = function() clicks = clicks + 1 end -- a no-op click: the server ignored it
+expect("hcStart", "fresh lap, mismatched tier -> still step 1")
+RT.Advance()
+check(clicks == 1, "the compact button drives a real click, not just an ack", clicks)
+expect("hcStart", "  ...and a click that didn't take does not advance the step")
+
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 9|r") -- mismatched again
+local mb2, fs2 = RT.HcButton(), nil
+fs2 = mb2.GetRegions()
+clicks = 0
+mb2.Click = function()
+  clicks = clicks + 1
+  fs2.GetText = function() return "|cffFF4444Hardcore 5|r" end -- this time the server switched you
+end
+RT.Advance()
+check(clicks == 1, "  ...but a click that DOES take is still just one click", clicks)
+expect("dala1", "  ...and this time the compact panel advances")
+
+-- The escape hatch: Mark done still forces a mode step through even when the
+-- tier genuinely does not match -- a player who can see they are done, but
+-- whose server UI didn't cooperate, must not get stuck on the compact panel.
+W.zone = "Elwynn Forest"
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 9|r") -- still not 5
+RT.Reset(true, true)
+expect("hcStart", "fresh lap again, tier still mismatched")
+CallboardHunter.db.route.acked.hcStart = true
+expect("dala1", "Mark done forces the step through despite the mismatch")
 
 -- Other surfaces should not throw.
 RT.Why()
