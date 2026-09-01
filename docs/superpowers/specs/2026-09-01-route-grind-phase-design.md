@@ -54,10 +54,9 @@ Three things follow:
 - **Prestige state is visible.** `Runs taken to level 80: N/M` is a counter the
   addon can watch.
 
-The `29,008` figure is *not yet confirmed to be ash*. `Route.lua:70` refers to an
-ash gate around `10,771,440`, which is three orders of magnitude larger, so the
-two are probably different quantities. This spec therefore reads and **displays**
-that number without acting on it.
+The two ash figures are different quantities, both real. keepsy confirms
+`10,771,440` is the **prestige gate** — the minimum ash banked before you may
+prestige — while `29,008` is **ash collected so far in the current run**.
 
 ## The change
 
@@ -107,10 +106,22 @@ behaviour instead of breaking the route.
 setting, defaulting to the levelling tier so it is one less thing to configure on
 a first run.
 
-The ash-looking counter is **read and displayed** beside the tier, and nothing
-depends on it. That proves the reading before anything is built on it, and turns
-*"under X ash pick tier N"* into a small later change rather than a guess now.
-Choosing a tier automatically from ash is **out of scope**.
+The ash counter is **read and displayed** beside the tier, and nothing depends on
+it. Choosing a tier automatically from ash is **out of scope**, and there is a
+substantive reason beyond YAGNI.
+
+What decides whether you survive Hardcore 3 rather than Hardcore 1 is your
+**permanent** ash investment — the tree nodes that persist across runs. The
+number the client exposes is *this run's collected ash*, which is near zero at
+exactly the moment the grind tier is chosen. So the readable quantity and the
+decision-relevant one are probably not the same, and a rule like *"under X ash
+use Hardcore 1"* written against the readable one would be wrong in the same
+direction every run — most restrictive when you are most powerful.
+
+Displaying it now costs nothing and settles the question with real numbers: once
+the figure has been watched across a prestige boundary, it will be obvious
+whether it tracks capability or just the current run. That is a far better basis
+for the rule than guessing today.
 
 ### 4. Auto-start
 
