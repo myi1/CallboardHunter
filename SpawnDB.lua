@@ -558,6 +558,16 @@ local TARGET_ZONE = {
 -- same way /cbh portvia is, so a partial name is fine.
 local TARGET_CHECKPOINT = {
    ["flame revenant"] = { zone = "Dragonblight", via = "Fordragon Hold" },
+   -- Maintainer's own routing call (plays this server): Whispering Wind ports
+   -- to Star's Rest, the checkpoint closest by distance to those mobs. Star's
+   -- Rest has never shown up in this addon's port log, so the exact string the
+   -- server uses is unconfirmed - and this server is known to spell the
+   -- apostrophe both ways, straight and curly (see Route.lua's NormTitle), so
+   -- `via` keys on the apostrophe-free "Star" rather than guess which one the
+   -- live checkpoint carries. Unambiguous among Dragonblight's other
+   -- checkpoints (Fordragon Hold, Wintergarde Keep, Agmar's Hammer, Venomspite,
+   -- Wyrmrest Temple) - none of them contain "star".
+   ["whispering wind"] = { zone = "Dragonblight", via = "Star" },
 }
 
 -- Every rare we have static points for, keyed by lowercase name, so an objective

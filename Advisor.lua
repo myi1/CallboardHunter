@@ -529,12 +529,21 @@ end
 -- simply be wrong. "Thinning the Herd in Winterspring" hands out objectives whose
 -- mobs are actually in WINTERGRASP - confirmed by 21 recorded kills there - so
 -- this source must lose to anything empirical.
+--
+-- Objectives are scanned before the title, not after. "Winterspring:
+-- Whispering Wind" carries the server's "<Zone>:" category prefix as its
+-- title, but the objective plainly reads "Whispering Wind in Wintergrasp." A
+-- fresh install with no kill history to fall back on had nothing to override
+-- the title, so it ported straight past the mobs (reported by xMetaMorph,
+-- v1.11.0). The title stays in the scan as the last resort - still better
+-- than nothing when no objective names a zone at all.
 local function ZoneFromAnyMapName(ko)
    if not ko.questIndex then return nil end
-   local texts = { (GetQuestLogTitle(ko.questIndex)) }
+   local texts = {}
    for j = 1, GetNumQuestLeaderBoards(ko.questIndex) do
       table.insert(texts, (GetQuestLogLeaderBoard(j, ko.questIndex)))
    end
+   table.insert(texts, (GetQuestLogTitle(ko.questIndex)))
    for _, t in ipairs(texts) do
       local zone = CBH.SpawnDB.FindMapZoneIn and CBH.SpawnDB.FindMapZoneIn(t)
       if zone then return zone end
