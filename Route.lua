@@ -98,7 +98,7 @@ Route.STEPS = {
     detail = "Checkpoint 310." },
   { key = "hcEnd", kind = "mode", hcStep = true, tierKey = "end",
     detail = "CBH clicks the tier control on the run frame and checks it took. If the server's UI moves, switch it yourself and Mark done. "
-      .. "Stay put if you can hold the higher one safely." },
+      .. "The route author's preference is to drop a tier or two once the quest chain is done -- stay put if you can hold the higher one safely." },
   { key = "bt", kind = "port", cp = "BOREAN",
     text = "Port to Borean Tundra (Unu'pe)",
     detail = "Checkpoint 296. Carry on levelling from here." },
