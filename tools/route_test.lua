@@ -201,6 +201,90 @@ end
 print("PrestigeRoute route walk")
 RT.Init() -- builds both panels AND registers the auto accept / turn-in events
 
+-- ----------------------------------------------------- auto-start prompt
+-- A prestige reset is not observable, so the fallback is: on login, if the
+-- route isn't started and the level is low, OFFER to start it -- never start
+-- it outright. Prompting on a false positive (an alt, a friend's character)
+-- costs one dismissal; auto-starting would hijack the session.
+print("")
+print("auto-start prompt")
+
+CallboardHunter.db.route.acked = {}
+CallboardHunter.db.route.turnedIn = {}
+CallboardHunter.db.route.started = nil
+CallboardHunter.db.route.autoStartOff = nil
+local lapsBefore = CallboardHunter.db.route.laps
+W.level = 3
+out = {}
+check(RT.MaybeAutoStart() == true,
+  "offers on login at a low level with no route in progress")
+check(CallboardHunter.db.route.started == nil,
+  "  ...by prompting, not starting", CallboardHunter.db.route.started)
+check(CallboardHunter.db.route.laps == lapsBefore,
+  "  ...and never touches lap count -- no lap was reset either",
+  CallboardHunter.db.route.laps)
+check(#out > 0 and string.find(out[1], "/cbh route") ~= nil,
+  "  ...and says how to start it", table.concat(out, "|"))
+
+CallboardHunter.db.route.started = true
+out = {}
+check(RT.MaybeAutoStart() == false,
+  "does not nag once the route is under way")
+check(#out == 0, "  ...printing nothing when it declines", table.concat(out, "|"))
+
+CallboardHunter.db.route.started = nil
+W.level = 78
+check(RT.MaybeAutoStart() == false,
+  "does not offer to a high-level character")
+
+-- The persistent opt-out is a saved DB flag, set/cleared with a slash command,
+-- separate from the once-per-session gate on the wiring tested below.
+W.level = 3
+RT.Command("autostart off")
+check(CallboardHunter.db.route.autoStartOff == true,
+  "/cbh route autostart off sets the persistent flag")
+out = {}
+check(RT.MaybeAutoStart() == false,
+  "  ...and the prompt stays off while it is set")
+check(#out == 0, "  ...printing nothing", table.concat(out, "|"))
+RT.Command("autostart on")
+check(CallboardHunter.db.route.autoStartOff == nil,
+  "/cbh route autostart on clears the flag again")
+
+-- The wiring: PLAYER_ENTERING_WORLD fires on every zone-in and instance
+-- transition, not only at login, so the handler has to stop offering again
+-- once it already has this session -- otherwise a low-level character with
+-- the route not yet started gets the prompt reprinted on every loading
+-- screen. Found the same way the quest-event frame is found below: by which
+-- event it registered.
+local pew
+for _, f in ipairs(frames) do
+  if f._events["PLAYER_ENTERING_WORLD"] then pew = f break end
+end
+check(pew ~= nil, "found the frame watching PLAYER_ENTERING_WORLD")
+
+CallboardHunter.db.route.started = nil
+CallboardHunter.db.route.autoStartOff = nil
+W.level = 3
+out = {}
+pew._scripts.OnEvent(pew, "PLAYER_ENTERING_WORLD")
+local firstCount = #out
+check(firstCount > 0, "the first PLAYER_ENTERING_WORLD offers", table.concat(out, "|"))
+pew._scripts.OnEvent(pew, "PLAYER_ENTERING_WORLD")
+check(#out == firstCount,
+  "a second PLAYER_ENTERING_WORLD in the same session does not nag again",
+  table.concat(out, "|"))
+-- Proven against the wiring, not a lucky state change: the underlying
+-- function alone (state untouched) would still offer right now, so the
+-- silence above is the once-per-session latch doing its job, not a state
+-- flip that happens to also read false.
+check(RT.MaybeAutoStart() == true,
+  "  ...confirmed: the raw state was still offer-worthy on its own")
+
+CallboardHunter.db.route.started = nil
+CallboardHunter.db.route.autoStartOff = nil
+W.level = 1
+
 -- The zone grind (Borean Tundra -> Icecrown) is gone; the tail is now a single
 -- tier switch plus a callboard grind that runs from wherever the chain lands
 -- you to 80. Checked structurally before the lap walk below drives it live.

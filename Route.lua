@@ -1497,6 +1497,22 @@ function Route.Reset(quiet, newRun)
   Route.Refresh()
 end
 
+-- Offer, never start. A prestige reset is not yet observable from anything CBH
+-- can read -- the run frame has not been dumped immediately after one -- so this
+-- infers "fresh run" from a low level with no route in progress. That inference
+-- WILL sometimes be wrong (an alt, a friend's character), which is exactly why
+-- it prompts: a wrong prompt costs one dismissal, a wrong auto-start hijacks
+-- someone's session.
+function Route.MaybeAutoStart()
+  local d = DB()
+  if d.started then return false end
+  if d.autoStartOff then return false end
+  if (UnitLevel("player") or 80) > 10 then return false end
+  CBH.print("Fresh run? " .. BRIGHT .. "/cbh route" .. R
+    .. " opens the lap. " .. DIM .. "/cbh route autostart off" .. R .. " silences this.")
+  return true
+end
+
 -- ---------------------------------------------------------------------------
 -- Chat report + diagnostics
 -- ---------------------------------------------------------------------------
@@ -1723,6 +1739,14 @@ function Route.Command(arg)
       end
     end
     Route.Refresh()
+  elseif cmd == "autostart" then
+    -- The persistent, saved-per-character opt-out for the login prompt --
+    -- distinct from the once-per-session latch on the wiring that fires it.
+    -- This is the "never ask me again" switch someone types once.
+    local d = DB()
+    local a = string.lower(rest or "")
+    d.autoStartOff = (a == "off") or nil
+    CBH.print("Route auto-start prompt: " .. (d.autoStartOff and "off" or "on"))
   elseif cmd == "auto" then
     local d = DB()
     d.auto = not Route.AutoOn()
@@ -1765,6 +1789,7 @@ function Route.Command(arg)
     CBH.print("Route: " .. GOLD .. "/cbh route" .. R .. " panel | " .. GOLD .. "why" .. R
       .. " diagnose a stuck step | " .. GOLD .. "forget" .. R .. " re-learn the NPC | "
       .. GOLD .. "auto" .. R .. " | " .. GOLD .. "hc <tier|off>" .. R .. " | "
+      .. GOLD .. "autostart <off|on>" .. R .. " | "
       .. GOLD .. "grind <level>" .. R .. " | "
       .. GOLD .. "mark <1-8>" .. R .. " | "
       .. GOLD .. "next" .. R
@@ -1845,10 +1870,17 @@ function Route.Init()
   -- A fresh run resets the lap on its own: the level collapsing back to the low
   -- single digits is the unambiguous "you died and restarted" signal.
   local lastLevel = UnitLevel("player")
+  -- PLAYER_ENTERING_WORLD fires on every zone-in and instance transition, not
+  -- only at login, so without this latch a low-level character who hasn't
+  -- started the route would get MaybeAutoStart's prompt reprinted on every
+  -- loading screen for the rest of the session. Once it has offered, it stays
+  -- quiet for the session; the persistent /cbh route autostart off switch is
+  -- a separate, saved-per-character decision.
+  local autoStartOffered = false
   local lvlWatch = CreateFrame("Frame")
   lvlWatch:RegisterEvent("PLAYER_ENTERING_WORLD")
   lvlWatch:RegisterEvent("PLAYER_LEVEL_UP")
-  lvlWatch:SetScript("OnEvent", function()
+  lvlWatch:SetScript("OnEvent", function(_, event)
     local lvl = UnitLevel("player")
     if lastLevel and lvl and lvl < lastLevel - 10 and lvl < 10 then
       Route.Reset(true, true)
@@ -1856,6 +1888,9 @@ function Route.Init()
         .. " -- route reset to the levelling leg. " .. R .. GOLD .. "/cbh route" .. R)
     end
     lastLevel = lvl
+    if event == "PLAYER_ENTERING_WORLD" and not autoStartOffered then
+      if Route.MaybeAutoStart() then autoStartOffered = true end
+    end
   end)
 
   -- Harvest checkpoint ids whenever the map opens. Free, and it is what turns
