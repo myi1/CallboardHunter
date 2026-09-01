@@ -525,6 +525,32 @@ function Route.StepIndex(key)
   return nil
 end
 
+-- The macrotext a step wants on the secure button, when it wants something
+-- other than what AttrsFor would otherwise build. Factored out here so the
+-- suite can assert what the button will actually cast without building a
+-- real frame -- and so the summon has exactly one definition.
+function Route.MacroFor(key)
+  local i = Route.StepIndex(key)
+  if not i then return nil end
+  local step = Route.Steps()[i]
+  if step.key == "cbGrind" then
+    -- The grind is a loop: come back to Dalaran, summon, take a quest, leave
+    -- to run it. One button serves both halves, so it follows where you are.
+    -- Away from Dalaran the answer is nil, which lets AttrsFor fall through
+    -- to the ordinary port macro -- an unconditional summon would leave you
+    -- no way back to Dalaran once you left to run the quest.
+    local cp = Route.CP["DALARAN"]
+    if cp and GetRealZoneText() == cp.zone then
+      -- CBH never casts this itself; CastSpellByName is protected on 3.3.5.
+      -- It only happens here because YOUR click on the secure button is the
+      -- hardware event that casts it.
+      return "/cast Summon Callboard"
+    end
+    return nil
+  end
+  return nil -- every other step keeps whatever AttrsFor already builds
+end
+
 function Route.StepDoneFor(key)
   local i = Route.StepIndex(key)
   if not i then return nil end
@@ -1334,6 +1360,13 @@ end
 -- What the button should DO for this step, as secure attributes.
 local RUN = "/run CallboardHunter.Route."
 local function AttrsFor(step, kind)
+  -- Route.MacroFor overrides the ordinary step-kind macro when a step wants
+  -- something else (the callboard grind's context-sensitive summon); every
+  -- other step gets nil back and falls through unchanged.
+  local custom = step and Route.MacroFor(step.key)
+  if custom then
+    return { type = "macro", macrotext = custom }
+  end
   if kind == "quest" then
     local npc = Route.StepSpotNpc(step)
     if npc then

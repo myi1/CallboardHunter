@@ -201,6 +201,25 @@ CallboardHunter.db.route.hcGrind = nil
 check(RT.HcTier("grind") == RT.HcTier("start"), "and defaults to the levelling tier",
   RT.HcTier("grind"))
 
+-- The grind's button is context-sensitive: in Dalaran it summons the board;
+-- anywhere else it must stay nil so Refresh falls through to the ordinary
+-- port macro -- an unconditional summon would strand you wherever the
+-- callboard quest run ended, with no way back to Dalaran.
+W.zone = "Dalaran"
+check(string.find(RT.MacroFor("cbGrind") or "", "Summon Callboard", 1, true) ~= nil,
+  "in Dalaran the button summons the board")
+check(string.find(RT.MacroFor("cbGrind") or "", "/cast", 1, true) ~= nil,
+  "  ...as a cast, so the player's click is the hardware event")
+
+W.zone = "Icecrown"
+check(RT.MacroFor("cbGrind") == nil,
+  "away from Dalaran it does NOT summon, so the port stays reachable")
+
+W.zone = "Dalaran"
+check(RT.MacroFor("dala1") == nil,
+  "a port step is never given the summon")
+W.zone = "Elwynn Forest"
+
 -- The grind must not assume the chain lands you at 64: ash XP nodes move it.
 W.level = 71
 check(RT.StepDoneFor("cbGrind") == false, "not done at 71")
