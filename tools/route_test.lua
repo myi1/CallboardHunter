@@ -256,6 +256,14 @@ expect("hcGrind", "back in Dalaran -> switch tier for the grind (not zd)")
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 3|r")
 RT.Advance(); expect("cbGrind", "tier switch confirmed -> callboard grind")
 
+-- The retune command still works: it keys off step.key generically, so losing
+-- the old Borean/Icecrown hand-off didn't take /cbh route grind <n> with it.
+RT.Command("grind 75")
+check(RT.Steps()[RT.StepIndex("cbGrind")].target == 75,
+  "grind 75 retunes the callboard grind's end level",
+  RT.Steps()[RT.StepIndex("cbGrind")].target)
+RT.Command("grind 80")
+
 -- The chain does not reliably land at 64 -- ash XP nodes move it -- so the
 -- grind has to run from wherever the turn-in actually left you, not a
 -- hardcoded starting level.

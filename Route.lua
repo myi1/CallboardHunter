@@ -1588,15 +1588,15 @@ function Route.Command(arg)
         .. Route.MarkIndex() .. ")")
     end
   elseif cmd == "grind" then
-    -- Retune a level band. Applies to whichever grind step you are on, so
-    -- "/cbh route grind 74" while in Borean Tundra moves that hand-off later.
+    -- Retune the callboard grind's end level. One band now, not a Borean/
+    -- Icecrown hand-off to split -- "/cbh route grind 74" just moves where
+    -- the callboard grind stops.
     local n = tonumber(rest)
     local cur = Route.Current()
     local step = cur and Route.Steps()[cur]
     if not (step and step.kind == "level") then
-      CBH.print("Stand on a levelling step first (Borean Tundra or Icecrown)."
-        .. DIM .. "  Current bands: " .. Route.GrindTarget("grindBt", 72) .. " then "
-        .. Route.GrindTarget("grindIce", 80) .. "." .. R)
+      CBH.print("Stand on the callboard grind step first (back in Dalaran)."
+        .. DIM .. "  Current target: " .. Route.GrindTarget("cbGrind", 80) .. "." .. R)
     elseif n and n >= 2 and n <= 80 then
       local d = DB()
       d.grind = d.grind or {}
