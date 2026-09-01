@@ -51,9 +51,22 @@ check("unknown -> nil", zone("Nobody slain: 0/1"), nil)
 print("")
 print("== curated checkpoint overrides (TARGET_CHECKPOINT) ==")
 check("flame revenant still routes to Dragonblight", (zone("Flame Revenant slain: 0/10")), "Dragonblight")
+-- A curated `via` is a LIST of faction alternatives (see SpawnDB's comment on
+-- TARGET_CHECKPOINT): only one of them is ever on a given player's map, so the
+-- question a test can ask is whether a name is OFFERED, not whether it is the
+-- single value.
+local function offers(via, name)
+   if type(via) ~= "table" then return false end
+   for _, w in ipairs(via) do if w == name then return true end end
+   return false
+end
 do
    local fz, _, fvia = S.ZoneForTargetText("Flame Revenant slain: 0/10")
-   check("  ...still forces Fordragon Hold", fvia, "Fordragon Hold")
+   check("  ...still offers Fordragon Hold", offers(fvia, "Fordragon Hold"), true)
+   -- Alliance-only base. Nobody has reported the Horde counterpart, and
+   -- guessing it would reintroduce the very bug the list exists to fix, so
+   -- this stays a one-name list until someone on Horde reports the real one.
+   check("  ...and offers nothing else (Horde counterpart still unknown)", #fvia, 1)
    check("  ...same zone value", fz, "Dragonblight")
 end
 
@@ -66,7 +79,15 @@ end
 -- confirmed it.
 local wzone, _, wvia = S.ZoneForTargetText("Whispering Wind in Wintergrasp.")
 check("whispering wind routes to Dragonblight (Stars' Rest, not Wintergrasp)", wzone, "Dragonblight")
-check("  ...forces the Stars' Rest checkpoint", wvia, "Stars' Rest")
+check("  ...offers the Stars' Rest checkpoint (Alliance)", offers(wvia, "Stars' Rest"), true)
+-- THE FACTION FIX. Stars' Rest is Alliance-only, so a Horde player's map never
+-- carried it, the name match missed, and they silently fell back to
+-- nearest-in-zone - which is how xMetaMorph ended up at Wyrmrest Temple.
+-- Offering both sides works because Advisor's FindCheckpoints already filters
+-- the map to what is unlocked AND isFactionAllowed for this player, so exactly
+-- one of these two can ever match.
+check("  ...and Agmar's Hammer for Horde", offers(wvia, "Agmar's Hammer"), true)
+check("  ...Alliance name first (preference, not priority)", wvia[1], "Stars' Rest")
 -- The real live checkpoint name, exactly as the port log showed it (the
 -- server appends ", <zone>" to every checkpoint's nodeName on this map).
 local liveCheckpointName = "Stars' Rest, Dragonblight"
@@ -81,7 +102,12 @@ local curlyRespelling = "Stars" .. string.char(0xE2, 0x80, 0x99) .. " Rest, Drag
 local function matchesCheckpoint(checkpointName, via)
    if via == nil then return false end
    local fold = function(s) return (string.gsub(string.lower(s), "\226\128\153", "'")) end
-   return string.find(fold(checkpointName), fold(via), 1, true) ~= nil
+   -- `via` is a LIST of faction alternatives now, and DoPort walks it taking
+   -- the first that is present on the map. Mirror that, not a looser rule.
+   for _, w in ipairs(via) do
+      if string.find(fold(checkpointName), fold(w), 1, true) then return true end
+   end
+   return false
 end
 check("  ...matches the real live checkpoint name (comma-suffixed)",
    matchesCheckpoint(liveCheckpointName, wvia), true)

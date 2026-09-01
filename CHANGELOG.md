@@ -4,6 +4,43 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.13.0] - 2026-09-02
+### Fixed
+- **Horde players were routed to the wrong checkpoint by every curated
+  override.** `SpawnDB.TARGET_CHECKPOINT` named a single checkpoint per
+  objective, and both entries named Alliance-only bases - `Stars' Rest` and
+  `Fordragon Hold`. A Horde player's map never carries those, so the name match
+  found nothing and quietly fell back to nearest-in-zone. Reported by
+  `xMetaMorph`, who landed at Wyrmrest Temple instead of the intended base.
+  `via` is now a **list** of acceptable checkpoints and the first one present on
+  the map wins. This is deliberately not a `UnitFactionGroup` lookup: the
+  checkpoint harvest already filters the map to what is unlocked and
+  `isFactionAllowed` for that player, so whichever name survives is by
+  definition the usable one - and it self-corrects if the server ever moves or
+  renames a base. Whispering Wind now offers `Stars' Rest` (Alliance) and
+  `Agmar's Hammer` (Horde). Flame Revenant still offers only `Fordragon Hold`:
+  nobody has reported the Horde counterpart, and guessing it would reintroduce
+  this exact bug.
+
+### Added
+- **`/cbh portvia` now lists checkpoints as a numbered menu, so you pick one by
+  number instead of spelling it.** Run it with no argument after a port and it
+  prints the checkpoints that were on the map, marking the current choice;
+  `/cbh portvia 3` picks the third. The names come off *your* map, already
+  filtered to what your faction can use, so a pick can neither be misspelt nor
+  name a base you cannot reach. This replaces having to type an exact name -
+  which was a real trap: the difference between `Star's Rest` and `Stars' Rest`
+  stored a value nothing matched, and the port carried on going to the wrong
+  place with no error.
+- **Port overrides are now per objective, not per zone.** `portTargets` is keyed
+  on the objective's target and beats the older zone-keyed `portOverrides`, so
+  two quests in the same zone can route to different checkpoints - which
+  Dragonblight needs, since Whispering Wind and Flame Revenant want different
+  bases. `/cbh portvia none` clears both levels. A rare-sighting zone has no
+  target name, so a pick there still applies zone-wide as before.
+- Your own pick beats the shipped default, because the default is a guess about
+  a server we cannot inspect and your pick came off your live map.
+
 ## [1.12.0] - 2026-09-02
 ### Added
 - **`/cbh route hc grind <n>`** sets the hardcore tier held during the callboard

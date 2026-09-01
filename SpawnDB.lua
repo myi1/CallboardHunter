@@ -556,8 +556,24 @@ local TARGET_ZONE = {
 -- (not on Winterspring, and not to whatever Dragonblight checkpoint is nearest).
 -- Reported by keepsy 2026-08-28. `via` is matched against checkpoint names the
 -- same way /cbh portvia is, so a partial name is fine.
+-- `via` is a LIST of acceptable checkpoints, not one name, because these bases
+-- are faction-split: Stars' Rest and Fordragon Hold are Alliance-only, so a
+-- Horde player's map never shows them and the name match silently missed,
+-- dropping them back to nearest-in-zone (reported by xMetaMorph landing at
+-- Wyrmrest Temple instead of the intended base). Listing both sides is
+-- deliberately preferred over asking UnitFactionGroup and keeping a faction
+-- table: Advisor's FindCheckpoints ALREADY filters the map to what is unlocked
+-- and isFactionAllowed for this player, so whichever name survives is by
+-- definition the usable one. That also self-corrects if the server moves or
+-- renames a base, which a hardcoded faction table would not.
+-- Order is preference, not priority - the first one present on the map wins.
 local TARGET_CHECKPOINT = {
-   ["flame revenant"] = { zone = "Dragonblight", via = "Fordragon Hold" },
+   -- HORDE COUNTERPART UNKNOWN. Fordragon Hold is the Alliance keep in northern
+   -- Dragonblight; nobody has yet reported which base Horde players should use
+   -- for this mob, and guessing it would reintroduce exactly the bug above. A
+   -- Horde player gets nearest-in-zone until then, and can fix it for
+   -- themselves in one command: /cbh portvia, then pick the number.
+   ["flame revenant"] = { zone = "Dragonblight", via = { "Fordragon Hold" } },
    -- Maintainer's own routing call (plays this server): Whispering Wind ports
    -- to Stars' Rest, the checkpoint closest by distance to those mobs.
    -- Verified from a real port log candidate list, not recalled: "Wintergarde
@@ -572,7 +588,11 @@ local TARGET_CHECKPOINT = {
    -- them. If the server ever re-spells the apostrophe (straight vs curly),
    -- Advisor.lua's DoPort folds both sides before matching - see FoldApostrophe
    -- there - so this exact string keeps matching either way.
-   ["whispering wind"] = { zone = "Dragonblight", via = "Stars' Rest" },
+   -- Agmar's Hammer is the Horde side, reported by xMetaMorph as where this
+   -- objective should send them; Stars' Rest stays first as the verified
+   -- Alliance answer. Only one of the two is ever on a given player's map.
+   ["whispering wind"] = { zone = "Dragonblight",
+      via = { "Stars' Rest", "Agmar's Hammer" } },
 }
 
 -- Every rare we have static points for, keyed by lowercase name, so an objective

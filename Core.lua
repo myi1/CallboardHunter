@@ -35,6 +35,11 @@ local DEFAULTS = {
    favourites = {},    -- [questTarget] = true; see Favourites.lua
    callboards = {},   -- learned callboard locations: { {zone=, x=, y=}, ... }
    portOverrides = {},-- [objectiveZone] = checkpointZone to route via instead
+   -- [lowercase objective target] = checkpoint name. Beats portOverrides: two
+   -- quests can share a zone and want different checkpoints, which the
+   -- zone-keyed table above cannot express. Set by picking a number from
+   -- /cbh portvia's list, so the name always comes from the player's own map.
+   portTargets = {},
    mapOverrides = {}, -- [zone] = which zone's MAP to scan for its checkpoint
    checkpointBlock = {}, -- [lowercase name] = true: never route/port to this
    questPatterns = nil,
@@ -627,6 +632,6 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       CallboardHunterDB = nil
       CBH.print("Options reset. /reload to apply.")
    else
-      CBH.print("/cbh scan | port [zone] | portvia <zone> | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | catalogue | cbonly | probe | dungeon | hunt | fav | reset")
+      CBH.print("/cbh scan | port [zone] | portvia [n] | next | obj | track <zone> | untrack | debug | arrow | sound | party | export | catalogue | cbonly | probe | dungeon | hunt | fav | reset")
    end
 end

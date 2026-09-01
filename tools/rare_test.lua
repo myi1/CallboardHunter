@@ -129,7 +129,10 @@ QUESTLOG = {
 QW.Update(true)
 local dest, _, _, _, via = Advisor.ResolveDestination()
 check("routes to the unfinished objective", dest, "Dragonblight")
-check("  ...forcing its checkpoint", via, "Fordragon Hold")
+-- `via` is a list of faction alternatives now (SpawnDB.TARGET_CHECKPOINT); the
+-- point here is that routing still FORCES a checkpoint rather than falling
+-- back to nearest-in-zone, so assert on what it offers.
+check("  ...forcing its checkpoint", via and via[1], "Fordragon Hold")
 
 -- Prove this is what regressed: clear the done flag (old behaviour) and the
 -- finished Icecrown quest wins the sort again.

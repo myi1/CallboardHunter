@@ -76,6 +76,9 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh config` | open the config panel (all toggles, home board, blocked checkpoints) |
 | `/cbh scan` | quest log dump with match verdicts |
 | `/cbh port [zone]` | port toward your objective (or an explicit zone) |
+| `/cbh portvia` | list the checkpoints from your last port, numbered |
+| `/cbh portvia <n>` | send the current objective via that checkpoint |
+| `/cbh portvia none` | back to the nearest checkpoint |
 | `/cbh sethome` / `home` / `clearhome` | set the Callboard-port home to where you stand / go there / clear it |
 | `/cbh block <name>` / `unblock <name>` / `blocked` | exclude checkpoints that drop you inside an instance from auto-routing |
 | `/cbh dungeon on｜off` | dungeon callboard automation: reroll to the dungeon's card, accept, share (off by default) |

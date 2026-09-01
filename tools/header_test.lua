@@ -131,7 +131,7 @@ QW.Update(true)
 check("header would say Winterspring", Advisor.ZoneFromQuestHeader(2), "Winterspring")
 local d3, _, _, _, via = Advisor.ResolveDestination()
 check("curated override wins", d3, "Dragonblight")
-check("  ...with its checkpoint", via, "Fordragon Hold")
+check("  ...with its checkpoint", via and via[1], "Fordragon Hold")
 
 print("\n== explicit zone in the text still wins over the header ==")
 QUESTLOG = {
@@ -304,7 +304,7 @@ QUESTLOG = {
 QW.Update(true)
 local wd, _, _, _, wvia = Advisor.ResolveDestination()
 check("still Dragonblight", wd, "Dragonblight")
-check("  ...still Fordragon Hold", wvia, "Fordragon Hold")
+check("  ...still Fordragon Hold", wvia and wvia[1], "Fordragon Hold")
 
 print("")
 print("== longest zone name wins (no partial-name shadowing) ==")
@@ -407,7 +407,11 @@ QUESTLOG = {
 QW.Update(true)
 local wwd, _, _, _, wwvia = Advisor.ResolveDestination()
 check("curated override still wins over 21 recorded kills", wwd, "Dragonblight")
-check("  ...forces the Stars' Rest checkpoint", wwvia, "Stars' Rest")
+check("  ...offers the Stars' Rest checkpoint (Alliance)", wwvia and wwvia[1], "Stars' Rest")
+-- The faction fix: Horde players never see Stars' Rest on their map, so the
+-- entry offers Agmar's Hammer too and FindCheckpoints' isFactionAllowed
+-- filter decides which one exists. See SpawnDB.TARGET_CHECKPOINT.
+check("  ...and Agmar's Hammer for Horde", wwvia and wwvia[2], "Agmar's Hammer")
 CBH.db.learnedKills, CBH.db.cardZones = {}, {}
 
 print("")
@@ -446,7 +450,7 @@ QUESTLOG = {
 QW.Update(true)
 local fd, _, _, _, fvia = Advisor.ResolveDestination()
 check("still routes via Dragonblight map", fd, "Dragonblight")
-check("  ...to Fordragon Hold", fvia, "Fordragon Hold")
+check("  ...to Fordragon Hold", fvia and fvia[1], "Fordragon Hold")
 CBH.db.learnedKills = {}
 
 print("")
@@ -583,6 +587,90 @@ check("no redirect", Advisor.portMapZone, nil)
 check("no forced checkpoint", Advisor.portViaName, nil)
 check("destination unchanged", Advisor.lastDestZone, "Howling Fjord")
 CBH.db.home = nil
+
+print("")
+print("== /cbh portvia: pick a checkpoint by number ==")
+-- Picking by NUMBER exists because picking by name did not work: getting the
+-- apostrophe wrong in "Stars' Rest" silently stored a name nothing matched,
+-- and the port carried on going to the wrong place with no error. The numbers
+-- index the checkpoints harvested off the player's own map, so a pick can
+-- never be misspelt and can never name a base their faction cannot use.
+--
+-- Advisor.lastCandidates / lastCandidateTarget / lastCandidateZone are written
+-- by DoPort right after FindCheckpoints; they are set directly here to stand
+-- in for "a port just happened", which this harness cannot drive.
+local function afterAPort(target, zone, names)
+   Advisor.lastDestTarget, Advisor.lastDestZone = target, zone
+   Advisor.lastCandidates = names
+   Advisor.lastCandidateTarget, Advisor.lastCandidateZone = target, zone
+end
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+local DRAGON = { "Wintergarde Keep", "Stars' Rest", "Fordragon Hold", "Wyrmrest Temple" }
+
+afterAPort("Whispering Wind", "Dragonblight", DRAGON)
+Advisor.PortVia("3")
+check("picking 3 stores the third name",
+   CBH.db.portTargets["whispering wind"], "Fordragon Hold")
+check("  ...and PortTargetViaFor reads it back",
+   Advisor.PortTargetViaFor("Whispering Wind"), "Fordragon Hold")
+check("  ...case-insensitively, since the key is lowercased",
+   Advisor.PortTargetViaFor("whispering wind"), "Fordragon Hold")
+check("  ...without touching the whole-zone override",
+   CBH.db.portOverrides["Dragonblight"], nil)
+
+-- Per-OBJECTIVE is the whole point: two quests in one zone can disagree, which
+-- the old zone-keyed table could not express.
+afterAPort("Flame Revenant", "Dragonblight", DRAGON)
+Advisor.PortVia("1")
+check("a second objective in the SAME zone picks independently",
+   CBH.db.portTargets["flame revenant"], "Wintergarde Keep")
+check("  ...leaving the first objective's pick alone",
+   CBH.db.portTargets["whispering wind"], "Fordragon Hold")
+
+-- An out-of-range number must not store anything: storing nil, or the literal
+-- "9", would re-route the player with no way to see why.
+Advisor.PortVia("9")
+check("an out-of-range number changes nothing",
+   CBH.db.portTargets["flame revenant"], "Wintergarde Keep")
+
+-- The captured list belongs to whichever objective was ported last. Applying
+-- it to a different one would quietly mis-route a quest never touched.
+afterAPort("Whispering Wind", "Dragonblight", DRAGON)
+Advisor.lastDestTarget = "Some Other Mob"   -- switched objective; list is stale
+Advisor.PortVia("2")
+check("a stale list refuses a numeric pick",
+   CBH.db.portTargets["some other mob"], nil)
+
+-- An explicit name still works, for anyone who already knows it.
+afterAPort("Whispering Wind", "Dragonblight", DRAGON)
+Advisor.PortVia("Wyrmrest Temple")
+check("a name argument still works",
+   CBH.db.portTargets["whispering wind"], "Wyrmrest Temple")
+
+-- "none" has to clear BOTH levels, or the one left behind keeps steering and
+-- the player sees no change from a command that said it cleared.
+CBH.db.portOverrides["Dragonblight"] = "Wintergarde Keep"
+Advisor.PortVia("none")
+check("none clears the per-objective pick",
+   Advisor.PortTargetViaFor("Whispering Wind"), nil)
+check("  ...and the whole-zone override too", Advisor.PortViaFor("Dragonblight"), nil)
+
+-- A rare-sighting zone has no target name, so a pick there is zone-wide.
+afterAPort(nil, "Icecrown", { "Argent Vanguard", "Ymirheim" })
+Advisor.PortVia("2")
+check("with no objective target, the pick applies to the zone",
+   CBH.db.portOverrides["Icecrown"], "Ymirheim")
+
+print("")
+print("== a faction-split via renders instead of erroring ==")
+-- TARGET_CHECKPOINT's via is a LIST now. Anything that PRINTS one must cope
+-- with a table: concatenating it directly is a runtime error, which is exactly
+-- what the port button label used to do.
+check("a list renders both names",
+   Advisor.ViaText({ "Stars' Rest", "Agmar's Hammer" }), "Stars' Rest or Agmar's Hammer")
+check("  ...and a plain string is unchanged",
+   Advisor.ViaText("Fordragon Hold"), "Fordragon Hold")
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
 
 print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)

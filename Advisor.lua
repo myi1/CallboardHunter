@@ -275,9 +275,12 @@ function Advisor.ComputeButton()
    end
    if destZone then Advisor.lastDestZone = destZone end
    -- Show the forced checkpoint when an objective routes to a specific one
-   -- (e.g. "Port: Fordragon Hold"), otherwise the destination zone.
-   local shown = via or destZone
-   if shown then return "Port: " .. shown, "objective" end
+   -- (e.g. "Port: Fordragon Hold"), otherwise the destination zone. A curated
+   -- `via` may be a list of faction alternatives, so it is rendered rather than
+   -- concatenated - and the player's own pick, if they made one, is what the
+   -- button should promise, since that is what DoPort will actually use.
+   local shown = Advisor.PortTargetViaFor(Advisor.lastDestTarget) or via or destZone
+   if shown then return "Port: " .. Advisor.ViaText(shown), "objective" end
    if CBH.db and CBH.db.home then return "Port: Home", "board" end
    if CBH.db and CBH.db.callboards and #CBH.db.callboards > 0 then
       return "Port: Callboard", "board"
@@ -644,6 +647,41 @@ local function PortViaFor(zone)
 end
 Advisor.PortViaFor = PortViaFor
 
+-- This server mixes the straight (') and curly (U+2019) apostrophe within its
+-- own checkpoint names, the same quirk Route.lua's NormTitle already exists to
+-- survive on quest titles. Folded out here too so a curated `via` (see
+-- SpawnDB.TARGET_CHECKPOINT - "Stars' Rest" was verified from a real port log,
+-- but the next server-side edit could still re-spell it) keeps matching
+-- instead of silently missing and falling back to the nearest checkpoint.
+-- Defined up here, above its callers: /cbh portvia folds names too, and it
+-- sits earlier in the file than DoPort where this used to live.
+local function FoldApostrophe(s)
+   return (string.gsub(tostring(s or ""), "\226\128\153", "'"))
+end
+Advisor.FoldApostrophe = FoldApostrophe  -- exposed so tests can pin curly/straight folding directly
+
+-- A `via` may be one name or a list of alternatives (see the faction note in
+-- DoPort). Anything that PRINTS one has to cope with both, so it goes through
+-- here rather than concatenating a value that might be a table.
+local function ViaText(v)
+   if type(v) ~= "table" then return tostring(v) end
+   return table.concat(v, " or ")
+end
+Advisor.ViaText = ViaText
+
+-- A per-OBJECTIVE checkpoint override, which beats the per-zone one above.
+-- Dragonblight is the case that forced it: Whispering Wind and Flame Revenant
+-- are both there and want different checkpoints, so one zone-keyed entry
+-- cannot serve both. Keyed on the objective's target name, lowercased, which
+-- is the same key SpawnDB's shipped TARGET_CHECKPOINT defaults use.
+local function PortTargetViaFor(target)
+   if not target then return nil end
+   local t = CBH.db and CBH.db.portTargets and CBH.db.portTargets[string.lower(target)]
+   if t == "" then return nil end          -- explicitly cleared
+   return t
+end
+Advisor.PortTargetViaFor = PortTargetViaFor
+
 local function IsWatched(questIndex)
    if not questIndex or not GetNumQuestWatches then return false end
    for w = 1, GetNumQuestWatches() do
@@ -771,10 +809,16 @@ local function ResolveDestination(zoneArg, allowSweep)
    end)
    for _, c in ipairs(cands) do
       if c.kind == "hot" then
+         -- A rare-sighting zone has no single target name to key an override on.
+         Advisor.lastDestTarget = nil
          return c.zone, PointsForZone(c.zone), nil, false
       else
          local zone, pts, isDungeon, via = ResolveKill(c.name, c.ko, allowSweep)
          if zone then
+            -- Remembered so /cbh portvia knows WHICH objective a pick applies
+            -- to. Set only once the objective actually resolves, mirroring how
+            -- lastDestZone stays sticky rather than clearing on a failed probe.
+            Advisor.lastDestTarget = c.name
             -- An objective-specific checkpoint override (e.g. Flame Revenant ->
             -- Fordragon Hold on the Dragonblight map): carry the checkpoint name
             -- through so DoPort forces it; no POI chase.
@@ -791,37 +835,123 @@ local function ResolveDestination(zoneArg, allowSweep)
 end
 Advisor.ResolveDestination = ResolveDestination
 
--- /cbh portvia [zone|none] - route the current objective's zone via another
--- zone's checkpoint. No arg lists overrides; "none" clears the current one.
+-- /cbh portvia [n|name|none] - send the current objective via a different
+-- checkpoint. No arg lists the checkpoints from your last port, numbered, so
+-- picking one is "/cbh portvia 3" and never requires spelling a name: the
+-- first version of this command took only an exact name, and getting the
+-- apostrophe wrong in "Stars' Rest" was enough to silently do nothing.
 function Advisor.PortVia(arg)
    arg = arg and (arg:gsub("^%s+", ""):gsub("%s+$", "")) or ""
+   local target, zone = Advisor.lastDestTarget, Advisor.lastDestZone
+   local label = target or zone
+
+   -- The captured list belongs to whichever objective was ported LAST. If the
+   -- player has since switched objectives, offering it would quietly apply a
+   -- pick to the wrong quest, so it is only offered when it still matches.
+   local function freshList()
+      local c = Advisor.lastCandidates
+      if not c or #c == 0 then return nil end
+      if Advisor.lastCandidateTarget ~= target then return nil end
+      if Advisor.lastCandidateZone ~= zone then return nil end
+      return c
+   end
+
+   local function currentPick()
+      if target then
+         local t = PortTargetViaFor(target)
+         if t then return t, "you picked it for " .. target end
+      end
+      if zone then
+         local z = PortViaFor(zone)
+         if z then return z, "you picked it for the whole of " .. zone end
+      end
+      return nil, nil
+   end
+
    if arg == "" then
-      CBH.print("Port-via overrides:")
+      local pick, why = currentPick()
+      if label then
+         CBH.print("Port routing for " .. tostring(label)
+            .. ((zone and target) and ("  (" .. zone .. ")") or ""))
+      else
+         CBH.print("No current objective - open the board or accept a callboard quest first.")
+      end
+      local list = freshList()
+      if list then
+         local pl = pick and FoldApostrophe(string.lower(pick)) or nil
+         for i, name in ipairs(list) do
+            local mark = "   "
+            if pl and string.find(FoldApostrophe(string.lower(name)), pl, 1, true) then
+               mark = " * "      -- glyph AND the word "current" below; never colour alone
+            end
+            CBH.print("  " .. mark .. i .. ". " .. name
+               .. ((mark ~= "   ") and "  (current)" or ""))
+         end
+         CBH.print("Pick one: /cbh portvia <number>   clear it: /cbh portvia none")
+      else
+         if pick then CBH.print("  currently: " .. pick .. "  (" .. why .. ")") end
+         CBH.print("  No checkpoint list yet for this objective - port once, then"
+            .. " run /cbh portvia again to pick from what was on the map.")
+      end
+      -- Everything saved, so a player can see and undo picks made elsewhere.
       local any = false
+      for t, v in pairs((CBH.db and CBH.db.portTargets) or {}) do
+         if v ~= "" then
+            if not any then CBH.print("Saved picks:"); any = true end
+            CBH.print("  " .. t .. " -> " .. v)
+         end
+      end
       for z, v in pairs((CBH.db and CBH.db.portOverrides) or {}) do
-         if v ~= "" then any = true; CBH.print("  " .. z .. " -> " .. v) end
+         if v ~= "" then
+            if not any then CBH.print("Saved picks:"); any = true end
+            CBH.print("  " .. z .. " (whole zone) -> " .. v)
+         end
       end
-      for z, v in pairs(DEFAULT_PORT_VIA) do
-         local u = CBH.db and CBH.db.portOverrides and CBH.db.portOverrides[z]
-         if u == nil then any = true; CBH.print("  " .. z .. " -> " .. v .. " (default)") end
-      end
-      if not any then CBH.print("  (none)") end
-      CBH.print("Usage: /cbh portvia <checkpoint zone>  (applies to your current objective zone: " ..
-         tostring(Advisor.lastDestZone) .. "). /cbh portvia none to clear.")
       return
    end
-   local objZone = Advisor.lastDestZone
-   if not objZone then
-      CBH.print("No current objective zone known - open the board or accept a callboard quest first.")
+
+   if not label then
+      CBH.print("No current objective known - open the board or accept a callboard quest first.")
       return
    end
+   CBH.db.portTargets = CBH.db.portTargets or {}
    CBH.db.portOverrides = CBH.db.portOverrides or {}
-   if string.lower(arg) == "none" or string.lower(arg) == "off" then
-      CBH.db.portOverrides[objZone] = ""  -- suppress default too
-      CBH.print("Cleared port-via for " .. objZone .. ".")
+
+   local low = string.lower(arg)
+   if low == "none" or low == "off" then
+      -- Clear BOTH levels for this objective, so "none" means what it says
+      -- rather than clearing one and leaving the other still steering.
+      if target then CBH.db.portTargets[string.lower(target)] = "" end
+      if zone then CBH.db.portOverrides[zone] = "" end
+      CBH.print("Cleared port routing for " .. tostring(label)
+         .. "  - back to the nearest checkpoint.")
+      return
+   end
+
+   local name = arg
+   local n = tonumber(arg)
+   if n then
+      local list = freshList()
+      if not list then
+         CBH.print("No checkpoint list for this objective yet - port once, then run"
+            .. " /cbh portvia to see the numbers.")
+         return
+      end
+      if not list[n] then
+         CBH.print("There is no " .. n .. " in the list - run /cbh portvia"
+            .. " to see it again (" .. #list .. " checkpoint"
+            .. ((#list == 1) and "" or "s") .. ").")
+         return
+      end
+      name = list[n]
+   end
+
+   if target then
+      CBH.db.portTargets[string.lower(target)] = name
+      CBH.print(target .. " will now port via " .. name .. ".")
    else
-      CBH.db.portOverrides[objZone] = arg
-      CBH.print(objZone .. " will now port via " .. arg .. "'s checkpoint.")
+      CBH.db.portOverrides[zone] = name
+      CBH.print("Everything in " .. zone .. " will now port via " .. name .. ".")
    end
 end
 
@@ -904,17 +1034,6 @@ local function HarvestQuestPOIButtons()
    return out
 end
 
--- This server mixes the straight (') and curly (U+2019) apostrophe within its
--- own checkpoint names, the same quirk Route.lua's NormTitle already exists to
--- survive on quest titles. Folded out here too so a curated `via` (see
--- SpawnDB.TARGET_CHECKPOINT - "Stars' Rest" was verified from a real port log,
--- but the next server-side edit could still re-spell it) keeps matching
--- instead of silently missing and falling back to the nearest checkpoint.
-local function FoldApostrophe(s)
-   return (string.gsub(tostring(s or ""), "\226\128\153", "'"))
-end
-Advisor.FoldApostrophe = FoldApostrophe  -- exposed so tests can pin curly/straight folding directly
-
 local function DoPort()
    -- Make sure the DESTINATION zone's map is actually displayed before scanning.
    -- The world map can revert to the player's current zone between Advisor.Port
@@ -983,15 +1102,43 @@ local function DoPort()
       end
       return
    end
+   -- Remember what was on the map for /cbh portvia to offer as a numbered list.
+   -- This is the whole reason picking is easy: the names come off the player's
+   -- OWN map, already filtered by FindCheckpoints to what is unlocked and
+   -- allowed for their faction, so they cannot pick something they can't use
+   -- and never have to spell a name. Captured on every port, so the list a
+   -- player sees is always the one from the port they just watched go wrong.
+   local seen = {}
+   Advisor.lastCandidates = {}
+   for _, cp in ipairs(cps) do
+      local n = cp.name and tostring(cp.name)
+      if n and n ~= "" and not seen[string.lower(n)] then
+         seen[string.lower(n)] = true
+         table.insert(Advisor.lastCandidates, n)
+      end
+   end
+   Advisor.lastCandidateTarget = Advisor.lastDestTarget
+   Advisor.lastCandidateZone = Advisor.lastDestZone
+
    local best, bestD, viaHit
    -- Port-via override: force the checkpoint whose name matches, if present.
+   -- The wanted name may be a LIST. That is how a faction-split default is
+   -- expressed (Stars' Rest for Alliance, Agmar's Hammer for Horde): rather
+   -- than asking UnitFactionGroup and maintaining a faction table, offer both
+   -- and let the map decide, since FindCheckpoints already dropped whichever
+   -- one this player cannot use. Order is preference, not priority.
    if Advisor.portViaName then
-      local want = FoldApostrophe(string.lower(Advisor.portViaName))
-      for _, cp in ipairs(cps) do
-         if cp.name and string.find(FoldApostrophe(string.lower(cp.name)), want, 1, true) then
-            best, viaHit = cp, true
-            break
+      local wants = Advisor.portViaName
+      if type(wants) ~= "table" then wants = { wants } end
+      for _, w in ipairs(wants) do
+         local want = FoldApostrophe(string.lower(tostring(w)))
+         for _, cp in ipairs(cps) do
+            if cp.name and string.find(FoldApostrophe(string.lower(cp.name)), want, 1, true) then
+               best, viaHit = cp, true
+               break
+            end
          end
+         if best then break end
       end
    end
    -- A blocked checkpoint (e.g. Azjol-Nerub, which drops you INSIDE the dungeon)
@@ -1183,10 +1330,17 @@ function Advisor.Port(zoneArg)
    Advisor.portMapZone = mapZone
    -- With a map redirect the checkpoint we want is the one NAMED for the
    -- destination, sitting on the other zone's map.
-   local via = objVia or PortViaFor(destZone) or (mapZone and destZone) or nil
+   -- Precedence, most specific first: what YOU picked for this objective, then
+   -- the shipped default for it, then what you picked for the whole zone, then
+   -- the map-redirect case. A player's own pick outranks a shipped default
+   -- because the default is a guess about a server we cannot inspect and the
+   -- pick came off their live map.
+   local via = PortTargetViaFor(Advisor.lastDestTarget)
+      or objVia or PortViaFor(destZone) or (mapZone and destZone) or nil
    Advisor.portViaName = (via and via ~= (mapZone or destZone)) and via or nil
    Advisor.portViaNote = Advisor.portViaName
-      and (destZone .. " via " .. (mapZone and (mapZone .. "'s map") or Advisor.portViaName))
+      and (destZone .. " via " .. (mapZone and (mapZone .. "'s map")
+         or Advisor.ViaText(Advisor.portViaName)))
       or nil
    if not WorldMapFrame:IsShown() then
       -- (ToggleWorldMap does not exist on this client.)
