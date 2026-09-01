@@ -559,15 +559,20 @@ local TARGET_ZONE = {
 local TARGET_CHECKPOINT = {
    ["flame revenant"] = { zone = "Dragonblight", via = "Fordragon Hold" },
    -- Maintainer's own routing call (plays this server): Whispering Wind ports
-   -- to Star's Rest, the checkpoint closest by distance to those mobs. Star's
-   -- Rest has never shown up in this addon's port log, so the exact string the
-   -- server uses is unconfirmed - and this server is known to spell the
-   -- apostrophe both ways, straight and curly (see Route.lua's NormTitle), so
-   -- `via` keys on the apostrophe-free "Star" rather than guess which one the
-   -- live checkpoint carries. Unambiguous among Dragonblight's other
-   -- checkpoints (Fordragon Hold, Wintergarde Keep, Agmar's Hammer, Venomspite,
-   -- Wyrmrest Temple) - none of them contain "star".
-   ["whispering wind"] = { zone = "Dragonblight", via = "Star" },
+   -- to Stars' Rest, the checkpoint closest by distance to those mobs.
+   -- Verified from a real port log candidate list, not recalled: "Wintergarde
+   -- Keep, Dragonblight, Stars' Rest, Dragonblight, Fordragon Hold,
+   -- Dragonblight, Wyrmrest Temple, ...". Note the plural possessive -
+   -- "Stars'", apostrophe AFTER the s, straight quote - not "Star's", which
+   -- was this entry's first (wrong) guess before the log confirmed it. `via`
+   -- is matched leniently the same way /cbh portvia is, so the full verified
+   -- name is used rather than an abbreviated substring now that it's known;
+   -- none of the other live candidates (Wintergarde Keep, Fordragon Hold,
+   -- Wyrmrest Temple) contain "Star" at all, so this name is unambiguous among
+   -- them. If the server ever re-spells the apostrophe (straight vs curly),
+   -- Advisor.lua's DoPort folds both sides before matching - see FoldApostrophe
+   -- there - so this exact string keeps matching either way.
+   ["whispering wind"] = { zone = "Dragonblight", via = "Stars' Rest" },
 }
 
 -- Every rare we have static points for, keyed by lowercase name, so an objective

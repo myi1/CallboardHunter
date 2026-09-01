@@ -904,6 +904,17 @@ local function HarvestQuestPOIButtons()
    return out
 end
 
+-- This server mixes the straight (') and curly (U+2019) apostrophe within its
+-- own checkpoint names, the same quirk Route.lua's NormTitle already exists to
+-- survive on quest titles. Folded out here too so a curated `via` (see
+-- SpawnDB.TARGET_CHECKPOINT - "Stars' Rest" was verified from a real port log,
+-- but the next server-side edit could still re-spell it) keeps matching
+-- instead of silently missing and falling back to the nearest checkpoint.
+local function FoldApostrophe(s)
+   return (string.gsub(tostring(s or ""), "\226\128\153", "'"))
+end
+Advisor.FoldApostrophe = FoldApostrophe  -- exposed so tests can pin curly/straight folding directly
+
 local function DoPort()
    -- Make sure the DESTINATION zone's map is actually displayed before scanning.
    -- The world map can revert to the player's current zone between Advisor.Port
@@ -975,9 +986,9 @@ local function DoPort()
    local best, bestD, viaHit
    -- Port-via override: force the checkpoint whose name matches, if present.
    if Advisor.portViaName then
-      local want = string.lower(Advisor.portViaName)
+      local want = FoldApostrophe(string.lower(Advisor.portViaName))
       for _, cp in ipairs(cps) do
-         if cp.name and string.find(string.lower(cp.name), want, 1, true) then
+         if cp.name and string.find(FoldApostrophe(string.lower(cp.name)), want, 1, true) then
             best, viaHit = cp, true
             break
          end

@@ -370,7 +370,7 @@ print("== your own kills beat a lying quest title (reported 2026-08-29) ==")
 -- mobs are in WINTERGRASP - 21 recorded kill points there say so. The mob here
 -- is a stand-in ("Frostwing Sentry") rather than the original report's
 -- "Whispering Wind": that name now carries its own curated TARGET_CHECKPOINT
--- entry (Star's Rest, see SpawnDB.lua) which is deliberately allowed to
+-- entry (Stars' Rest, see SpawnDB.lua) which is deliberately allowed to
 -- outrank even learned kills, the same way Flame Revenant already does below -
 -- so it can no longer stand in for "nothing curated overrides this source
 -- order" the way it did when this test was written. That interaction is
@@ -391,7 +391,7 @@ check("  learned-kill source reports it", Advisor.ZoneFromLearnedKills("Frostwin
 print("")
 print("== whispering wind's curated override beats even 21 recorded kills ==")
 -- The exact scenario above, but for the REAL mob name from the original
--- report. Whispering Wind now carries its own TARGET_CHECKPOINT entry (Star's
+-- report. Whispering Wind now carries its own TARGET_CHECKPOINT entry (Stars'
 -- Rest, Change 2 of the xMetaMorph fix) which must win here on purpose - see
 -- "curated overrides still beat learned kills" for Flame Revenant further
 -- down. Pinned so a future change to ZoneFromQuestText's priority cannot
@@ -407,8 +407,24 @@ QUESTLOG = {
 QW.Update(true)
 local wwd, _, _, _, wwvia = Advisor.ResolveDestination()
 check("curated override still wins over 21 recorded kills", wwd, "Dragonblight")
-check("  ...forces the Star's Rest checkpoint", wwvia, "Star")
+check("  ...forces the Stars' Rest checkpoint", wwvia, "Stars' Rest")
 CBH.db.learnedKills, CBH.db.cardZones = {}, {}
+
+print("")
+print("== DoPort folds a curly apostrophe before matching a checkpoint name ==")
+-- Route.lua's NormTitle already exists because this server mixes the straight
+-- (') and curly (U+2019) apostrophe in its own text; Stars' Rest was verified
+-- straight from a real port log (see SpawnDB.lua), but a later server-side
+-- edit could still re-spell it. Advisor.FoldApostrophe is what DoPort runs
+-- both sides of the via-match through, so pin the fold itself rather than
+-- only the coincidence that today's spelling happens to match.
+check("curly apostrophe folds to straight",
+   Advisor.FoldApostrophe("Stars" .. string.char(0xE2, 0x80, 0x99) .. " Rest"), "Stars' Rest")
+check("a straight apostrophe passes through unchanged",
+   Advisor.FoldApostrophe("Stars' Rest"), "Stars' Rest")
+check("text with no apostrophe passes through unchanged",
+   Advisor.FoldApostrophe("Fordragon Hold"), "Fordragon Hold")
+check("nil-safe", Advisor.FoldApostrophe(nil), "")
 
 print("")
 print("== most-evidence zone wins, deterministically ==")

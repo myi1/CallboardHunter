@@ -57,27 +57,36 @@ do
    check("  ...same zone value", fz, "Dragonblight")
 end
 
--- Maintainer's own routing call: Whispering Wind ports to Star's Rest, the
--- checkpoint closest by distance to those mobs. Star's Rest has never shown up
--- in this addon's port log, so the exact string the server uses is unconfirmed
--- - and this server is known to mix the straight (') and curly (U+2019)
--- apostrophe in its own data (see Route.lua's NormTitle). `via` therefore keys
--- on the apostrophe-free "Star" rather than assume either spelling.
+-- Maintainer's own routing call: Whispering Wind ports to Stars' Rest, the
+-- checkpoint closest by distance to those mobs. Verified from a real port log
+-- candidate list, not recalled: "Wintergarde Keep, Dragonblight, Stars' Rest,
+-- Dragonblight, Fordragon Hold, Dragonblight, Wyrmrest Temple, ...". Note the
+-- plural possessive - "Stars'", apostrophe AFTER the s, straight quote - not
+-- "Star's", which was this entry's first (wrong) guess before the log
+-- confirmed it.
 local wzone, _, wvia = S.ZoneForTargetText("Whispering Wind in Wintergrasp.")
-check("whispering wind routes to Dragonblight (Star's Rest, not Wintergrasp)", wzone, "Dragonblight")
-check("  ...forces the Star's Rest checkpoint", wvia, "Star")
-local straightApostrophe = "Star's Rest"
-local curlyApostrophe = "Star" .. string.char(0xE2, 0x80, 0x99) .. "s Rest" -- U+2019
--- Guarded (wvia can be nil pre-fix): a real DoPort match is
--- string.find(lower(checkpointName), lower(via), 1, true), so this mirrors it
--- exactly rather than reimplementing a looser check.
+check("whispering wind routes to Dragonblight (Stars' Rest, not Wintergrasp)", wzone, "Dragonblight")
+check("  ...forces the Stars' Rest checkpoint", wvia, "Stars' Rest")
+-- The real live checkpoint name, exactly as the port log showed it (the
+-- server appends ", <zone>" to every checkpoint's nodeName on this map).
+local liveCheckpointName = "Stars' Rest, Dragonblight"
+-- A hypothetical future re-spelling: this server is known to mix the straight
+-- (') and curly (U+2019) apostrophe elsewhere (see Route.lua's NormTitle) -
+-- confirmed straight here today, but DoPort folds curly to straight before
+-- matching (Advisor.FoldApostrophe) specifically so a later server-side edit
+-- to this one checkpoint can't silently break the route again.
+local curlyRespelling = "Stars" .. string.char(0xE2, 0x80, 0x99) .. " Rest, Dragonblight" -- U+2019
+-- Mirrors DoPort's real match exactly: fold apostrophes, lowercase, plain
+-- substring find - not a looser reimplementation.
 local function matchesCheckpoint(checkpointName, via)
-   return via ~= nil and string.find(string.lower(checkpointName), string.lower(via), 1, true) ~= nil
+   if via == nil then return false end
+   local fold = function(s) return (string.gsub(string.lower(s), "\226\128\153", "'")) end
+   return string.find(fold(checkpointName), fold(via), 1, true) ~= nil
 end
-check("  ...matches the straight-apostrophe checkpoint name",
-   matchesCheckpoint(straightApostrophe, wvia), true)
-check("  ...matches the curly-apostrophe checkpoint name",
-   matchesCheckpoint(curlyApostrophe, wvia), true)
+check("  ...matches the real live checkpoint name (comma-suffixed)",
+   matchesCheckpoint(liveCheckpointName, wvia), true)
+check("  ...survives a curly-apostrophe re-spelling too",
+   matchesCheckpoint(curlyRespelling, wvia), true)
 
 print("")
 print("== the Alterac phantom must be unreachable ==")
