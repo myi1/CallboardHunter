@@ -4,6 +4,43 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.12.0] - 2026-09-02
+### Added
+- **The callboard grind now tracks its own hardcore tier** (`hcGrind`, distinct
+  from the levelling tier `hcStart`), checked by a new `hcGrind` step before the
+  grind begins. It defaults to whatever tier you're already levelling on, so a
+  first run needs nothing set — there is no separate slash command to override
+  it independently yet.
+- **A login prompt offers to start a lap.** At or below level 64, with no route
+  step yet acked, CBH prints once per session: *"Fresh run? /cbh route opens
+  the lap. /cbh route autostart off silences this."* `Route.MaybeAutoStart`
+  only ever prints the offer - it never starts a route by itself, so an alt or
+  a friend's low-level character logging in never gets hijacked mid-session.
+  `/cbh route autostart off` turns the prompt off for good (`on` restores it);
+  the persistent switch is separate from the once-per-session latch that keeps
+  it from reprinting on every zone-in.
+### Changed
+- **The Borean Tundra / Icecrown zone grind is gone; a callboard grind to 80
+  replaces it.** keepsy runs callboard quests instead of grinding levelling
+  zones, so the route's tail is now: switch tier once (`hcGrind`), then work
+  the callboard from Dalaran - summon the board, take a quest, run it, come
+  back - looping until you ding 80 (`cbGrind`). The chain's landing level was
+  never reliably 64 (ash XP nodes move it), so the grind runs from wherever the
+  Zul'Drak turn-in actually leaves you rather than assuming a fixed starting
+  point. `/cbh route grind <level>` still retunes the endpoint, now a single
+  number instead of two zone bands.
+- **The hardcore steps click the server's own tier control and verify it took,
+  instead of asking you to tick a box.** `Route.HcSwitch` finds the `Button`
+  carrying the tier on `ProjectEbonholdPlayerRunFrame`, clicks it, and re-reads
+  the tier to confirm it actually changed before the step counts as done - a
+  failed switch used to look identical to a successful one, since the old step
+  just asked you to click "Mark done" on your own word. The old optional "drop
+  a tier once you're done" step is gone too; the tier for the grind is now its
+  own required step, set once before the grind rather than left to preference.
+  The stale *"No API for this"* comment on the old step was wrong: the tier
+  lives on a `Button` inside that frame, found by dumping the frame hierarchy
+  in-game - CBH has been able to read and click it all along.
+
 ## [1.11.1] - 2026-09-01
 ### Fixed
 - **A `<Zone>:` title prefix could outrank the objective's real zone.**

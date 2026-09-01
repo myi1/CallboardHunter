@@ -9,15 +9,17 @@ detection/announce/targeting → kill learning → port back to the board.**
 ## Features
 
 - **Fast-prestige route runner** (`/cbh route`) — the community levelling route
-  (Hardcore swap → Dalaran → three-quest chain → Zul'Drak → Borean Tundra →
-  Icecrown), taking a fresh level 1 all the way to **80** at any ash level, as
-  **one button and one line telling you what to do next**. The button ports you, targets and marks the quest giver, or confirms a
+  (Hardcore swap → Dalaran → three-quest chain → Zul'Drak → a callboard grind
+  to 80), taking a fresh level 1 all the way to **80** at any ash level, as
+  **one button and one line telling you what to do next**. The button ports you, targets and marks the quest giver, or clicks and verifies a
   Hardcore swap; the route's quests **accept and hand in by themselves** once
   you're talking to the NPC. It works out which step you're on from your quest
   log, zone and level, verifies checkpoint ids against the map rather than
   trusting them, and blocks the Zul'Drak leg with a reason if the Argent Stand
   flight path isn't unlocked. `/cbh route hc <tier>` sets the Hardcore tier you
-  actually have (or `off`); `/cbh route why` explains a stuck step.
+  actually have (or `off`); `/cbh route why` explains a stuck step. On a fresh,
+  low-level character CBH offers to start a lap on login (`/cbh route autostart
+  off` to silence it).
 - **Quest watcher** — parses rare-trophy quests ("Rare Kill in <Zone>") and
   kill objectives ("<Name> slain: n/m"), with `/cbh scan` diagnostics that show
   a per-objective match verdict for pattern tuning.
@@ -66,7 +68,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh` | help |
 | `/cbh route` | fast-prestige levelling route: one button, one instruction |
 | `/cbh route hc <tier｜off>` | Hardcore tier to level on (default 5) |
-| `/cbh route grind <level>` | retune the level band you're on (72 Borean, 80 Icecrown) |
+| `/cbh route grind <level>` | retune the callboard grind's end level (default 80) |
+| `/cbh route autostart off` | stop offering to start a lap on login |
 | `/cbh route auto` | toggle auto accept / turn-in of the route's quests |
 | `/cbh route why` / `forget` | diagnose a stuck step / drop a bad learned NPC |
 | `/cbh config` | open the config panel (all toggles, home board, blocked checkpoints) |
