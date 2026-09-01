@@ -206,33 +206,49 @@ RT.Init() -- builds both panels AND registers the auto accept / turn-in events
 -- route isn't started and the level is low, OFFER to start it -- never start
 -- it outright. Prompting on a false positive (an alt, a friend's character)
 -- costs one dismissal; auto-starting would hijack the session.
+--
+-- "Started" is read off live progress (any acked step), not a separate saved
+-- flag nothing else would ever set -- Route.Ack/Route.Current already latch
+-- d.acked the moment a step is satisfied, so this is state the rest of the
+-- file already maintains for real, not a field invented just for this guard.
 print("")
 print("auto-start prompt")
 
 CallboardHunter.db.route.acked = {}
 CallboardHunter.db.route.turnedIn = {}
-CallboardHunter.db.route.started = nil
 CallboardHunter.db.route.autoStartOff = nil
 local lapsBefore = CallboardHunter.db.route.laps
 W.level = 3
 out = {}
 check(RT.MaybeAutoStart() == true,
   "offers on login at a low level with no route in progress")
-check(CallboardHunter.db.route.started == nil,
-  "  ...by prompting, not starting", CallboardHunter.db.route.started)
+check(next(CallboardHunter.db.route.acked) == nil,
+  "  ...by prompting, not starting", CallboardHunter.db.route.acked)
 check(CallboardHunter.db.route.laps == lapsBefore,
   "  ...and never touches lap count -- no lap was reset either",
   CallboardHunter.db.route.laps)
 check(#out > 0 and string.find(out[1], "/cbh route") ~= nil,
   "  ...and says how to start it", table.concat(out, "|"))
 
-CallboardHunter.db.route.started = true
+-- Genuinely under way: a real acked step, the same state Route.Ack/Route.
+-- Current leave behind mid-lap -- not a field hand-set to simulate progress.
+CallboardHunter.db.route.acked.hcStart = true
 out = {}
 check(RT.MaybeAutoStart() == false,
-  "does not nag once the route is under way")
+  "does not nag once a step is actually acked")
 check(#out == 0, "  ...printing nothing when it declines", table.concat(out, "|"))
+CallboardHunter.db.route.acked = {}
 
-CallboardHunter.db.route.started = nil
+-- The turn-in that ends the levelling leg (q3b) lands a fresh run near level
+-- 64 (see that step's own detail text). Below it, over-prompting costs one
+-- dismissal; above it, staying quiet is the point, since anyone that high is
+-- either finishing the lap already or plainly not on a fresh run.
+W.level = 64
+check(RT.MaybeAutoStart() == true,
+  "still offers right at the turn-in's landing level (64)")
+W.level = 65
+check(RT.MaybeAutoStart() == false,
+  "does not offer one level past it (65)")
 W.level = 78
 check(RT.MaybeAutoStart() == false,
   "does not offer to a high-level character")
@@ -251,6 +267,15 @@ RT.Command("autostart on")
 check(CallboardHunter.db.route.autoStartOff == nil,
   "/cbh route autostart on clears the flag again")
 
+-- The help text promises exactly <off|on>; anything else should say so
+-- rather than silently treating it as one or the other.
+out = {}
+RT.Command("autostart sideways")
+check(CallboardHunter.db.route.autoStartOff == nil,
+  "an unrecognised autostart argument changes nothing")
+check(string.find(table.concat(out, "|"), "Usage", 1, true) ~= nil,
+  "  ...and says so", table.concat(out, "|"))
+
 -- The wiring: PLAYER_ENTERING_WORLD fires on every zone-in and instance
 -- transition, not only at login, so the handler has to stop offering again
 -- once it already has this session -- otherwise a low-level character with
@@ -263,7 +288,7 @@ for _, f in ipairs(frames) do
 end
 check(pew ~= nil, "found the frame watching PLAYER_ENTERING_WORLD")
 
-CallboardHunter.db.route.started = nil
+CallboardHunter.db.route.acked = {}
 CallboardHunter.db.route.autoStartOff = nil
 W.level = 3
 out = {}
@@ -281,7 +306,7 @@ check(#out == firstCount,
 check(RT.MaybeAutoStart() == true,
   "  ...confirmed: the raw state was still offer-worthy on its own")
 
-CallboardHunter.db.route.started = nil
+CallboardHunter.db.route.acked = {}
 CallboardHunter.db.route.autoStartOff = nil
 W.level = 1
 

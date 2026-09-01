@@ -1497,6 +1497,18 @@ function Route.Reset(quiet, newRun)
   Route.Refresh()
 end
 
+-- The Zul'Drak turn-in (step q3b) is expected to land a fresh run near level
+-- 64 -- see that step's own detail text ("...you should land near 64").
+-- Route.STEPS carries no structured level for quest steps (only "level"-kind
+-- steps like cbGrind have a numeric target), so there is nothing to read this
+-- off; it is a named constant mirroring that step's prose by hand instead of
+-- a bare magic number. Deliberately the actual landing level, not a stricter
+-- "just logged in" band: a false positive here costs one dismissal, while a
+-- cutoff too low would miss most real resets outright, since this only ever
+-- fires once per session (see the PLAYER_ENTERING_WORLD wiring in Route.Init)
+-- and is silent for anyone with real progress (see the acked check below).
+local FRESH_RUN_LEVEL_CAP = 64
+
 -- Offer, never start. A prestige reset is not yet observable from anything CBH
 -- can read -- the run frame has not been dumped immediately after one -- so this
 -- infers "fresh run" from a low level with no route in progress. That inference
@@ -1505,9 +1517,15 @@ end
 -- someone's session.
 function Route.MaybeAutoStart()
   local d = DB()
-  if d.started then return false end
+  -- "In progress" is read off real state -- any step already acked -- rather
+  -- than a separate saved flag nothing else would ever set. Route.Ack and
+  -- Route.Current both latch d.acked the moment a step is satisfied, so this
+  -- is state the rest of the file already maintains, not one invented solely
+  -- for this guard (and Route.Reset clears it, which is exactly right: a
+  -- freshly reset lap has no progress yet either).
+  if next(d.acked) ~= nil then return false end
   if d.autoStartOff then return false end
-  if (UnitLevel("player") or 80) > 10 then return false end
+  if (UnitLevel("player") or 80) > FRESH_RUN_LEVEL_CAP then return false end
   CBH.print("Fresh run? " .. BRIGHT .. "/cbh route" .. R
     .. " opens the lap. " .. DIM .. "/cbh route autostart off" .. R .. " silences this.")
   return true
@@ -1742,11 +1760,21 @@ function Route.Command(arg)
   elseif cmd == "autostart" then
     -- The persistent, saved-per-character opt-out for the login prompt --
     -- distinct from the once-per-session latch on the wiring that fires it.
-    -- This is the "never ask me again" switch someone types once.
+    -- This is the "never ask me again" switch someone types once. Strictly
+    -- off/on (not "anything but off is on") so the usage text below is
+    -- actually true rather than an approximation of what the command does.
     local d = DB()
     local a = string.lower(rest or "")
-    d.autoStartOff = (a == "off") or nil
-    CBH.print("Route auto-start prompt: " .. (d.autoStartOff and "off" or "on"))
+    if a == "off" then
+      d.autoStartOff = true
+      CBH.print("Route auto-start prompt: off")
+    elseif a == "on" then
+      d.autoStartOff = nil
+      CBH.print("Route auto-start prompt: on")
+    else
+      CBH.print("Usage: " .. GOLD .. "/cbh route autostart <off|on>" .. R .. DIM
+        .. "  (currently " .. (d.autoStartOff and "off" or "on") .. ")" .. R)
+    end
   elseif cmd == "auto" then
     local d = DB()
     d.auto = not Route.AutoOn()
