@@ -73,7 +73,7 @@ local Q_CALL  = "The Champion's Call!"
 -- kind: mode | port | quest
 Route.STEPS = {
   { key = "hcStart", kind = "mode", hcStep = true, tierKey = "start",
-    detail = "Mode popup from a starter zone, inn, or capital. No API for this -- tick it when done." },
+    detail = "CBH clicks the tier control on the run frame and checks it took. If the server's UI moves, switch it yourself and Mark done." },
   { key = "dala1", kind = "port", cp = "DALARAN",
     text = "Port to Dalaran",
     detail = "Checkpoint 310. Puts you at Krasus' Landing." },
@@ -97,7 +97,7 @@ Route.STEPS = {
     text = "Port back to Dalaran",
     detail = "Checkpoint 310." },
   { key = "hcEnd", kind = "mode", hcStep = true, tierKey = "end",
-    detail = "The route author's preference -- drop a tier or two once the quest chain is done. Stay put if you can hold the higher one safely." },
+    detail = "CBH clicks the tier control on the run frame and checks it took. If the server's UI moves, switch it yourself and Mark done." },
   { key = "bt", kind = "port", cp = "BOREAN",
     text = "Port to Borean Tundra (Unu'pe)",
     detail = "Checkpoint 296. Carry on levelling from here." },
@@ -188,6 +188,22 @@ end
 function Route.HcCurrent()
   local _, tier = Route.HcButton()
   return tier
+end
+
+-- Perform the switch, then CHECK it. The old step asked you to tick a box, which
+-- meant a failed switch looked exactly like a successful one and the route
+-- carried on regardless. Returns ok, reason.
+function Route.HcSwitch(target)
+  local btn, tier = Route.HcButton()
+  if not btn then
+    return false, "Could not find the tier control -- switch it yourself and Mark done."
+  end
+  if tier == target then return true end
+  btn:Click()
+  local _, now = Route.HcButton()
+  if now == target then return true end
+  return false, "Clicked the tier control but you are still on Hardcore "
+    .. tostring(now) .. " -- finish it in the popup, then Mark done."
 end
 
 -- Level bands for the 64->80 grind steps, overridable per character.
@@ -490,8 +506,13 @@ local function StepDone(step, qlog)
       d.suppress[step.key] = nil
     end
     return GetRealZoneText() == cp.zone
+  elseif step.kind == "mode" then
+    -- Detected now, not merely acknowledged: the tier is readable, so a step
+    -- that claims to have switched can be checked against reality.
+    local now = Route.HcCurrent()
+    return now ~= nil and now == step.tier
   end
-  return false -- mode steps are acknowledged, not detected
+  return false
 end
 
 local function StepBlocked(step)
@@ -971,9 +992,12 @@ function Route.Act()
   elseif step.kind == "quest" then
     Route.PointAtQuest(step)
   elseif step.kind == "mode" then
-    CBH.print("Open the mode popup (starter zone, inn, or capital) and slide to "
-      .. BRIGHT .. "Hardcore " .. step.tier .. R .. DIM
-      .. " -- there is no API for this, so tick it with Mark done." .. R)
+    local ok, why = Route.HcSwitch(step.tier)
+    if ok then
+      CBH.print("Now on " .. BRIGHT .. "Hardcore " .. step.tier .. R .. ".")
+    else
+      CBH.print(why)
+    end
   end
   Route.Refresh()
 end

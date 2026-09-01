@@ -450,6 +450,39 @@ check(RT.HcCurrent() == nil, "no tier in the text -> nil", RT.HcCurrent())
 _G.ProjectEbonholdPlayerRunFrame = nil
 check(RT.HcCurrent() == nil, "no run frame at all -> nil", RT.HcCurrent())
 
+-- ---------------------------------------------------------- hardcore tier (switch)
+print("")
+print("hardcore tier (switch)")
+
+-- Detection: a mode step is done when the tier actually matches.
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 3|r")
+CallboardHunter.db.route.acked = {}
+CallboardHunter.db.route.hcEnd = 3
+check(RT.HcCurrent() == 3, "mode step is done when the tier already matches", RT.HcCurrent())
+
+-- Switching: clicking is attempted, and success is judged by re-reading.
+local clicks = 0
+local btn = RT.HcButton()
+btn.Click = function() clicks = clicks + 1 end
+local ok, why = RT.HcSwitch(3)
+check(clicks == 0, "already on target -> no click needed", clicks)
+check(ok == true, "  ...and it reports success", ok)
+
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 5|r")
+local b2 = RT.HcButton()
+clicks = 0
+b2.Click = function() clicks = clicks + 1 end
+ok, why = RT.HcSwitch(3)
+check(clicks == 1, "a real change clicks the server's control", clicks)
+check(ok == false, "  ...but refuses to claim success when the tier did not move", ok)
+check(string.find(tostring(why), "still on") ~= nil, "  ...and says why", why)
+
+_G.ProjectEbonholdPlayerRunFrame = nil
+ok, why = RT.HcSwitch(3)
+check(ok == false, "no control -> not a success", ok)
+check(string.find(tostring(why), "Mark done") ~= nil,
+  "  ...and points at manual acknowledgement", why)
+
 -- Other surfaces should not throw.
 RT.Why()
 RT.Report(); RT.Api(); RT.Macros(); RT.ListCheckpoints(); RT.Refresh()
