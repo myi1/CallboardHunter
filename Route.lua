@@ -525,6 +525,17 @@ function Route.StepIndex(key)
   return nil
 end
 
+-- Whether the player is standing in a step's own checkpoint zone. Route.
+-- MacroFor (what the secure button will cast) and ActionFor (what its label
+-- promises) both need this exact question answered the same way -- a button
+-- that says "ports you to Dalaran" while casting Summon Callboard, or vice
+-- versa, is worse than either mistake alone, so there is exactly one
+-- definition of "here" for both to share.
+local function AtStepCp(step)
+  local cp = step and Route.CP[step.cp]
+  return cp ~= nil and GetRealZoneText() == cp.zone
+end
+
 -- The macrotext a step wants on the secure button, when it wants something
 -- other than what AttrsFor would otherwise build. Factored out here so the
 -- suite can assert what the button will actually cast without building a
@@ -539,8 +550,7 @@ function Route.MacroFor(key)
     -- Away from Dalaran the answer is nil, which lets AttrsFor fall through
     -- to the ordinary port macro -- an unconditional summon would leave you
     -- no way back to Dalaran once you left to run the quest.
-    local cp = Route.CP["DALARAN"]
-    if cp and GetRealZoneText() == cp.zone then
+    if AtStepCp(step) then
       -- CBH never casts this itself; CastSpellByName is protected on 3.3.5.
       -- It only happens here because YOUR click on the secure button is the
       -- hardware event that casts it.
@@ -1197,6 +1207,14 @@ local function ActionFor(step, blocked)
       .. "  Walk there once and the spot is remembered for every later lap."
 
   elseif step.kind == "level" then
+    -- Same question Route.MacroFor asks, so the label never promises a port
+    -- while the button is actually about to cast Summon Callboard.
+    if step.key == "cbGrind" and AtStepCp(step) then
+      return "Summon Callboard", "level",
+        "You're in Dalaran -- click to summon the board, take the next "
+        .. "quest, then go run it. Come back here when you ding or run out "
+        .. "of quests, and the button goes back to porting you home."
+    end
     local lvl = UnitLevel("player") or 0
     local cp = Route.CP[step.cp]
     return "Level " .. lvl .. " / " .. step.target, "level",

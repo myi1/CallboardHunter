@@ -353,6 +353,50 @@ RT.Advance(); W.zone = "Dalaran"; RT.Refresh()
 check(string.find(mini.go._text or "", "Port to", 1, true) == nil,
   "already in Dalaran, so the port step is behind us", mini.go._text)
 
+-- --------------------------------------------- compact panel (grind label)
+-- The grind step's button either summons (in Dalaran) or ports (anywhere
+-- else); the label above it has to say whichever one it is. A button that
+-- still reads "ports you back to Dalaran" while already standing there --
+-- and casts a spell when clicked -- is the exact bug this covers.
+print("")
+print("compact panel (grind label)")
+RT.Reset(true, true)
+local ci = RT.StepIndex("cbGrind")
+for i = 1, ci - 1 do
+  CallboardHunter.db.route.acked[RT.Steps()[i].key] = true
+end
+W.level = 71
+
+W.zone = "Dalaran"
+RT.Refresh()
+expect("cbGrind", "acked straight to the callboard grind")
+check(string.find(mini.go._text or "", "Summon Callboard", 1, true) ~= nil,
+  "in Dalaran the label says summon, not port", mini.go._text)
+check(string.find(mini.guide._text or "", "ports you back", 1, true) == nil,
+  "  ...and the guide does not still promise a port", mini.guide._text)
+local grindMacro = mini.go._attrs and mini.go._attrs.macrotext or ""
+check(string.find(grindMacro, "Summon Callboard", 1, true) ~= nil,
+  "  ...matching what the button will actually cast", grindMacro)
+
+W.zone = "Icecrown"
+RT.Refresh()
+check(string.find(mini.go._text or "", "Level ", 1, true) ~= nil,
+  "away from Dalaran the label goes back to Level N / target", mini.go._text)
+check(string.find(mini.guide._text or "", "ports you back to Dalaran", 1, true) ~= nil,
+  "  ...and the guide promises the port again", mini.guide._text)
+local portMacro = mini.go._attrs and mini.go._attrs.macrotext or ""
+check(string.find(portMacro, "Summon Callboard", 1, true) == nil,
+  "  ...matching that the button does not summon here", portMacro)
+
+-- Restore exactly the state "target + marker" below expects (zone Dalaran,
+-- current step q1) by replaying the same switch-and-arrive sequence used
+-- just above, rather than hand-poking d.acked -- a shortcut here would only
+-- prove this test doesn't disturb the next one by accident.
+W.level = 1
+RT.Reset(true, true)
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 5|r")
+RT.Advance(); W.zone = "Dalaran"; RT.Refresh()
+
 -- ------------------------------------------------------- targeting the NPC
 print("")
 print("target + marker")
