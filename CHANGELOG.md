@@ -4,6 +4,28 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.11.1] - 2026-09-01
+### Fixed
+- **A `<Zone>:` title prefix could outrank the objective's real zone.**
+  `ZoneFromAnyMapName` scanned the quest TITLE before its objectives, so this
+  server's `<Zone>:` category prefix always won the first-match loop, even
+  though the function's own comment already warned "a quest TITLE can be
+  wrong." Reported by `xMetaMorph` on a fresh v1.11.0 install: quest title
+  `Winterspring: Whispering Wind`, objective `Whispering Wind in
+  Wintergrasp.` - the port button read "> Winterspring" instead of
+  "> Wintergrasp", with no learned kills or card history around to override
+  it. Objectives are now scanned before the title; the title stays in the
+  scan as the last-resort fallback for when no objective names a zone at all.
+### Changed
+- **Whispering Wind now routes to Star's Rest**, not merely the nearest
+  Dragonblight checkpoint - the maintainer's own call, as the checkpoint
+  closest by distance to those mobs. Added to `SpawnDB.TARGET_CHECKPOINT`
+  alongside Flame Revenant. Star's Rest has never shown up in this addon's
+  port log, so the live checkpoint's exact spelling is unconfirmed and this
+  server is known to mix the straight and curly apostrophe in its own data;
+  `via` keys on the apostrophe-free "Star" so it matches either spelling
+  instead of guessing.
+
 ## [1.11.0] - 2026-08-31
 ### Added
 - **Favourites.** Star a callboard quest and CBH remembers it, and `/cbh hunt`
