@@ -6,11 +6,12 @@ GitHub releases and the `.toc`.
 
 ## [1.12.0] - 2026-09-02
 ### Added
-- **The callboard grind now tracks its own hardcore tier** (`hcGrind`, distinct
-  from the levelling tier `hcStart`), checked by a new `hcGrind` step before the
+- **`/cbh route hc grind <n>`** sets the hardcore tier held during the callboard
+  grind, tracked separately (`hcGrind`) from the levelling tier `hcStart` that
+  `/cbh route hc <n>` sets, and checked by the new `hcGrind` step before the
   grind begins. It defaults to whatever tier you're already levelling on, so a
-  first run needs nothing set — there is no separate slash command to override
-  it independently yet.
+  first run needs nothing set; setting it does not disturb `hcStart`, and
+  setting `hcStart` does not disturb it.
 - **A login prompt offers to start a lap.** At or below level 64, with no route
   step yet acked, CBH prints once per session: *"Fresh run? /cbh route opens
   the lap. /cbh route autostart off silences this."* `Route.MaybeAutoStart`

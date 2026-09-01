@@ -128,14 +128,18 @@ end
 
 -- Hardcore tiers are configurable because the route's "HC5" is the author's
 -- ladder, not yours -- you cannot switch to a tier you have not unlocked.
--- /cbh route hc <n> sets the one you level on, /cbh route hc off drops both
+-- /cbh route hc <n> sets the one you level on, /cbh route hc grind <n> sets
+-- the one you hold for the callboard grind, /cbh route hc off drops both
 -- mode steps entirely for people who never switch.
 function Route.HcTier(which)
   local d = DB()
   if which == "start" then return tonumber(d.hcStart) or 5 end
   -- The grind tier defaults to the levelling one so a first run needs no setup.
   if which == "grind" then return tonumber(d.hcGrind) or (tonumber(d.hcStart) or 5) end
-  return tonumber(d.hcEnd) or 3
+  -- No third tier exists -- the old "end" step (drop a tier once the chain was
+  -- done) was removed along with the zone grind. "start" and "grind" are the
+  -- only two mode steps left in Route.STEPS; anything else is a caller bug.
+  return nil
 end
 
 -- The tier you are ACTUALLY on, read out of the server's own run frame.
@@ -1737,23 +1741,39 @@ function Route.Command(arg)
   elseif cmd == "hc" or cmd == "hardcore" then
     local d = DB()
     local a = string.lower(rest or "")
+    -- "grind <n>" is a sub-argument of "hc", not a separate top-level command --
+    -- it sets d.hcGrind (the tier held for the callboard grind), distinct from
+    -- the plain "/cbh route hc <n>" below which sets d.hcStart (the levelling
+    -- tier). Checked before the bare-number branch so "grind 4" doesn't fall
+    -- through to tonumber("grind 4") == nil.
+    local gArg = string.match(a, "^grind%s+(.+)$")
     if a == "off" or a == "none" then
       d.hc = "off"
       CBH.print("Hardcore steps removed from the route." .. DIM
         .. "  The route is now purely: port, quests, port." .. R)
+    elseif gArg then
+      local n = tonumber(gArg)
+      if n and n >= 0 and n <= 10 then
+        d.hcGrind = n
+        CBH.print("Grinding on Hardcore " .. GOLD .. n .. R .. DIM
+          .. ".  Held once, before the callboard grind begins." .. R)
+      else
+        CBH.print("Usage: " .. GOLD .. "/cbh route hc grind <tier>" .. R .. DIM
+          .. "  (currently HC" .. Route.HcTier("grind") .. ")" .. R)
+      end
     else
       local n = tonumber(a)
       if n and n >= 0 and n <= 10 then
         d.hc, d.hcStart = nil, n
-        if (tonumber(d.hcEnd) or 3) > n then d.hcEnd = n end
         CBH.print("Levelling on Hardcore " .. GOLD .. n .. R .. DIM
           .. ".  The route's own guide says 5; use whatever tier you have unlocked."
           .. R)
       else
         CBH.print("Usage: " .. GOLD .. "/cbh route hc <tier>" .. R .. " or "
+          .. GOLD .. "/cbh route hc grind <tier>" .. R .. " or "
           .. GOLD .. "/cbh route hc off" .. R .. DIM .. "  (currently "
-          .. (Route.HcEnabled() and ("HC" .. Route.HcTier("start") .. " -> HC"
-              .. Route.HcTier("end")) or "off") .. ")" .. R)
+          .. (Route.HcEnabled() and ("levelling HC" .. Route.HcTier("start")
+              .. ", grind HC" .. Route.HcTier("grind")) or "off") .. ")" .. R)
       end
     end
     Route.Refresh()

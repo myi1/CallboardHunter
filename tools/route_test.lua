@@ -456,6 +456,32 @@ if #RT.Steps() == 8 then print("  ok   route is 8 steps with hardcore off")
 else fails = fails + 1; print("  FAIL step count -> " .. #RT.Steps()) end
 RT.Command("hc 5")
 
+-- The grind tier is tracked separately (hcGrind vs hcStart) via its own
+-- "/cbh route hc grind <n>" sub-argument, so a different tier can be held
+-- through the callboard grind than through the intro chain.
+RT.Command("hc grind 4")
+check(CallboardHunter.db.route.hcGrind == 4, "hc grind 4 writes hcGrind",
+  CallboardHunter.db.route.hcGrind)
+check(RT.HcTier("grind") == 4, "HcTier(\"grind\") reads it back", RT.HcTier("grind"))
+
+CallboardHunter.db.route.hcGrind = nil
+check(RT.HcTier("grind") == RT.HcTier("start"),
+  "an unset grind tier falls back to the levelling tier", RT.HcTier("grind"))
+
+RT.Command("hc grind bogus")
+check(CallboardHunter.db.route.hcGrind == nil,
+  "a bad grind argument prints usage and leaves the tier untouched",
+  CallboardHunter.db.route.hcGrind)
+
+RT.Command("hc grind 6")
+RT.Command("hc 2")
+check(CallboardHunter.db.route.hcStart == 2 and CallboardHunter.db.route.hcGrind == 6,
+  "/cbh route hc <n> sets the levelling tier without disturbing the grind tier",
+  tostring(CallboardHunter.db.route.hcStart) .. "/" .. tostring(CallboardHunter.db.route.hcGrind))
+
+CallboardHunter.db.route.hcGrind = nil
+RT.Command("hc 5")
+
 
 -- ------------------------------------------------------ one button, one label
 print("")
@@ -680,11 +706,12 @@ check(RT.HcCurrent() == nil, "no run frame at all -> nil", RT.HcCurrent())
 print("")
 print("hardcore tier (switch)")
 
--- Detection: a mode step is done when the tier actually matches.
+-- Detection: a mode step is done when the tier actually matches. (No more
+-- "end" tier here -- that was the old drop-a-tier step Task 3 removed along
+-- with the zone grind; "start" and "grind" are the only two tierKeys left,
+-- both already covered above and in the grind-tier command tests.)
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 3|r")
 CallboardHunter.db.route.acked = {}
-CallboardHunter.db.route.hcEnd = 3
-check(RT.HcTier("end") == 3, "the config we just set is what HcTier reads back", RT.HcTier("end"))
 check(RT.HcCurrent() == 3, "mode step is done when the tier already matches", RT.HcCurrent())
 
 -- Switching: clicking is attempted, and success is judged by re-reading.

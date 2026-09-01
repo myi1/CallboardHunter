@@ -68,6 +68,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh` | help |
 | `/cbh route` | fast-prestige levelling route: one button, one instruction |
 | `/cbh route hc <tier｜off>` | Hardcore tier to level on (default 5) |
+| `/cbh route hc grind <n>` | tier to hold during the callboard grind (defaults to the levelling tier) |
 | `/cbh route grind <level>` | retune the callboard grind's end level (default 80) |
 | `/cbh route autostart off` | stop offering to start a lap on login |
 | `/cbh route auto` | toggle auto accept / turn-in of the route's quests |
