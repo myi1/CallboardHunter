@@ -20,6 +20,37 @@
 - **Baseline:** 14 suites, 642 assertions, 0 failing. `tools/dungeon_test.lua` is a frozen regression gate at exactly **37** — never modify that file.
 - Run tests with `cd tools && node run_all.js`; one suite with `node run_lua.js route_test.lua`.
 
+## Test harness conventions — READ BEFORE WRITING ANY TEST
+
+`tools/route_test.lua` does **not** use the same helpers as the other suites, and
+the illustrative snippets in the tasks below were written in the *other* suites'
+style. **Translate every snippet into these conventions**; do not copy them
+verbatim.
+
+| What | `route_test.lua` reality | NOT this |
+|---|---|---|
+| Boolean assertion | `check(cond, label, detail)` — **condition first** | `check(label, got, want)` |
+| Step-position assertion | `expect("stepKey", label)` | — |
+| The module | `RT`, aliased as `local RT = CallboardHunter.Route` | `Route.` |
+| Saved config | `CallboardHunter.db.route` (e.g. `.hcGrind`, `.acked`) | a local `DB()` |
+| Chat output | `out[]`, appended by the `CBH.print` stub | `PRINTED[]` |
+| World state | the `W` table — `W.zone`, `W.level` | — |
+
+So a snippet written as
+
+```lua
+check("reads the live tier", Route.HcCurrent(), 5)
+```
+
+is written here as
+
+```lua
+check(RT.HcCurrent() == 5, "reads the live tier", RT.HcCurrent())
+```
+
+Functions the plan names as `Route.X` are still defined as `function Route.X` in
+`Route.lua` — only the *test* refers to them through `RT`.
+
 ## File Structure
 
 | File | Responsibility |
@@ -402,7 +433,19 @@ end
 cd tools && node run_lua.js route_test.lua && node run_all.js
 ```
 
-Expected: PASS. `route_test.lua` walks a full lap; if a lap-walk assertion breaks because the tail changed, that is a **real** expectation to update — the lap genuinely has different steps now. Update those expectations, but do not weaken any assertion that is not about the removed steps.
+**Two existing assertions will fail by design, and both are legitimate updates** — the lap genuinely has different steps now. Change exactly these:
+
+1. The hardcoded step count, currently
+
+   ```lua
+   if #RT.Steps() == 13 then print("  ok   route is 13 steps, level 1 to 80")
+   ```
+
+   Five steps are removed and two added, so this becomes **10**. Update the label to match the number.
+
+2. `expect("hcEnd", "back in Dalaran -> drop a tier (not zd)")` — `hcEnd` no longer exists, so this becomes `expect("hcGrind", ...)` with a label describing the grind switch.
+
+**Do not weaken or delete any other assertion.** If a third one fails, that is a real regression in the lap, not an expectation to adjust — investigate it rather than editing it.
 
 - [ ] **Step 5: Commit**
 
