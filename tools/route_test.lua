@@ -137,6 +137,26 @@ local function FakeRunFrame(label)
            IsShown = function() return true end }
 end
 
+-- The ash counter lives on a plain Frame's OWN regions, not a nested Button's
+-- (that shape belongs to the tier control above) -- the live dump showed it
+-- sitting beside an XP-looking FontString on the same inner frame, so the
+-- fake has to offer several regions at once for AshCurrent to pick between.
+local function FakeAshFrame(...)
+  local labels, regions = { ... }, {}
+  for i, t in ipairs(labels) do
+    regions[i] = { GetText = function() return t end,
+                   GetObjectType = function() return "FontString" end }
+  end
+  local inner = { GetObjectType = function() return "Frame" end,
+                  GetRegions = function() return varargs(regions) end,
+                  GetChildren = function() return end,
+                  IsShown = function() return true end }
+  return { GetObjectType = function() return "Frame" end,
+           GetRegions = function() return end,
+           GetChildren = function() return inner end,
+           IsShown = function() return true end }
+end
+
 -- --------------------------------------------------------- load the module
 -- Route.lua expects the CallboardHunter namespace and its shared helpers, so
 -- stand up just enough of Core.lua rather than dofile'ing the whole addon.
@@ -580,6 +600,39 @@ ok, why = RT.HcSwitch(3)
 check(ok == false, "no control -> not a success", ok)
 check(string.find(tostring(why), "Mark done") ~= nil,
   "  ...and points at manual acknowledgement", why)
+
+-- ---------------------------------------------------------- ash counter (read)
+-- Display only -- see the comment on Route.AshCurrent. These prove the parser,
+-- not a policy: it must read the comma-formatted, colour-coded figure and
+-- must NOT mistake the colour-coded XP-percent FontString sitting next to it
+-- for ash (that bug would silently show the wrong number every single lap).
+print("")
+print("ash counter (read)")
+
+_G.ProjectEbonholdPlayerRunFrame = FakeAshFrame("|cffffffff29,008|r", "|cff00ff00+827%|r")
+check(RT.AshCurrent() == 29008,
+  "reads ash through the colour code and comma", RT.AshCurrent())
+
+_G.ProjectEbonholdPlayerRunFrame = FakeAshFrame("|cff00ff00+827%|r")
+check(RT.AshCurrent() == nil,
+  "a percentage is not ash", RT.AshCurrent())
+
+_G.ProjectEbonholdPlayerRunFrame = nil
+check(RT.AshCurrent() == nil,
+  "no run frame -> nil", RT.AshCurrent())
+
+-- The compact header is the one place this actually gets consumed -- prove
+-- the append happens, and prove an unreadable frame leaves the header exactly
+-- as it already was rather than printing "ash nil".
+_G.ProjectEbonholdPlayerRunFrame = FakeAshFrame("|cffffffff29,008|r", "|cff00ff00+827%|r")
+RT.Refresh()
+check(string.find(mini.head._text or "", "ash 29008", 1, true) ~= nil,
+  "the compact header appends the ash figure", mini.head._text)
+
+_G.ProjectEbonholdPlayerRunFrame = nil
+RT.Refresh()
+check(string.find(mini.head._text or "", "ash", 1, true) == nil,
+  "no readable ash -> header shows nothing extra", mini.head._text)
 
 -- ------------------------------------------------- compact panel (switch)
 -- The compact panel is the DEFAULT view, so its one button (Route.Advance)

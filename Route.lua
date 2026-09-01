@@ -183,6 +183,41 @@ function Route.HcCurrent()
   return tier
 end
 
+-- Ash collected this run, off the same frame the tier comes from. DISPLAY ONLY,
+-- deliberately: what decides whether you can hold a tier is PERMANENT tree
+-- investment, while this figure is per-run and near zero exactly when the grind
+-- tier gets picked. Shown so it can be watched across a prestige boundary before
+-- anything is built on it.
+function Route.AshCurrent()
+  local root = _G["ProjectEbonholdPlayerRunFrame"]
+  if not (root and root.GetChildren) then return nil end
+  local found
+  local function walk(f, depth)
+    if found or depth > 4 then return end
+    if f.GetRegions then
+      for i = 1, select("#", f:GetRegions()) do
+        local r = select(i, f:GetRegions())
+        if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+          local plain = string.gsub(r:GetText() or "", "|c%x%x%x%x%x%x%x%x", "")
+          plain = string.gsub(plain, "|r", "")
+          -- A percent sign or a leading + marks the XP bonus, not ash.
+          if not string.find(plain, "%%") and not string.find(plain, "^%s*%+") then
+            local n = tonumber((string.gsub(plain, ",", "")))
+            if n then found = n; return end
+          end
+        end
+      end
+    end
+    if not f.GetChildren then return end
+    for i = 1, select("#", f:GetChildren()) do
+      local c = select(i, f:GetChildren())
+      if c and not found then walk(c, depth + 1) end
+    end
+  end
+  walk(root, 0)
+  return found
+end
+
 -- Perform the switch, then CHECK it. The old step asked you to tick a box, which
 -- meant a failed switch looked exactly like a successful one and the route
 -- carried on regardless. Returns ok, reason.
@@ -1410,6 +1445,13 @@ local function RefreshMini()
     .. (cur and ("Step " .. cur .. "/" .. #Route.Steps()) or "Route complete") .. R
     .. DIM .. "   lvl " .. UnitLevel("player") .. "  " .. tostring(GetRealZoneText())
     .. (Route.AutoOn() and "" or "  [auto OFF]") .. R)
+
+  -- Appended, not baked into the string above: an unreadable frame (nil) has
+  -- to leave the header exactly as it already was, not print "ash nil".
+  local ash = Route.AshCurrent()
+  if ash then
+    f.head:SetText(f.head:GetText() .. DIM .. "   ash " .. ash .. R)
+  end
 
   local ok = ApplyAttrs(f, AttrsFor(step, kind))
   f.go:SetText(label .. (ok and "" or DIM .. "  (in combat)" .. R))
