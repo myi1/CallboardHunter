@@ -239,6 +239,22 @@ check(RT.MaybeAutoStart() == false,
 check(#out == 0, "  ...printing nothing when it declines", table.concat(out, "|"))
 CallboardHunter.db.route.acked = {}
 
+-- A COMPLETED lap: every step latched, same as Route.Current/Route.Ack leave
+-- behind at the end of a real lap. Only /cbh route reset ever clears d.acked,
+-- so finishing a lap at 80 and then prestiging back to level 1 leaves all ten
+-- entries still set -- that is "fresh run right after a prestige", the
+-- headline case this feature exists for, and it must NOT be mistaken for
+-- "mid-lap in progress" just because d.acked happens to be non-empty.
+for _, s in ipairs(RT.Steps()) do CallboardHunter.db.route.acked[s.key] = true end
+check(RT.Current() == nil, "  ...sanity: every step acked reads as a completed lap",
+  RT.Current())
+W.level = 3
+out = {}
+check(RT.MaybeAutoStart() == true,
+  "a COMPLETED lap still offers -- that is the fresh-run-after-prestige case")
+check(#out > 0, "  ...and actually prints the offer", table.concat(out, "|"))
+CallboardHunter.db.route.acked = {}
+
 -- The turn-in that ends the levelling leg (q3b) lands a fresh run near level
 -- 64 (see that step's own detail text). Below it, over-prompting costs one
 -- dismissal; above it, staying quiet is the point, since anyone that high is
@@ -696,6 +712,14 @@ check(RT.HcCurrent() == 5, "reads the live tier through its colour code", RT.HcC
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("Hardcore 2")
 check(RT.HcCurrent() == 2, "reads an uncoloured tier too", RT.HcCurrent())
 
+-- Route.Command accepts 0..10 for both hc <n> and hc grind <n>, so tier 10 is
+-- reachable by configuration. A single-digit pattern would read "Hardcore 10"
+-- as tier 1, which then makes HcSwitch see a permanent mismatch and click the
+-- live tier control on every Advance -- cycling the player's real difficulty
+-- while the panel insists nothing changed.
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 10|r")
+check(RT.HcCurrent() == 10, "reads a two-digit tier, not just its first digit", RT.HcCurrent())
+
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("Softcore")
 check(RT.HcCurrent() == nil, "no tier in the text -> nil", RT.HcCurrent())
 
@@ -722,6 +746,13 @@ local ok, why = RT.HcSwitch(3)
 check(clicks == 0, "already on target -> no click needed", clicks)
 check(ok == true, "  ...and it reports success", ok)
 
+-- Clicking the tier control opens a popup with a slider (confirmed in game),
+-- so the tier does NOT change during this call -- it changes once the player
+-- finishes the popup. That makes this the ORDINARY, working path, not a
+-- fault: `ok == false` is still correct (the tier hasn't changed YET), but
+-- the message must read as "this is expected, go finish the popup", and must
+-- NEVER say Mark done -- that is the escape hatch that acks the step WITHOUT
+-- verifying the tier, the exact bypass this feature exists to prevent.
 _G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 5|r")
 local b2 = RT.HcButton()
 clicks = 0
@@ -729,7 +760,10 @@ b2.Click = function() clicks = clicks + 1 end
 ok, why = RT.HcSwitch(3)
 check(clicks == 1, "a real change clicks the server's control", clicks)
 check(ok == false, "  ...but refuses to claim success when the tier did not move", ok)
-check(string.find(tostring(why), "still on") ~= nil, "  ...and says why", why)
+check(string.find(tostring(why), "popup", 1, true) ~= nil,
+  "  ...and the message reads as the expected popup flow, not a fault", why)
+check(string.find(tostring(why), "Mark done", 1, true) == nil,
+  "  ...and does NOT advise Mark done -- that bypasses verification entirely", why)
 
 _G.ProjectEbonholdPlayerRunFrame = nil
 ok, why = RT.HcSwitch(3)
@@ -815,6 +849,40 @@ RT.Reset(true, true)
 expect("hcStart", "fresh lap again, tier still mismatched")
 CallboardHunter.db.route.acked.hcStart = true
 expect("dala1", "Mark done forces the step through despite the mismatch")
+
+-- --------------------------------------------------- full panel (mode label)
+-- The full panel's Act button routes to Route.Act -> DoModeSwitch -> HcSwitch
+-- -> btn:Click() for a mode step, i.e. it PERFORMS the tier switch. The label
+-- used to be a static "How to switch", which reads as informational right up
+-- until the click changes the player's hardcore difficulty. It must say what
+-- the button does, phrased (and tiered) the same way the compact panel's
+-- ActionFor already does for the identical step.
+print("")
+print("full panel (mode label)")
+
+W.zone = "Elwynn Forest"
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Hardcore 9|r") -- mismatched: still step 1
+RT.Reset(true, true)
+expect("hcStart", "fresh lap, mismatched tier -> still step 1")
+RT.SetMode(false) -- full panel
+RT.Refresh()
+check(string.find(RT.panel.act._text or "", "Switch to Hardcore 5", 1, true) ~= nil,
+  "full panel's button says it switches the tier, not \"How to switch\"", RT.panel.act._text)
+check(string.find(RT.panel.act._text or "", "How to switch", 1, true) == nil,
+  "  ...and the old informational label is gone", RT.panel.act._text)
+RT.SetMode(true) -- back to the default compact view for the rest of the suite
+
+-- --------------------------------------------------------------- help text
+-- "hc grind <n>" used to be revealed only by the hc usage-error path, never
+-- by the top-level /cbh route help -- someone who never fat-fingers "hc"
+-- would never learn it exists.
+print("")
+print("help text")
+out = {}
+RT.Command("this-is-not-a-real-subcommand")
+check(string.find(table.concat(out, "|"), "hc grind", 1, true) ~= nil,
+  "the top-level help mentions hc grind <n>, not just hc <tier|off>",
+  table.concat(out, "|"))
 
 -- Other surfaces should not throw.
 RT.Why()

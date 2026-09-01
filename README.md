@@ -70,7 +70,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh route hc <tier｜off>` | Hardcore tier to level on (default 5) |
 | `/cbh route hc grind <n>` | tier to hold during the callboard grind (defaults to the levelling tier) |
 | `/cbh route grind <level>` | retune the callboard grind's end level (default 80) |
-| `/cbh route autostart off` | stop offering to start a lap on login |
+| `/cbh route autostart <off｜on>` | stop / resume offering to start a lap on login |
 | `/cbh route auto` | toggle auto accept / turn-in of the route's quests |
 | `/cbh route why` / `forget` | diagnose a stuck step / drop a bad learned NPC |
 | `/cbh config` | open the config panel (all toggles, home board, blocked checkpoints) |

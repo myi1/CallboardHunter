@@ -51,10 +51,6 @@ Route.CP = {
   DALARAN = { id = "310", zone = "Dalaran",       label = "Dalaran" },
   ZULDRAK = { id = "304", zone = "Zul'Drak",      label = "Zul'Drak - The Argent Stand" },
   BOREAN  = { id = "296", zone = "Borean Tundra", label = "Borean Tundra - Unu'pe" },
-  -- The 64->80 half of the leg. 334 is the Icecrown checkpoint that reads
-  -- unlocked in a harvested table; 340 (Argent Tournament Grounds) is the other
-  -- one, and /cbh route cp 340 goes there if you prefer it.
-  ICECROWN = { id = "334", zone = "Icecrown", label = "Icecrown - The Argent Vanguard" },
 }
 
 -- Quest titles are the stable key: GetQuestLogTitle hands us titles, and
@@ -152,7 +148,12 @@ local function TierFromText(t)
   if not t then return nil end
   local plain = string.gsub(t, "|c%x%x%x%x%x%x%x%x", "")
   plain = string.gsub(plain, "|r", "")
-  return tonumber(string.match(plain, "Hardcore%s+(%d)"))
+  -- (%d+), not (%d): Route.Command accepts 0..10, so "Hardcore 10" is reachable
+  -- by configuration -- a single-digit pattern reads it as tier 1, which then
+  -- makes HcSwitch see a permanent mismatch and click the live tier control on
+  -- every Advance, cycling the player's real difficulty while never parsing a
+  -- match.
+  return tonumber(string.match(plain, "Hardcore%s+(%d+)"))
 end
 
 -- The button carrying the tier, so callers can both read AND click it.
@@ -234,8 +235,18 @@ function Route.HcSwitch(target)
   btn:Click()
   local _, now = Route.HcButton()
   if now == target then return true end
-  return false, "Clicked the tier control but you are still on Hardcore "
-    .. tostring(now) .. " -- finish it in the popup, then Mark done."
+  -- Clicking the tier control opens a popup with a slider -- confirmed in
+  -- game -- so the tier does not change during this call, only after the
+  -- player finishes the popup. That makes this the ORDINARY path, not a
+  -- fault: `false` is still the right return (the tier has not changed YET),
+  -- but the message must read as the expected next step, not an error. It
+  -- must also never say Mark done -- that is the escape hatch that acks the
+  -- step WITHOUT verifying the tier, the exact bypass this feature exists to
+  -- prevent. StepDone re-reads the live tier on the panel's ~1 Hz refresh, so
+  -- the step clears itself the moment the popup is finished; no further click
+  -- is needed.
+  return false, "Hardcore tier popup opened -- set it to " .. tostring(target)
+    .. " there. This step clears itself once the tier actually changes."
 end
 
 -- Level bands for the 64->80 grind steps, overridable per character.
@@ -257,11 +268,13 @@ function Route.Steps()
     if st.hcStep then
       if Route.HcEnabled() then
         st.tier = Route.HcTier(st.tierKey)
+        -- "start" and "grind" are the only two tierKeys Route.STEPS uses (see
+        -- Route.HcTier) -- a third branch here was dead: HcTier returns nil
+        -- for anything else, and nil .. " (optional)" would error the moment
+        -- it ran.
         st.text = (st.tierKey == "start")
           and ("Switch to Hardcore " .. st.tier)
-          or ((st.tierKey == "grind")
-            and ("Switch to Hardcore " .. st.tier .. " for the grind")
-            or ("Drop to Hardcore " .. st.tier .. " (optional)"))
+          or ("Switch to Hardcore " .. st.tier .. " for the grind")
         out[#out + 1] = st
       end
     else
@@ -270,15 +283,16 @@ function Route.Steps()
   end
   -- Grind targets come from saved config so /cbh route grind can retune them.
   -- cbGrind is the only "level" step left (the old Borean/Icecrown hand-off is
-  -- gone), so its default is the lap's real end, not the old 72 mid-band. Its
-  -- text says "callboard quests" rather than the zone -- that is the whole
-  -- point of this step, and the generic zone phrasing would silently erase it.
+  -- gone), so its default is the lap's real end (80), not the old 72
+  -- mid-band, and its text unconditionally says "callboard quests" rather
+  -- than a zone -- that is the whole point of this step. The old code branched
+  -- on st.key == "cbGrind" for both, with a generic zone-text fallback for
+  -- "any other level step"; with none left to reach it, that fallback was
+  -- dead weight, so it is gone rather than kept vestigial.
   for _, st in ipairs(out) do
     if st.kind == "level" then
-      st.target = Route.GrindTarget(st.key, st.key == "cbGrind" and 80 or 72)
-      st.text = (st.key == "cbGrind")
-        and ("Level to " .. st.target .. " on callboard quests")
-        or ("Level to " .. st.target .. " in " .. (Route.CP[st.cp] and Route.CP[st.cp].zone or "?"))
+      st.target = Route.GrindTarget(st.key, 80)
+      st.text = "Level to " .. st.target .. " on callboard quests"
     end
   end
   return out
@@ -1108,7 +1122,7 @@ end
 local function RefreshFull()
   local f = Route.panel
   if not f then return end
-  local cur = Route.Current(true) -- read-only scan: never expand under a refresh
+  local cur = Route.Current(true) -- true = don't expand quest headers (NOT side-effect-free -- this still latches d.acked); never expand under a refresh
   local d = DB()
 
   f.sub:SetText(DIM .. "Lap " .. (d.laps + 1) .. "  |  level " .. UnitLevel("player")
@@ -1163,11 +1177,18 @@ local function RefreshFull()
     f.note:SetText((blocked and (EMBER .. "BLOCKED: " .. blocked .. R)
         or (GOLD .. "Now: " .. R .. BRIGHT .. step.text .. R))
       .. "\n" .. DIM .. (step.detail or "") .. R)
+    -- mode has no static entry here: DoModeSwitch (below) actually PERFORMS the
+    -- tier switch when clicked, so the label has to say that, with the target
+    -- tier, the same way the compact panel's ActionFor phrases it -- "How to
+    -- switch" reads as informational right up until the click changes your
+    -- hardcore difficulty.
     local labels = {
-      port = "Port there", quest = "Point me at it", mode = "How to switch",
+      port = "Port there", quest = "Point me at it",
       level = "Back to the zone",
     }
-    f.act:SetText(labels[step.kind] or "Go")
+    f.act:SetText((step.kind == "mode")
+      and ("Switch to Hardcore " .. step.tier)
+      or (labels[step.kind] or "Go"))
     f.act:SetScript("OnClick", function() Route.Act() end)
     f.ack:SetText((step.kind == "mode") and "Mark done" or "Skip step")
   else
@@ -1438,7 +1459,7 @@ end
 local function RefreshMini()
   local f = Route.miniPanel
   if not f then return end
-  local cur = Route.Current(true) -- read-only scan: never expand under a ticker
+  local cur = Route.Current(true) -- true = don't expand quest headers (NOT side-effect-free -- this still latches d.acked); never expand under a ticker
   local step = cur and Route.Steps()[cur] or nil
   local blocked = step and StepBlocked(step) or nil
   local label, kind, guide = ActionFor(step, blocked)
@@ -1521,13 +1542,21 @@ local FRESH_RUN_LEVEL_CAP = 64
 -- someone's session.
 function Route.MaybeAutoStart()
   local d = DB()
-  -- "In progress" is read off real state -- any step already acked -- rather
-  -- than a separate saved flag nothing else would ever set. Route.Ack and
-  -- Route.Current both latch d.acked the moment a step is satisfied, so this
-  -- is state the rest of the file already maintains, not one invented solely
-  -- for this guard (and Route.Reset clears it, which is exactly right: a
-  -- freshly reset lap has no progress yet either).
-  if next(d.acked) ~= nil then return false end
+  -- "In progress" means PARTIAL progress -- some step latched, but at least
+  -- one still incomplete -- not just "d.acked is non-empty". A completed lap
+  -- (every step latched) leaves d.acked full too, and only /cbh route reset
+  -- clears it, so after finishing a lap at 80 and prestiging back to level 1,
+  -- d.acked still holds all ten entries. That is precisely "fresh run right
+  -- after a prestige", the headline case this feature exists for -- it must
+  -- NOT be read as "mid-lap" and suppressed.
+  --
+  -- Route.Current() returning nil is how "no incomplete step remains" is
+  -- expressed everywhere else in this file (Route.Ack, RefreshFull, Report),
+  -- so it is used the same way here: acked is checked first as a cheap
+  -- not-fresh-at-all filter, and Route.Current() distinguishes a completed
+  -- lap (nil -- offer) from a genuinely mid-flight one (an index -- stay
+  -- quiet).
+  if next(d.acked) ~= nil and Route.Current() ~= nil then return false end
   if d.autoStartOff then return false end
   if (UnitLevel("player") or 80) > FRESH_RUN_LEVEL_CAP then return false end
   CBH.print("Fresh run? " .. BRIGHT .. "/cbh route" .. R
@@ -1837,6 +1866,7 @@ function Route.Command(arg)
     CBH.print("Route: " .. GOLD .. "/cbh route" .. R .. " panel | " .. GOLD .. "why" .. R
       .. " diagnose a stuck step | " .. GOLD .. "forget" .. R .. " re-learn the NPC | "
       .. GOLD .. "auto" .. R .. " | " .. GOLD .. "hc <tier|off>" .. R .. " | "
+      .. GOLD .. "hc grind <n>" .. R .. " | "
       .. GOLD .. "autostart <off|on>" .. R .. " | "
       .. GOLD .. "grind <level>" .. R .. " | "
       .. GOLD .. "mark <1-8>" .. R .. " | "
