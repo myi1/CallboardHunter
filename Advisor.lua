@@ -269,6 +269,12 @@ end
 -- be routed.
 function Advisor.ComputeButton()
    local destZone, via
+   -- ResolveDestination clears this itself, but it is not called at all when no
+   -- objective is active - which is exactly when a leftover target does harm,
+   -- since /cbh portvia would then save a pick under a quest you have already
+   -- turned in. This ticker is what notices the quest log emptying, so it is
+   -- what has to clear it.
+   Advisor.lastDestTarget = nil
    if AnyObjectiveActive() and Advisor.ResolveDestination then
       local d, _, _, _, v = Advisor.ResolveDestination()
       destZone, via = d, v
@@ -279,7 +285,19 @@ function Advisor.ComputeButton()
    -- `via` may be a list of faction alternatives, so it is rendered rather than
    -- concatenated - and the player's own pick, if they made one, is what the
    -- button should promise, since that is what DoPort will actually use.
-   local shown = Advisor.PortTargetViaFor(Advisor.lastDestTarget) or via or destZone
+   -- Gated on destZone, NOT on the pick. A saved pick outlives the quest it was
+   -- made for, so reading it first would keep this button in "objective" mode
+   -- with a checkpoint for a quest you already turned in - re-creating the dead
+   -- "Port: objective" button described above, and hiding Home behind it.
+   local shown
+   if destZone then
+      -- A multi-name via is a faction pair, and which one exists is only known
+      -- once the map is scanned. Promise the zone rather than a base the
+      -- player may not even be able to use; a single name is still shown.
+      local promise = via
+      if type(promise) == "table" and #promise ~= 1 then promise = nil end
+      shown = Advisor.PortTargetViaFor(Advisor.lastDestTarget) or promise or destZone
+   end
    if shown then return "Port: " .. Advisor.ViaText(shown), "objective" end
    if CBH.db and CBH.db.home then return "Port: Home", "board" end
    if CBH.db and CBH.db.callboards and #CBH.db.callboards > 0 then
@@ -764,6 +782,15 @@ end
 -- Pure resolver: returns destZone, points, questID, preferPOI. Callers store
 -- what they need; the label ticker must not mutate in-flight port state.
 local function ResolveDestination(zoneArg, allowSweep)
+   -- Cleared on EVERY resolve, then set again below only if a kill objective
+   -- actually wins. It must not be sticky the way lastDestZone is: three
+   -- things now key off it (the port button's label, the port's own via
+   -- lookup, and /cbh portvia's "which objective am I setting?"), so a value
+   -- left over from a quest you have since turned in - or from before you
+   -- typed "/cbh port <zone>", which returns below without resolving an
+   -- objective at all - makes all three answer for the wrong quest. That is
+   -- how a pick meant for one zone got saved under another objective's name.
+   Advisor.lastDestTarget = nil
    if zoneArg and zoneArg ~= "" then return zoneArg, PointsForZone(zoneArg) end
    if CBH.Arrow.GetTargetXY then
       local tx, ty, isFarm, tname = CBH.Arrow.GetTargetXY()
@@ -876,8 +903,13 @@ function Advisor.PortVia(arg)
       else
          CBH.print("No current objective - open the board or accept a callboard quest first.")
       end
-      local list = freshList()
-      if list then
+      -- With no objective there is nothing to offer a list FOR, and saying
+      -- "port once, then run this again" would be advice about a quest the
+      -- line above just said does not exist. Fall through to what IS useful:
+      -- everything already saved.
+      local list = label and freshList() or nil
+      if not label then       -- nothing to list for; fall through to saved picks
+      elseif list then
          local pl = pick and FoldApostrophe(string.lower(pick)) or nil
          for i, name in ipairs(list) do
             local mark = "   "

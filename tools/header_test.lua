@@ -673,5 +673,51 @@ check("  ...and a plain string is unchanged",
 CBH.db.portTargets, CBH.db.portOverrides = {}, {}
 
 print("")
+print("== a saved pick must not outlive the quest it was made for ==")
+-- lastDestTarget is cleared on every resolve and set again only when a kill
+-- objective actually wins. It was sticky, which meant a pick saved for a quest
+-- kept answering after the quest was turned in: the port button stayed in
+-- "objective" mode showing a checkpoint for work the player no longer had, and
+-- Home was unreachable behind it.
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+CBH.db.portTargets["whispering wind"] = "Fordragon Hold"
+CBH.db.home = { zone = "Howling Fjord", x = 0.5, y = 0.5 }
+QUESTLOG = {}
+CBH.hotZones, CBH.killObjectives = {}, {}
+Advisor.lastDestTarget = "Whispering Wind"   -- left over from before the turn-in
+local lbl, mode = Advisor.ComputeButton()
+check("with the quest gone the button offers Home", lbl, "Port: Home")
+check("  ...and is not in objective mode", mode, "board")
+check("  ...the stale target was cleared by the resolve", Advisor.lastDestTarget, nil)
+CBH.db.home = nil
+
+print("")
+print("== an explicit /cbh port <zone> must not borrow an objective's pick ==")
+-- ResolveDestination returns early for an explicit zone without resolving any
+-- objective. While lastDestTarget was sticky, that early return left the
+-- previous objective's name in place, so DoPort stamped the captured
+-- checkpoints with it and /cbh portvia <n> then saved the pick under THAT
+-- objective - storing a checkpoint from one zone against a quest in another,
+-- which is the original mis-routing bug re-created by its own fix.
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+Advisor.lastDestTarget = "Whispering Wind"   -- an objective is live
+local dz = Advisor.ResolveDestination("Icecrown")
+check("an explicit zone resolves to that zone", dz, "Icecrown")
+check("  ...and clears the objective target", Advisor.lastDestTarget, nil)
+-- Now the capture and the pick both land on the zone, which is what was meant.
+afterAPort(nil, "Icecrown", { "Argent Vanguard", "Ymirheim" })
+Advisor.PortVia("2")
+check("  ...so the pick is saved against the zone", CBH.db.portOverrides["Icecrown"], "Ymirheim")
+check("  ...and not against the unrelated objective",
+   CBH.db.portTargets["whispering wind"], nil)
+
+print("")
+print("== the port button does not promise a faction base it cannot confirm ==")
+-- A two-name via is a faction pair; which one exists is only known once the
+-- map is scanned, so the label promises the zone instead of naming a base the
+-- viewer may not be able to use. A single-name via is still shown by name.
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end

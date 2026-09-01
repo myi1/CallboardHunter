@@ -66,7 +66,8 @@ do
    -- Alliance-only base. Nobody has reported the Horde counterpart, and
    -- guessing it would reintroduce the very bug the list exists to fix, so
    -- this stays a one-name list until someone on Horde reports the real one.
-   check("  ...and offers nothing else (Horde counterpart still unknown)", #fvia, 1)
+   check("  ...and offers nothing else (Horde counterpart still unknown)",
+      type(fvia) == "table" and #fvia, 1)
    check("  ...same zone value", fz, "Dragonblight")
 end
 
@@ -87,7 +88,8 @@ check("  ...offers the Stars' Rest checkpoint (Alliance)", offers(wvia, "Stars' 
 -- the map to what is unlocked AND isFactionAllowed for this player, so exactly
 -- one of these two can ever match.
 check("  ...and Agmar's Hammer for Horde", offers(wvia, "Agmar's Hammer"), true)
-check("  ...Alliance name first (preference, not priority)", wvia[1], "Stars' Rest")
+check("  ...Alliance name first (preference, not priority)",
+   type(wvia) == "table" and wvia[1], "Stars' Rest")
 -- The real live checkpoint name, exactly as the port log showed it (the
 -- server appends ", <zone>" to every checkpoint's nodeName on this map).
 local liveCheckpointName = "Stars' Rest, Dragonblight"
