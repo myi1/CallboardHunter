@@ -313,21 +313,102 @@ check("bare Stormwind still matches", CBH.SpawnDB.FindMapZoneIn("Kill 5 rats in 
 check("no zone -> nil", CBH.SpawnDB.FindMapZoneIn("Collect 5 apples"), nil)
 
 print("")
+print("== objectives outrank the title (reported by xMetaMorph, v1.11.0 fresh install) ==")
+-- The server stamps every card title with a "<Zone>:" category prefix, not a
+-- location - "Winterspring: Whispering Wind" hands out an objective that
+-- plainly reads "in Wintergrasp." Scanning the title first (the old order)
+-- returned Winterspring on a fresh install with no kill history to override
+-- it. This pins that a real zone found in an OBJECTIVE outranks one found in
+-- the TITLE - the same "title can be wrong" principle ZoneFromLearnedKills
+-- already applies to kills, now applied inside this source itself.
+QUESTLOG = {
+   { title = "Winterspring: Whispering Wind", objectives = { "Whispering Wind in Wintergrasp." } },
+}
+QW.Update(true)
+check("title alone would say Winterspring",
+   CBH.SpawnDB.FindMapZoneIn("Winterspring: Whispering Wind"), "Winterspring")
+check("objective alone says Wintergrasp",
+   CBH.SpawnDB.FindMapZoneIn("Whispering Wind in Wintergrasp."), "Wintergrasp")
+check("THE BUG: the objective's zone wins, not the title's",
+   Advisor.ZoneFromAnyMapName({ questIndex = 1 }), "Wintergrasp")
+
+print("")
+print("== objective still wins when title and objective name DIFFERENT zones ==")
+QUESTLOG = {
+   { title = "Icecrown: Cleanup Duty", objectives = { "Widget slain in Zul'Drak: 0/5" } },
+}
+QW.Update(true)
+check("objective's zone (Zul'Drak) wins over the title's (Icecrown)",
+   Advisor.ZoneFromAnyMapName({ questIndex = 1 }), "Zul'Drak")
+
+print("")
+print("== the title is still the fallback when no objective names a zone ==")
+QUESTLOG = {
+   { title = "Cleanup Duty in Icecrown", objectives = { "Widget collected: 0/5" } },
+}
+QW.Update(true)
+check("no objective names a zone, so the title decides",
+   Advisor.ZoneFromAnyMapName({ questIndex = 1 }), "Icecrown")
+
+print("")
+print("== neither title nor objective names a zone: still nil (Chalkie's card) ==")
+-- Chalkie's card, fixed in this same release: neither the title nor the
+-- objective names a zone at all, so this source must stay out of the way and
+-- let resolution fall through to the harvested card zone (see the full
+-- end-to-end pin further up, "card zone outranks a mislabelled header").
+QUESTLOG = {
+   { title = "Population Management: Earthbound Revenant",
+     objectives = { "Earthbound Revenant slain: 0/10" } },
+}
+QW.Update(true)
+check("no zone anywhere -> nil, falls through",
+   Advisor.ZoneFromAnyMapName({ questIndex = 1 }), nil)
+
+print("")
 print("== your own kills beat a lying quest title (reported 2026-08-29) ==")
 -- Real data: the quest is titled "Thinning the Herd in Winterspring", but the
--- mobs are in WINTERGRASP - 21 recorded kill points there say so.
+-- mobs are in WINTERGRASP - 21 recorded kill points there say so. The mob here
+-- is a stand-in ("Frostwing Sentry") rather than the original report's
+-- "Whispering Wind": that name now carries its own curated TARGET_CHECKPOINT
+-- entry (Star's Rest, see SpawnDB.lua) which is deliberately allowed to
+-- outrank even learned kills, the same way Flame Revenant already does below -
+-- so it can no longer stand in for "nothing curated overrides this source
+-- order" the way it did when this test was written. That interaction is
+-- pinned for the real name in the next block.
 CURRENT_ZONE = "Dalaran"
+CBH.db.learnedKills = {
+   ["Wintergrasp"] = { ["Frostwing Sentry"] = { {0.5,0.5,3}, {0.6,0.6,2} } },
+}
+CBH.db.cardZones = { ["Frostwing Sentry"] = "Winterspring" }  -- stale/wrong card
+QUESTLOG = {
+   { title = "Winterspring", header = true },
+   { title = "Thinning the Herd in Winterspring", objectives = { "Frostwing Sentry slain: 0/10" } },
+}
+QW.Update(true)
+check("kills outrank title AND header AND card", Advisor.ResolveDestination(), "Wintergrasp")
+check("  learned-kill source reports it", Advisor.ZoneFromLearnedKills("Frostwing Sentry"), "Wintergrasp")
+
+print("")
+print("== whispering wind's curated override beats even 21 recorded kills ==")
+-- The exact scenario above, but for the REAL mob name from the original
+-- report. Whispering Wind now carries its own TARGET_CHECKPOINT entry (Star's
+-- Rest, Change 2 of the xMetaMorph fix) which must win here on purpose - see
+-- "curated overrides still beat learned kills" for Flame Revenant further
+-- down. Pinned so a future change to ZoneFromQuestText's priority cannot
+-- silently let kill history override the maintainer's routing call again.
 CBH.db.learnedKills = {
    ["Wintergrasp"] = { ["Whispering Wind"] = { {0.5,0.5,3}, {0.6,0.6,2} } },
 }
-CBH.db.cardZones = { ["Whispering Wind"] = "Winterspring" }  -- stale/wrong card
+CBH.db.cardZones = { ["Whispering Wind"] = "Winterspring" }
 QUESTLOG = {
    { title = "Winterspring", header = true },
    { title = "Thinning the Herd in Winterspring", objectives = { "Whispering Wind slain: 0/10" } },
 }
 QW.Update(true)
-check("kills outrank title AND header AND card", Advisor.ResolveDestination(), "Wintergrasp")
-check("  learned-kill source reports it", Advisor.ZoneFromLearnedKills("Whispering Wind"), "Wintergrasp")
+local wwd, _, _, _, wwvia = Advisor.ResolveDestination()
+check("curated override still wins over 21 recorded kills", wwd, "Dragonblight")
+check("  ...forces the Star's Rest checkpoint", wwvia, "Star")
+CBH.db.learnedKills, CBH.db.cardZones = {}, {}
 
 print("")
 print("== most-evidence zone wins, deterministically ==")

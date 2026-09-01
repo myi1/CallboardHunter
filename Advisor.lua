@@ -541,6 +541,7 @@ local function ZoneFromAnyMapName(ko)
    end
    return nil
 end
+Advisor.ZoneFromAnyMapName = ZoneFromAnyMapName  -- exposed so tests can pin the objective/title order directly
 
 -- Where you have ACTUALLY completed this objective before. This is ground truth
 -- from your own kills, so it outranks quest text, headers and cached card zones -
