@@ -487,7 +487,57 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
       -- yet, which is exactly the case when reverse-engineering this server's UI
       -- (its frames are prefixed "Ebonhold"). Name discovery is the way in.
       local lowArg = string.lower(arg or "")
-      if string.sub(lowArg, 1, 5) == "names" then
+      -- /cbh frames tree <FrameName> -> children, regions and their text under one
+      -- named frame. Names alone say a frame exists; this says what is INSIDE it,
+      -- which is what decides whether CBH can drive it the way it drives the
+      -- callboard. Works whether or not the frame is currently shown.
+      if string.sub(lowArg, 1, 4) == "tree" then
+         local want = string.match(arg or "", "^%s*[Tt][Rr][Ee][Ee]%s+(.+)$")
+         local root = want and _G[want]
+         if not root then
+            CBH.print("No frame named '" .. tostring(want) .. "'.")
+         else
+            local function say(m) DEFAULT_CHAT_FRAME:AddMessage(m); CBH.Log("frames", m) end
+            say("TREE " .. want .. " shown=" ..
+               tostring(root.IsShown and root:IsShown()))
+            local n = 0
+            local function walk(f, depth)
+               if depth > 4 or n > 200 then return end
+               if f.GetRegions then
+                  for i = 1, select("#", f:GetRegions()) do
+                     local r = select(i, f:GetRegions())
+                     if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+                        local t = r:GetText()
+                        if t and t ~= "" then
+                           n = n + 1
+                           say(string.rep(" ", depth) .. "  text: " .. string.sub(t, 1, 110))
+                        end
+                     end
+                  end
+               end
+               if not f.GetChildren then return end
+               for i = 1, select("#", f:GetChildren()) do
+                  local c = select(i, f:GetChildren())
+                  if c then
+                     n = n + 1
+                     local nm = (c.GetName and c:GetName()) or "?"
+                     local ty = (c.GetObjectType and c:GetObjectType()) or "?"
+                     local extra = ""
+                     if ty == "Slider" and c.GetMinMaxValues then
+                        local lo, hi = c:GetMinMaxValues()
+                        extra = " range=" .. tostring(lo) .. ".." .. tostring(hi)
+                           .. " value=" .. tostring(c.GetValue and c:GetValue())
+                     end
+                     say(string.rep(" ", depth) .. "- " .. nm .. " (" .. ty .. ")"
+                        .. (c.IsShown and c:IsShown() and "" or " [hidden]") .. extra)
+                     walk(c, depth + 1)
+                  end
+               end
+            end
+            walk(root, 0)
+            CBH.print("Dumped " .. n .. " nodes under " .. want .. ".")
+         end
+      elseif string.sub(lowArg, 1, 5) == "names" then
          local pref = string.match(lowArg, "^names%s+(.+)$")
          CBH.print("Visible NAMED frames" ..
             (pref and (" starting '" .. pref .. "'") or "") .. ":")
