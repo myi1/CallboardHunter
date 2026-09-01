@@ -482,7 +482,30 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
          end
          return table.concat(names, " < ")
       end
-      if string.lower(arg or "") == "map" then
+      -- /cbh frames names [prefix] -> visible frames by NAME, no text needed.
+      -- Text filtering cannot find a custom frame whose wording you do not know
+      -- yet, which is exactly the case when reverse-engineering this server's UI
+      -- (its frames are prefixed "Ebonhold"). Name discovery is the way in.
+      local lowArg = string.lower(arg or "")
+      if string.sub(lowArg, 1, 5) == "names" then
+         local pref = string.match(lowArg, "^names%s+(.+)$")
+         CBH.print("Visible NAMED frames" ..
+            (pref and (" starting '" .. pref .. "'") or "") .. ":")
+         local f, shown = EnumerateFrames(), 0
+         while f and shown < 300 do
+            if f.IsVisible and f:IsVisible() and f.GetName then
+               local nm = f:GetName()
+               if nm and nm ~= "" and (not pref or string.find(string.lower(nm), pref, 1, true)) then
+                  shown = shown + 1
+                  local line = nm .. " (" .. (f.GetObjectType and f:GetObjectType() or "?") .. ")"
+                  DEFAULT_CHAT_FRAME:AddMessage("  " .. line)
+                  CBH.Log("frames", line)
+               end
+            end
+            f = EnumerateFrames(f)
+         end
+         CBH.print("Dumped " .. shown .. " named frames.")
+      elseif string.lower(arg or "") == "map" then
          CBH.print("WorldMapFrame child tree (open the map first):")
          local out = { n = 0 }
          local function walk(f, depth)
