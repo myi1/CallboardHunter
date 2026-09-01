@@ -539,15 +539,21 @@ SlashCmdList["CALLBOARDHUNTER"] = function(line)
          end
       elseif string.sub(lowArg, 1, 5) == "names" then
          local pref = string.match(lowArg, "^names%s+(.+)$")
-         CBH.print("Visible NAMED frames" ..
-            (pref and (" starting '" .. pref .. "'") or "") .. ":")
+         -- HIDDEN frames are listed too, and that is the point. A popup you are
+         -- trying to reverse-engineer is closed most of the time, and requiring
+         -- it to be open turns discovery into a coordination problem: open the
+         -- thing, type the command, reload, hope you had it up. The frame exists
+         -- either way, so list it either way and mark which is which.
+         CBH.print("NAMED frames" ..
+            (pref and (" matching '" .. pref .. "'") or "") .. " (hidden included):")
          local f, shown = EnumerateFrames(), 0
          while f and shown < 300 do
-            if f.IsVisible and f:IsVisible() and f.GetName then
+            if f.GetName then
                local nm = f:GetName()
                if nm and nm ~= "" and (not pref or string.find(string.lower(nm), pref, 1, true)) then
                   shown = shown + 1
-                  local line = nm .. " (" .. (f.GetObjectType and f:GetObjectType() or "?") .. ")"
+                  local vis = (f.IsVisible and f:IsVisible()) and "" or " [hidden]"
+                  local line = nm .. " (" .. (f.GetObjectType and f:GetObjectType() or "?") .. ")" .. vis
                   DEFAULT_CHAT_FRAME:AddMessage("  " .. line)
                   CBH.Log("frames", line)
                end
