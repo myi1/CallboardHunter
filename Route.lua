@@ -157,8 +157,33 @@ local function TierFromText(t)
 end
 
 -- The button carrying the tier, so callers can both read AND click it.
+-- Frames the tier control has been seen on. A list, not one name, because the
+-- name is not documented anywhere - it was read off a live frame dump - and a
+-- server-side rename would silently turn this whole feature back into "switch
+-- it yourself". Cheap to try several; each is one global lookup.
+Route.HC_FRAMES = {
+  "ProjectEbonholdPlayerRunFrame",
+  "EbonholdPlayerRunFrame",
+  "ProjectEbonholdRunFrame",
+  "EbonholdRunFrame",
+  "EbonholdHardcoreFrame",
+  "ProjectEbonholdHardcoreFrame",
+}
+
+-- Which of the above actually exists right now, or nil. Split out from
+-- HcButton so the failure message can say WHICH half failed: "no frame" and
+-- "frame is there but carries no tier text" need completely different fixes,
+-- and the old single message sent you hunting the wrong one.
+function Route.HcFrame()
+  for _, n in ipairs(Route.HC_FRAMES) do
+    local f = _G[n]
+    if f and f.GetChildren then return f, n end
+  end
+  return nil
+end
+
 function Route.HcButton()
-  local root = _G["ProjectEbonholdPlayerRunFrame"]
+  local root = Route.HcFrame()
   if not (root and root.GetChildren) then return nil end
   local found, tier
   local function walk(f, depth)
@@ -229,7 +254,18 @@ end
 function Route.HcSwitch(target)
   local btn, tier = Route.HcButton()
   if not btn then
-    return false, "Could not find the tier control -- switch it yourself and Mark done."
+    -- Two very different failures, and the old message conflated them. Say
+    -- which, and say what to run, so a report comes back with the answer in it
+    -- instead of another round trip.
+    local _, name = Route.HcFrame()
+    if not name then
+      return false, "Can't find the Hardcore panel's frame (tried "
+        .. #Route.HC_FRAMES .. " names) -- switch the tier yourself and Mark done."
+        .. "  To fix it properly: /cbh frames names ebonhold, then reload."
+    end
+    return false, "Found " .. name .. " but no tier text in it -- switch the tier"
+      .. " yourself and Mark done.  To fix it properly: /cbh frames tree "
+      .. name .. ", then reload."
   end
   if tier == target then return true end
   btn:Click()
