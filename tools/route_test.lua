@@ -127,10 +127,12 @@ end })
 local function FakeRunFrame(label)
   local fs = { GetText = function() return label end,
                GetObjectType = function() return "FontString" end }
-  local btn = { GetObjectType = function() return "Button" end,
+  local btn = { clicks = 0,
+                GetObjectType = function() return "Button" end,
                 GetRegions = function() return fs end,
                 GetChildren = function() return end,
                 IsShown = function() return true end }
+  btn.Click = function(self) self.clicks = (self.clicks or 0) + 1 end
   return { GetObjectType = function() return "Frame" end,
            GetRegions = function() return end,
            GetChildren = function() return btn end,
@@ -887,5 +889,48 @@ check(string.find(table.concat(out, "|"), "hc grind", 1, true) ~= nil,
 -- Other surfaces should not throw.
 RT.Why()
 RT.Report(); RT.Api(); RT.Macros(); RT.ListCheckpoints(); RT.Refresh()
+print("")
+print("== the tier label as the GAME actually writes it ==")
+-- Everything above this point used "Hardcore 5", a string that was invented
+-- when this feature was written and never checked against the game. A dump of
+-- the live ProjectEbonholdPlayerRunFrame reads "|cffAAAAAANormal|r" - the
+-- label is the difficulty NAME, and Normal is a tier, not the absence of one.
+-- Parsing only "Hardcore <n>" meant every character sitting on Normal got
+-- "could not find the tier control" while the control was right there. These
+-- assertions pin the verified string so the fake can never drift back into
+-- agreeing with an assumption.
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffAAAAAANormal|r")
+check(RT.HcCurrent() == 0, "Normal reads as tier 0, not nil", RT.HcCurrent())
+local nbtn, ntier = RT.HcButton()
+check(nbtn ~= nil, "the control is found while on Normal", nbtn)
+check(ntier == 0, "  ...and reports tier 0", ntier)
+
+-- Switching UP from Normal is the ordinary first step of a lap, and it was the
+-- exact case that reported a missing control in game.
+local ok, why = RT.HcSwitch(5)
+check(ok == false, "switching off Normal does not claim success", ok)
+check(why and string.find(why, "Mark done", 1, true) == nil,
+   "  ...and does not tell you to bypass the check", why)
+
+print("")
+print("== a label we cannot read is reported, not swallowed ==")
+-- The hardcore-side label is still unverified. Rather than guess a second
+-- string, an unreadable label keeps the button (so the click still opens the
+-- picker) and carries the real text out to be reported.
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffFF4444Brutal III|r")
+local ubtn, utier, ulabel = RT.HcButton()
+check(ubtn ~= nil, "an unknown label still yields the control", ubtn)
+check(utier == nil, "  ...with no tier claimed", utier)
+check(ulabel == "Brutal III", "  ...and the raw text carried out", ulabel)
+local uok, uwhy = RT.HcSwitch(5)
+check(uok == false, "an unreadable tier is not treated as switched", uok)
+check(uwhy and string.find(uwhy, "Brutal III", 1, true) ~= nil,
+   "  ...and the message names the label verbatim", uwhy)
+
+-- Ash lives in the same frame and is comma-formatted in game ("7,379,932").
+_G.ProjectEbonholdPlayerRunFrame = FakeRunFrame("|cffAAAAAANormal|r")
+
 print(string.format("\n%d checks, %d failed", checks, fails))
+
+
 if fails > 0 then os.exit(1) end

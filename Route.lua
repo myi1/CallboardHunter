@@ -144,10 +144,23 @@ end
 -- on a Button nested inside it, which is the same shape of custom UI Board.lua
 -- already drives. The old "No API for this" note meant no documented server
 -- function, not an undrivable frame.
+local function StripColour(t)
+  local plain = string.gsub(tostring(t or ""), "|c%x%x%x%x%x%x%x%x", "")
+  return (string.gsub(plain, "|r", ""))
+end
+Route.StripColour = StripColour
+
+-- VERIFIED from a live dump of ProjectEbonholdPlayerRunFrame, not assumed:
+-- the control is a Button whose FontString reads "|cffAAAAAANormal|r". The
+-- label is the difficulty's NAME. "Hardcore 5" was invented when this was
+-- written and never checked against the game, so on every character sitting
+-- on Normal the parse returned nil, the walk found nothing, and the step
+-- reported "could not find the tier control" while holding the control.
+-- Normal is a tier here, and it is tier 0 - that is what you switch UP from.
 local function TierFromText(t)
   if not t then return nil end
-  local plain = string.gsub(t, "|c%x%x%x%x%x%x%x%x", "")
-  plain = string.gsub(plain, "|r", "")
+  local plain = StripColour(t)
+  if string.find(string.lower(plain), "normal", 1, true) then return 0 end
   -- (%d+), not (%d): Route.Command accepts 0..10, so "Hardcore 10" is reachable
   -- by configuration -- a single-digit pattern reads it as tier 1, which then
   -- makes HcSwitch see a permanent mismatch and click the live tier control on
@@ -185,7 +198,7 @@ end
 function Route.HcButton()
   local root = Route.HcFrame()
   if not (root and root.GetChildren) then return nil end
-  local found, tier
+  local found, tier, label, spare, spareText
   local function walk(f, depth)
     if found or depth > 4 or not f.GetChildren then return end
     for i = 1, select("#", f:GetChildren()) do
@@ -195,8 +208,22 @@ function Route.HcButton()
           for j = 1, select("#", c:GetRegions()) do
             local r = select(j, c:GetRegions())
             if r and r.GetObjectType and r:GetObjectType() == "FontString" then
-              local n = TierFromText(r:GetText())
-              if n then found, tier = c, n; return end
+              local txt = r:GetText()
+              local n = TierFromText(txt)
+              if n then found, tier, label = c, n, StripColour(txt); return end
+              -- Only "Normal" and "Hardcore <n>" are confirmed labels. If the
+              -- server uses another word for a tier, keep the button anyway
+              -- and carry its text out so the failure can NAME it. Guessing a
+              -- second label after guessing the first one wrong is how this
+              -- stays broken; reporting the real string ends it in one round.
+              -- The difficulty is the only short non-numeric text in this
+              -- frame (its siblings are the ash total and an XP percentage),
+              -- so this is specific enough to be worth reporting.
+              local plain = StripColour(txt)
+              if not spare and plain ~= "" and not string.find(plain, "%%")
+                 and not tonumber((string.gsub(plain, ",", ""))) then
+                spare, spareText = c, plain
+              end
             end
           end
         end
@@ -205,7 +232,9 @@ function Route.HcButton()
     end
   end
   walk(root, 0)
-  return found, tier
+  if found then return found, tier, label end
+  -- A control we can see but cannot read: tier nil, label reported.
+  return spare, nil, spareText
 end
 
 function Route.HcCurrent()
@@ -252,7 +281,16 @@ end
 -- meant a failed switch looked exactly like a successful one and the route
 -- carried on regardless. Returns ok, reason.
 function Route.HcSwitch(target)
-  local btn, tier = Route.HcButton()
+  local btn, tier, label = Route.HcButton()
+  -- Found the control but could not read its tier: click it anyway (that is
+  -- what opens the picker) and say what it actually reads, so an unknown
+  -- label comes back named instead of being guessed at again.
+  if btn and not tier then
+    btn:Click()
+    return false, "Opened the difficulty control -- set it to " .. tostring(target)
+      .. " there. Its label reads \"" .. tostring(label) .. "\", which this addon"
+      .. " can't read a tier from yet -- please report that exact text."
+  end
   if not btn then
     -- Two very different failures, and the old message conflated them. Say
     -- which, and say what to run, so a report comes back with the answer in it
