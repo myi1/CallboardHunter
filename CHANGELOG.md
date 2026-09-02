@@ -4,6 +4,30 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.13.1] - 2026-09-03
+### Fixed
+- **The hardcore step could never find the difficulty control, so it had never
+  once worked in game.** It reported "Could not find the tier control -- switch
+  it yourself and Mark done" on every attempt. A dump of the live
+  `ProjectEbonholdPlayerRunFrame` shows the control is a Button whose
+  FontString reads `|cffAAAAAANormal|r` - the label is the difficulty's **name**.
+  `TierFromText` only matched `Hardcore <n>`, a string invented when the
+  feature was written and never checked against the game, so for any character
+  sitting on Normal nothing parsed, the frame walk fell out the bottom, and the
+  step reported a missing control while holding it. Normal is a tier, and it is
+  tier 0 - the one you switch up FROM, which is exactly the state at the start
+  of the lap this step opens.
+- A tier label that cannot be parsed no longer reports as a missing control. It
+  keeps the button, so the click still opens the picker, and names the raw text
+  in the message so an unrecognised label can be reported rather than guessed.
+
+### Notes
+- The tests were the reason this shipped broken. `FakeRunFrame("Hardcore 5")`
+  was built from the same assumption as the code, so the suite asserted that
+  assumption back to itself - 747 passing assertions on top of a step that had
+  never worked. They now pin the string verified from the game, and cover both
+  Normal and an unreadable label.
+
 ## [1.13.0] - 2026-09-02
 ### Fixed
 - **Horde players were routed to the wrong checkpoint by every curated
