@@ -4,6 +4,27 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.14.0] - 2026-09-03
+### Added
+- **Pick a quest's port checkpoint on the callboard card itself.** Every card
+  now shows where that quest will send you - `> via Stars' Rest`, or
+  `> nearest checkpoint` - and clicking it opens a picker of that zone's
+  remembered checkpoints. Choosing one applies to that quest only; choosing
+  *nearest* clears it. Setting this used to mean reading a numbered list,
+  remembering an index and typing it, which is a lot of ceremony for "not
+  there, there". The card is already the per-quest object, so the control
+  belongs on it.
+- The picker draws from the per-zone checkpoint cache added in 1.13.3, so a
+  card can offer real names without you having just ported to its zone. A zone
+  you have never ported to says so rather than showing an empty list.
+
+### Notes
+- The picker's frames are not unit tested. The click behaviour behind them was
+  extracted into `Advisor.SetQuestVia`, shared with `/cbh portvia` and covered,
+  but the frame construction itself is only verifiable in game. Building a fake
+  to "cover" it is precisely how the hardcore step in 1.13.0 shipped broken:
+  the fake agreed with the code and neither matched the game.
+
 ## [1.13.4] - 2026-09-03
 ### Fixed
 - **An objective in the zone you were standing in could block the Port button

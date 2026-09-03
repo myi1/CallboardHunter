@@ -850,5 +850,41 @@ CURRENT_ZONE = nil
 CBH.db.portTargets, CBH.db.portOverrides, CBH.db.zoneCheckpoints = {}, {}, {}
 
 print("")
+print("== the card picker's storage, shared with /cbh portvia ==")
+-- The picker's frames can only be judged in game; what CAN be pinned here is
+-- the behaviour behind the click, which is why it was extracted into one
+-- writer both the card and the slash command call. Building an elaborate frame
+-- fake to "cover" the UI is how the hardcore step shipped broken - the fake
+-- agreed with the code and neither matched the game.
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+
+check("a pick is stored against the quest",
+   Advisor.SetQuestVia("Whispering Wind", "Stars' Rest, Dragonblight"), true)
+check("  ...and reads back", Advisor.PortTargetViaFor("Whispering Wind"),
+   "Stars' Rest, Dragonblight")
+check("  ...case-insensitively", Advisor.PortTargetViaFor("whispering wind"),
+   "Stars' Rest, Dragonblight")
+
+-- "Nearest" is not the absence of a pick: it has to BEAT the shipped
+-- TARGET_CHECKPOINT default, or clearing would silently restore Stars' Rest.
+Advisor.SetQuestVia("Whispering Wind", nil)
+check("choosing nearest clears the pick",
+   Advisor.PortTargetViaFor("Whispering Wind"), nil)
+check("  ...and is stored as a cleared marker, not removed",
+   CBH.db.portTargets["whispering wind"], "")
+
+check("a nil target is refused", Advisor.SetQuestVia(nil, "x"), false)
+check("an empty target is refused", Advisor.SetQuestVia("", "x"), false)
+
+-- The server names checkpoints "Name, Zone"; the card is already about one
+-- zone, so the label drops the second half.
+check("the zone suffix is dropped for display",
+   Advisor.ShortCp("Stars' Rest, Dragonblight"), "Stars' Rest")
+check("  ...a name with no suffix is untouched",
+   Advisor.ShortCp("Icecrown Citadel"), "Icecrown Citadel")
+check("  ...and nil stays nil", Advisor.ShortCp(nil), nil)
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end

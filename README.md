@@ -76,6 +76,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the per-version history.
 | `/cbh config` | open the config panel (all toggles, home board, blocked checkpoints) |
 | `/cbh scan` | quest log dump with match verdicts |
 | `/cbh port [zone]` | port toward your objective (or an explicit zone) |
+| (on a card) | click the `> nearest checkpoint` line to pick where that quest ports you |
 | `/cbh portvia` | list the checkpoints from your last port, numbered |
 | `/cbh portvia <n>` | send the current objective via that checkpoint |
 | `/cbh portvia none` | back to the nearest checkpoint |

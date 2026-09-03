@@ -114,7 +114,124 @@ local function BuildNote(desc)
 end
 Advisor.BuildNote = BuildNote  -- exposed so tests can harvest a card in isolation
 
-local function RefreshCards()
+-- ------------------------------------------------ per-quest port routing UI
+-- Setting where a quest ports you was a slash command with a number in it,
+-- which meant reading a list, remembering an index, and typing it before
+-- anything changed. The card already IS the per-quest object, so the control
+-- belongs on it.
+
+-- The server names checkpoints "Name, Zone". On a card that is already about
+-- one zone the second half is noise and doubles the width.
+local function ShortCp(name)
+   if not name then return nil end
+   return (string.gsub(tostring(name), ",%s*[^,]*$", ""))
+end
+Advisor.ShortCp = ShortCp
+
+-- The single writer for a per-quest checkpoint pick. Both the card picker and
+-- /cbh portvia go through here: an empty string means "cleared", which is
+-- distinct from nil (never set) because a cleared pick must also suppress the
+-- shipped TARGET_CHECKPOINT default - see PortTargetViaFor.
+function Advisor.SetQuestVia(target, name)
+   if not target or target == "" then return false end
+   CBH.db.portTargets = CBH.db.portTargets or {}
+   CBH.db.portTargets[string.lower(target)] = name or ""
+   return true
+end
+
+local function CheckpointsFor(zone)
+   local z = zone and CBH.db and CBH.db.zoneCheckpoints
+      and CBH.db.zoneCheckpoints[zone]
+   return z or {}
+end
+
+local viaPicker
+local function EnsureViaPicker()
+   if viaPicker then return viaPicker end
+   local f = CreateFrame("Frame", "CallboardHunterViaPicker", UIParent)
+   f:SetWidth(210)
+   f:SetFrameStrata("FULLSCREEN_DIALOG")
+   f:EnableMouse(true)          -- swallow clicks so they do not reach the board
+   CBH.UI.Skin(f, CBH.UI.SURFACE_1)
+   -- This panel is addon chrome, NOT card art, so it uses the dark-ground text
+   -- colours. The control that opens it sits on parchment and uses ink.
+   f.title = CBH.UI.Text(f, "meta", CBH.UI.TEXT_SECONDARY, CBH.UI.FONT_META)
+   f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -8)
+   f.title:SetWidth(194)
+   f.title:SetJustifyH("LEFT")
+   f.rows = {}
+   f:Hide()
+   viaPicker = f
+   return f
+end
+
+local function HideViaPicker()
+   if viaPicker then viaPicker:Hide() end
+end
+Advisor.HideViaPicker = HideViaPicker
+
+local function ShowViaPicker(target, zone, anchor)
+   if not (target and CBH.UI) then return end
+   local f = EnsureViaPicker()
+   if f:IsShown() and f.cbhTarget == target then f:Hide(); return end
+   f.cbhTarget = target
+   f.title:SetText(target .. "  -  " .. tostring(zone or "zone unknown"))
+
+   -- "Nearest" first: it is the default and the way back out of a bad pick.
+   local entries = { { name = nil, text = "nearest checkpoint", note = "default" } }
+   for _, n in ipairs(CheckpointsFor(zone)) do
+      entries[#entries + 1] = { name = n, text = ShortCp(n) }
+   end
+   local pick = Advisor.PortTargetViaFor(target)
+
+   local y = -26
+   for i, e in ipairs(entries) do
+      local row = f.rows[i]
+      if not row then
+         row = CreateFrame("Button", nil, f)
+         CBH.UI.SkinButton(row, { height = 22 })
+         row:SetWidth(194)
+         row:SetScript("OnClick", function(self)
+            Advisor.SetQuestVia(f.cbhTarget, self.cbhName)
+            if self.cbhName then
+               CBH.print(f.cbhTarget .. " will now port via " .. self.cbhName .. ".")
+            else
+               CBH.print(f.cbhTarget .. " will port to the nearest checkpoint again.")
+            end
+            CBH.Log("port", "PORTVIA card pick -> '" .. tostring(self.cbhName)
+               .. "' for " .. tostring(f.cbhTarget))
+            f:Hide()
+            if Advisor.RefreshCards then Advisor.RefreshCards() end
+         end)
+         f.rows[i] = row
+      end
+      row.cbhName = e.name
+      -- Glyph AND word: the current pick is marked "*" and says "current", so
+      -- it never depends on colour to be legible.
+      local isCur = (e.name and pick and e.name == pick)
+         or (not e.name and (pick == nil))
+      row.cbhGlyph:SetText(isCur and "*" or ">")
+      row.cbhLabel:SetText(e.text .. (isCur and "  (current)" or "")
+         .. ((e.note and not isCur) and ("  " .. e.note) or ""))
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", f, "TOPLEFT", 8, y)
+      row:Show()
+      y = y - 24
+   end
+   for i = #entries + 1, #f.rows do f.rows[i]:Hide() end
+
+   if #entries == 1 then
+      f.title:SetText(target .. "  -  no checkpoints remembered for "
+         .. tostring(zone or "this zone") .. ". Port there once.")
+   end
+   f:SetHeight(-y + 8)
+   f:ClearAllPoints()
+   f:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2)
+   f:Show()
+end
+
+local RefreshCards
+RefreshCards = function()
    for i = 1, 3 do
       local card = _G["ObjectiveFrame" .. i]
       if card and card:IsShown() then
@@ -151,6 +268,23 @@ local function RefreshCards()
                end
             end)
          end
+         -- Where this quest will port you, and a click to change it. Sits on
+         -- the card art, so INK - the picker it opens is addon chrome and uses
+         -- the dark-ground colours instead.
+         if not card.cbhVia then
+            card.cbhVia = CreateFrame("Button", nil, card)
+            card.cbhVia:SetHeight(14)
+            card.cbhVia:SetPoint("BOTTOM", card.cbhNote, "TOP", 0, 2)
+            card.cbhVia.label = CBH.UI.Text(card.cbhVia, "meta",
+               CBH.UI.INK_SOFT, CBH.UI.FONT_META)
+            card.cbhVia.label:SetPoint("CENTER", card.cbhVia, "CENTER", 0, 0)
+            card.cbhVia:SetScript("OnClick", function(self)
+               if self.cbhTarget then
+                  ShowViaPicker(self.cbhTarget, self.cbhZone, self)
+               end
+            end)
+         end
+
          local title = CardTexts(card)[1]
          local target = title and CBH.SpawnDB.TargetOf(title) or nil
          card.cbhStar.cbhTarget = target
@@ -160,10 +294,34 @@ local function RefreshCards()
          else
             card.cbhStar:Hide()
          end
+
+         -- The zone comes from the whole card, not just the title: the title
+         -- carries this server's "<Zone>:" category prefix, which is the thing
+         -- that mis-routed Wintergrasp quests to Winterspring in 1.11.1.
+         local zone
+         for _, t in ipairs(CardTexts(card)) do
+            if not zone then zone = CBH.SpawnDB.ZoneForTargetText(t) end
+         end
+         card.cbhVia.cbhTarget = target
+         card.cbhVia.cbhZone = zone
+         if target then
+            local pick = Advisor.PortTargetViaFor(target)
+            -- Reads as a sentence, not a glyph: this is the one place that
+            -- answers "where does this card send me" before you commit to it.
+            card.cbhVia.label:SetText(pick and ("> via " .. ShortCp(pick))
+               or "> nearest checkpoint")
+            card.cbhVia:SetWidth(card.cbhVia.label:GetStringWidth() + 8)
+            card.cbhVia:Show()
+         else
+            card.cbhVia:Hide()
+         end
          card.cbhNote:SetText(note or "")
       end
    end
 end
+-- Exposed so the picker can redraw the card it just changed, and so a test
+-- can drive card decoration without a board event.
+Advisor.RefreshCards = RefreshCards
 
 -- ------------------------------------------------------------- port button
 
@@ -1021,7 +1179,7 @@ function Advisor.PortVia(arg)
    if low == "none" or low == "off" then
       -- Clear BOTH levels for this objective, so "none" means what it says
       -- rather than clearing one and leaving the other still steering.
-      if target then CBH.db.portTargets[string.lower(target)] = "" end
+      if target then Advisor.SetQuestVia(target, nil) end
       if zone then CBH.db.portOverrides[zone] = "" end
       CBH.print("Cleared port routing for " .. tostring(label)
          .. "  - back to the nearest checkpoint.")
@@ -1058,7 +1216,7 @@ function Advisor.PortVia(arg)
    end
 
    if target then
-      CBH.db.portTargets[string.lower(target)] = name
+      Advisor.SetQuestVia(target, name)
       CBH.print(target .. " will now port via " .. name .. "." .. note)
    else
       CBH.db.portOverrides[zone] = name
