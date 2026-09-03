@@ -179,6 +179,11 @@ local function EnsureViaPicker()
    f.hint:SetJustifyH("LEFT")
    f.rows = {}
    f:Hide()
+   -- Escape closes it, the way every other panel in this UI does. Without
+   -- this the only way out was picking something.
+   if UISpecialFrames then
+      table.insert(UISpecialFrames, "CallboardHunterViaPicker")
+   end
    viaPicker = f
    return f
 end
@@ -271,6 +276,7 @@ end
 
 local RefreshCards
 RefreshCards = function()
+   local onScreen = {}
    for i = 1, 3 do
       local card = _G["ObjectiveFrame" .. i]
       if card and card:IsShown() then
@@ -368,7 +374,13 @@ RefreshCards = function()
             card.cbhVia:Hide()
          end
          card.cbhNote:SetText(note or "")
+         if target then onScreen[target] = true end
       end
+   end
+   -- A reroll swaps the cards out underneath an open picker.
+   if viaPicker and viaPicker:IsShown() and viaPicker.cbhTarget
+      and not onScreen[viaPicker.cbhTarget] then
+      viaPicker:Hide()
    end
 end
 -- Exposed so the picker can redraw the card it just changed, and so a test
@@ -544,6 +556,11 @@ ticker:SetScript("OnUpdate", function(self, elapsed)
    if board and board:IsShown() then
       CBH.safeCall(RefreshCards)
       CBH.safeCall(LearnCallboard)
+   else
+      -- The picker hangs off a card. With the board closed it was left
+      -- floating over the world with no way to dismiss it, still describing a
+      -- quest whose card is no longer on screen.
+      CBH.safeCall(HideViaPicker)
    end
    -- Dungeon automation runs off the same board polling (opt-in, instances only).
    if CBH.Dungeon and CBH.Dungeon.Poll then
