@@ -4,6 +4,25 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.13.3] - 2026-09-03
+### Fixed
+- **`/cbh portvia <n>` could pick from another zone's list.** The numbers came
+  from whichever port ran last, so with an Icecrown port still captured and a
+  Dragonblight quest active, a pick landed on an Icecrown checkpoint - the
+  wrong quest *and* the wrong place, from one stale list.
+
+### Added
+- **Checkpoints are now remembered per zone.** They can only be read while the
+  world map is on their zone, so the list used to exist for a few seconds after
+  a port and nowhere else - which is why this command refused far more often
+  than it worked, for a command whose whole job is fixing a port that went
+  somewhere wrong. `/cbh portvia` now falls back to the checkpoints remembered
+  from your last port to that zone, and says so, since a remembered list is
+  only as current as that port.
+- The listing, the pick (with its index) and any refusal are written to the
+  port log. Two reports of "it picked the wrong one" could not be reconstructed
+  because the log recorded what was clicked but never what the player saw.
+
 ## [1.13.2] - 2026-09-03
 ### Fixed
 - **`/cbh portvia <n>` saved the pick against the wrong quest.** It acted on

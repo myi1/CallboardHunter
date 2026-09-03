@@ -893,12 +893,23 @@ function Advisor.PortVia(arg)
       if not c or #c == 0 then return nil end
       return Advisor.lastCandidateTarget or Advisor.lastCandidateZone
    end
+   -- The live list if it belongs to this objective; otherwise this zone's
+   -- remembered checkpoints. Refusing outright was correct but useless: the
+   -- names cannot be read unless the world map is on that zone, so "port there
+   -- first" was the only way to see them - for a command whose entire purpose
+   -- is fixing a port that went somewhere wrong. The cache makes the list
+   -- available from anywhere you happen to be standing.
    local function freshList()
       local c = Advisor.lastCandidates
-      if not c or #c == 0 then return nil end
-      if Advisor.lastCandidateTarget ~= target then return nil end
-      if Advisor.lastCandidateZone ~= zone then return nil end
-      return c
+      if c and #c > 0
+         and Advisor.lastCandidateTarget == target
+         and Advisor.lastCandidateZone == zone then
+         return c, "live"
+      end
+      local cached = zone and CBH.db and CBH.db.zoneCheckpoints
+         and CBH.db.zoneCheckpoints[zone]
+      if cached and #cached > 0 then return cached, "remembered" end
+      return nil
    end
    -- Naming what the numbers DID belong to is the whole difference between
    -- "this is broken" and "port for this one first".
@@ -936,7 +947,8 @@ function Advisor.PortVia(arg)
       -- "port once, then run this again" would be advice about a quest the
       -- line above just said does not exist. Fall through to what IS useful:
       -- everything already saved.
-      local list = label and freshList() or nil
+      local list, src = freshList()
+      if not label then list = nil end
       if not label then       -- nothing to list for; fall through to saved picks
       elseif list then
          local pl = pick and FoldApostrophe(string.lower(pick)) or nil
@@ -948,7 +960,10 @@ function Advisor.PortVia(arg)
             CBH.print("  " .. mark .. i .. ". " .. name
                .. ((mark ~= "   ") and "  (current)" or ""))
          end
-         CBH.print("Pick one: /cbh portvia <number>   clear it: /cbh portvia none")
+         CBH.print("Pick one: /cbh portvia <number>   clear it: /cbh portvia none"
+            .. ((src == "remembered")
+               and ("   (remembered from your last port to " .. tostring(zone) .. ")")
+               or ""))
          CBH.Log("port", "PORTVIA list for " .. tostring(label) .. " (captured for "
             .. tostring(listOwner()) .. "): " .. table.concat(list, " | "))
       else
@@ -991,10 +1006,10 @@ function Advisor.PortVia(arg)
       return
    end
 
-   local name = arg
+   local name, note = arg, ""
    local n = tonumber(arg)
    if n then
-      local list = freshList()
+      local list, src = freshList()
       if not list then
          CBH.print("No checkpoint list for " .. tostring(label) .. "."
             .. staleNote())
@@ -1009,16 +1024,23 @@ function Advisor.PortVia(arg)
          return
       end
       name = list[n]
+      -- A remembered list is only as current as the last port to that zone.
+      -- Say so on the confirmation, not just on the listing, because picking a
+      -- number is the one step a player can take without seeing the listing.
+      if src == "remembered" then
+         note = "  (from your last port to " .. tostring(zone)
+            .. " -- port again if the checkpoints there have changed)"
+      end
       CBH.Log("port", "PORTVIA pick #" .. n .. " of " .. #list .. " -> '"
          .. tostring(name) .. "' for " .. tostring(label))
    end
 
    if target then
       CBH.db.portTargets[string.lower(target)] = name
-      CBH.print(target .. " will now port via " .. name .. ".")
+      CBH.print(target .. " will now port via " .. name .. "." .. note)
    else
       CBH.db.portOverrides[zone] = name
-      CBH.print("Everything in " .. zone .. " will now port via " .. name .. ".")
+      CBH.print("Everything in " .. zone .. " will now port via " .. name .. "." .. note)
    end
 end
 
@@ -1186,6 +1208,13 @@ local function DoPort()
    end
    Advisor.lastCandidateTarget = Advisor.portTarget
    Advisor.lastCandidateZone = Advisor.lastDestZone
+   -- Keep them per ZONE too. The live list belongs to one port and is replaced
+   -- by the next one; this survives, so a quest's checkpoints can be listed
+   -- later without standing there having just ported.
+   if Advisor.lastDestZone and #Advisor.lastCandidates > 0 then
+      CBH.db.zoneCheckpoints = CBH.db.zoneCheckpoints or {}
+      CBH.db.zoneCheckpoints[Advisor.lastDestZone] = Advisor.lastCandidates
+   end
 
    local best, bestD, viaHit
    -- Port-via override: force the checkpoint whose name matches, if present.

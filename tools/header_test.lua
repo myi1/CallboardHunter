@@ -780,5 +780,39 @@ check("  ...but the port keeps its own", Advisor.portTarget, "Flame Revenant")
 CBH.db.portTargets, CBH.db.portOverrides = {}, {}
 
 print("")
+print("== a zone's checkpoints are remembered between ports ==")
+-- Checkpoints can only be READ while the world map is on their zone, so before
+-- this the list existed for a few seconds after a port and nowhere else.
+-- /cbh portvia therefore refused far more often than it worked - for a command
+-- whose entire job is fixing a port that went to the wrong place.
+CBH.db.portTargets, CBH.db.portOverrides, CBH.db.zoneCheckpoints = {}, {}, {}
+afterAPort("Skeletal Archmage", "Icecrown",
+   { "The Argent Vanguard, Icecrown", "Argent Tournament Grounds, Icecrown",
+     "Icecrown Citadel" })
+Advisor.lastDestZone = "Icecrown"
+CBH.db.zoneCheckpoints["Icecrown"] = Advisor.lastCandidates
+-- Now the player is on a different quest, in a different zone, and the live
+-- list belongs to neither. The reported bug was that a number typed here got
+-- applied to Skeletal Archmage AND to an Icecrown checkpoint.
+afterAPort("Raging Flame", "Dragonblight",
+   { "Wintergarde Keep, Dragonblight", "Stars' Rest, Dragonblight" })
+CBH.db.zoneCheckpoints["Dragonblight"] = Advisor.lastCandidates
+Advisor.lastCandidates = CBH.db.zoneCheckpoints["Icecrown"]  -- stale live list
+Advisor.lastCandidateTarget, Advisor.lastCandidateZone = "Skeletal Archmage", "Icecrown"
+Advisor.lastDestTarget, Advisor.lastDestZone = "Raging Flame", "Dragonblight"
+SAID = {}
+Advisor.PortVia("2")
+check("a stale live list no longer picks from the wrong zone",
+   CBH.db.portTargets["skeletal archmage"], nil)
+check("  ...it falls back to THIS zone's remembered checkpoints",
+   CBH.db.portTargets["raging flame"], "Stars' Rest, Dragonblight")
+-- A remembered list is only as current as the last port to that zone, and a
+-- number can be typed without ever seeing the listing, so the confirmation
+-- has to carry that caveat itself.
+check("  ...and the confirmation says where the list came from",
+   saidMatching("last port to Dragonblight") ~= nil, true)
+CBH.db.portTargets, CBH.db.portOverrides, CBH.db.zoneCheckpoints = {}, {}, {}
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end

@@ -40,6 +40,12 @@ local DEFAULTS = {
    -- zone-keyed table above cannot express. Set by picking a number from
    -- /cbh portvia's list, so the name always comes from the player's own map.
    portTargets = {},
+   -- [zone] = { checkpoint names }, remembered from the last port that scanned
+   -- that zone's map. Checkpoints can ONLY be read while the world map is on
+   -- their zone, so without this the list exists for a few seconds after a
+   -- port and nowhere else - which is why picking one kept refusing, and why
+   -- any UI for choosing one needs a cache to draw from.
+   zoneCheckpoints = {},
    mapOverrides = {}, -- [zone] = which zone's MAP to scan for its checkpoint
    checkpointBlock = {}, -- [lowercase name] = true: never route/port to this
    questPatterns = nil,
