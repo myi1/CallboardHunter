@@ -4,6 +4,30 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.13.2] - 2026-09-03
+### Fixed
+- **`/cbh portvia <n>` saved the pick against the wrong quest.** It acted on
+  whichever objective was ported *last*, not the one you are on. Reported in
+  game: with `Raging Flame Infestation` active and an older Skeletal Archmage
+  port still captured, `/cbh portvia 2` answered *"Skeletal Archmage will now
+  port via The Argent Vanguard, Icecrown"* - a pick stored against a quest the
+  player was not doing, naming a checkpoint in a zone that quest is not in.
+  The command now acts on the live objective, and a list captured for a
+  different one is refused rather than applied.
+- **The refusal now names what the numbers belonged to.** "No checkpoint list
+  for this objective" gave a player nothing to act on; it now reads "the last
+  port was for X, so those numbers aren't for Y - port for Y first".
+
+### Notes
+- The stale-list guard existed, was removed in 1.13.0 as ineffective, and is
+  restored here. It was genuinely useless at the time because both sides of its
+  comparison were read from one sticky field, so it compared a value against
+  itself. Now that the live objective and the port's own captured target are
+  tracked separately, the same check does what it always claimed to.
+- `tools/header_test.lua` now captures `CBH.print` output, so messages that
+  *are* the user-facing behaviour of a command can be asserted. Nothing checked
+  them until a misleading one shipped.
+
 ## [1.13.1] - 2026-09-03
 ### Fixed
 - **The hardcore step could never find the difficulty control, so it had never

@@ -869,24 +869,47 @@ Advisor.ResolveDestination = ResolveDestination
 -- apostrophe wrong in "Stars' Rest" was enough to silently do nothing.
 function Advisor.PortVia(arg)
    arg = arg and (arg:gsub("^%s+", ""):gsub("%s+$", "")) or ""
-   -- The objective this command acts on is the one the visible list was
-   -- captured FOR, not whatever is live right now. Reading live state was
-   -- wrong twice: it can be a different quest by the time you type this, and
-   -- for a sweep-only objective it is not knowable between ports at all. The
-   -- listing prints the name it is about, so there is no ambiguity on screen.
+   -- This acts on the objective you are ON. An earlier version keyed it to
+   -- whichever objective was ported LAST, which reads fine in isolation and is
+   -- wrong the moment those differ: with Raging Flame Infestation active and
+   -- an older Skeletal Archmage port still captured, "/cbh portvia 2" replied
+   -- "Skeletal Archmage will now port via The Argent Vanguard, Icecrown" -
+   -- a pick saved against a quest the player was not doing, pointing at a
+   -- checkpoint in a zone that quest is not in.
    local target, zone = Advisor.lastDestTarget, Advisor.lastDestZone
-   if Advisor.lastCandidates and #Advisor.lastCandidates > 0 then
+   -- Only when nothing is live: a sweep-only objective is not resolvable
+   -- between ports, so the port's own captured name is the sole record of it.
+   if not target and Advisor.lastCandidateTarget then
       target, zone = Advisor.lastCandidateTarget, Advisor.lastCandidateZone
    end
    local label = target or zone
 
-   -- The captured list belongs to whichever objective was ported LAST. If the
-   -- player has since switched objectives, offering it would quietly apply a
-   -- pick to the wrong quest, so it is only offered when it still matches.
+   -- Both sides of this comparison are now sourced independently - the live
+   -- objective, and the name the PORT captured for itself - so it is a real
+   -- check. It could not do its job while both were read from one sticky
+   -- field, which is why it was briefly removed rather than repaired.
+   local function listOwner()
+      local c = Advisor.lastCandidates
+      if not c or #c == 0 then return nil end
+      return Advisor.lastCandidateTarget or Advisor.lastCandidateZone
+   end
    local function freshList()
       local c = Advisor.lastCandidates
       if not c or #c == 0 then return nil end
+      if Advisor.lastCandidateTarget ~= target then return nil end
+      if Advisor.lastCandidateZone ~= zone then return nil end
       return c
+   end
+   -- Naming what the numbers DID belong to is the whole difference between
+   -- "this is broken" and "port for this one first".
+   local function staleNote()
+      local owner = listOwner()
+      if owner then
+         return "  The last port was for " .. tostring(owner) .. ", so those"
+            .. " numbers aren't for " .. tostring(label) .. ".  Port for "
+            .. tostring(label) .. " first, then run /cbh portvia."
+      end
+      return "  Port once, then run /cbh portvia to pick from what was on the map."
    end
 
    local function currentPick()
@@ -928,8 +951,8 @@ function Advisor.PortVia(arg)
          CBH.print("Pick one: /cbh portvia <number>   clear it: /cbh portvia none")
       else
          if pick then CBH.print("  currently: " .. pick .. "  (" .. why .. ")") end
-         CBH.print("  No checkpoint list yet for this objective - port once, then"
-            .. " run /cbh portvia again to pick from what was on the map.")
+         CBH.print("  No checkpoint list for " .. tostring(label) .. "."
+            .. staleNote())
       end
       -- Everything saved, so a player can see and undo picks made elsewhere.
       local any = false
@@ -971,8 +994,8 @@ function Advisor.PortVia(arg)
    if n then
       local list = freshList()
       if not list then
-         CBH.print("No checkpoint list for this objective yet - port once, then run"
-            .. " /cbh portvia to see the numbers.")
+         CBH.print("No checkpoint list for " .. tostring(label) .. "."
+            .. staleNote())
          return
       end
       if not list[n] then

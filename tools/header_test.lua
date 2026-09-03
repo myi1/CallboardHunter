@@ -70,7 +70,17 @@ CBH.db = { options = {}, learned = {}, learnedKills = {}, cardZones = {},
 -- This suite exercises ZONE RESOLUTION; the callboard-only filter is a separate
 -- concern with its own section below, so keep it off for the rest.
 CBH.db.options.callboardOnly = false
-function CBH.print(m) if VERBOSE then print("   [cbh] " .. tostring(m)) end end
+SAID = {}
+function CBH.print(m)
+   SAID[#SAID + 1] = tostring(m)
+   if VERBOSE then print("   [cbh] " .. tostring(m)) end
+end
+local function saidMatching(pat)
+   for _, m in ipairs(SAID) do
+      if string.find(m, pat, 1, true) then return m end
+   end
+   return nil
+end
 function CBH.safeCall(fn, ...) if fn then fn(...) end end
 function CBH.Log() end
 function CBH.IsBlockedCheckpoint() return false end
@@ -633,16 +643,30 @@ Advisor.PortVia("9")
 check("an out-of-range number changes nothing",
    CBH.db.portTargets["flame revenant"], "Wintergarde Keep")
 
--- A pick lands on the objective the visible list was captured FOR, never on
--- whatever happens to be active by the time the player types the number. The
--- listing prints that name, so what is being set is on screen.
+-- REPORTED IN GAME: with Raging Flame Infestation active and an older
+-- Skeletal Archmage port still captured, "/cbh portvia 2" answered "Skeletal
+-- Archmage will now port via The Argent Vanguard, Icecrown" - a pick saved
+-- against a quest the player was not on, naming a checkpoint in a zone that
+-- quest is not even in. The command acts on the objective you are ON; a list
+-- captured for a different one is refused, and the refusal names what it was
+-- for so "port for this one first" is obvious.
 afterAPort("Whispering Wind", "Dragonblight", DRAGON)
-Advisor.lastDestTarget = "Some Other Mob"   -- something else became active
+local before = CBH.db.portTargets["whispering wind"]
+Advisor.lastDestTarget = "Some Other Mob"   -- the quest you are actually on
 Advisor.PortVia("2")
-check("a pick lands on the objective the list was captured for",
-   CBH.db.portTargets["whispering wind"], "Stars' Rest")
-check("  ...not on whatever became active since",
+check("a stale list does not write to the objective it was captured for",
+   CBH.db.portTargets["whispering wind"], before)
+check("  ...nor to the live objective, whose numbers these are not",
    CBH.db.portTargets["some other mob"], nil)
+-- The refusal has to be actionable. "No checkpoint list" alone sent the
+-- reporter looking for a broken addon; naming the objective the numbers came
+-- from turns it into "port for this one first".
+SAID = {}
+Advisor.PortVia("2")
+check("  ...the refusal names the objective the numbers came from",
+   saidMatching("Whispering Wind") ~= nil, true)
+check("  ...and names the objective you are actually on",
+   saidMatching("Some Other Mob") ~= nil, true)
 
 -- An explicit name still works, for anyone who already knows it.
 afterAPort("Whispering Wind", "Dragonblight", DRAGON)
