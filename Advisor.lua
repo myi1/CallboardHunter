@@ -146,19 +146,37 @@ local function CheckpointsFor(zone)
 end
 
 local viaPicker
+local VIA_W, VIA_PAD, VIA_ROW, VIA_GAP = 250, 10, 20, 3
+
+-- Long names do not get to reflow the panel. The first version put a whole
+-- sentence in the title, it wrapped to two lines, and the rows - positioned
+-- from a fixed offset - were drawn underneath it.
+local function Trunc(t, n)
+   t = tostring(t or "")
+   if string.len(t) <= n then return t end
+   return string.sub(t, 1, n - 3) .. "..."
+end
+
 local function EnsureViaPicker()
    if viaPicker then return viaPicker end
    local f = CreateFrame("Frame", "CallboardHunterViaPicker", UIParent)
-   f:SetWidth(210)
+   f:SetWidth(VIA_W)
    f:SetFrameStrata("FULLSCREEN_DIALOG")
    f:EnableMouse(true)          -- swallow clicks so they do not reach the board
    CBH.UI.Skin(f, CBH.UI.SURFACE_1)
-   -- This panel is addon chrome, NOT card art, so it uses the dark-ground text
-   -- colours. The control that opens it sits on parchment and uses ink.
-   f.title = CBH.UI.Text(f, "meta", CBH.UI.TEXT_SECONDARY, CBH.UI.FONT_META)
-   f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -8)
-   f.title:SetWidth(194)
+   -- This panel is addon chrome, NOT card art, so it takes the dark-ground
+   -- text colours. The control that opens it sits on parchment and uses ink.
+   f.title = CBH.UI.Text(f, "label", CBH.UI.TEXT_PRIMARY)
+   f.title:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, -VIA_PAD)
+   f.title:SetWidth(VIA_W - VIA_PAD * 2)
    f.title:SetJustifyH("LEFT")
+   f.sub = CBH.UI.Text(f, "meta", CBH.UI.TEXT_MUTED, CBH.UI.FONT_META)
+   f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -2)
+   f.sub:SetWidth(VIA_W - VIA_PAD * 2)
+   f.sub:SetJustifyH("LEFT")
+   f.hint = CBH.UI.Text(f, "meta", CBH.UI.TEXT_MUTED, CBH.UI.FONT_META)
+   f.hint:SetWidth(VIA_W - VIA_PAD * 2)
+   f.hint:SetJustifyH("LEFT")
    f.rows = {}
    f:Hide()
    viaPicker = f
@@ -175,22 +193,27 @@ local function ShowViaPicker(target, zone, anchor)
    local f = EnsureViaPicker()
    if f:IsShown() and f.cbhTarget == target then f:Hide(); return end
    f.cbhTarget = target
-   f.title:SetText(target .. "  -  " .. tostring(zone or "zone unknown"))
+   f.title:SetText(Trunc(target, 30))
+   f.sub:SetText(zone and ("in " .. zone) or "zone unknown")
 
-   -- "Nearest" first: it is the default and the way back out of a bad pick.
-   local entries = { { name = nil, text = "nearest checkpoint", note = "default" } }
-   for _, n in ipairs(CheckpointsFor(zone)) do
-      entries[#entries + 1] = { name = n, text = ShortCp(n) }
-   end
+   local list = CheckpointsFor(zone)
    local pick = Advisor.PortTargetViaFor(target)
+   -- "Nearest" is always first: it is the default and the way back out of a
+   -- bad pick, so it must not move around as the list grows.
+   local entries = { { name = nil, text = "nearest checkpoint" } }
+   for _, n in ipairs(list) do
+      entries[#entries + 1] = { name = n, text = Trunc(ShortCp(n), 28) }
+   end
 
-   local y = -26
+   -- Measured, not assumed: the header is two FontStrings whose height depends
+   -- on the font and on whether anything wrapped.
+   local y = -(VIA_PAD + f.title:GetHeight() + 2 + f.sub:GetHeight() + 6)
    for i, e in ipairs(entries) do
       local row = f.rows[i]
       if not row then
          row = CreateFrame("Button", nil, f)
-         CBH.UI.SkinButton(row, { height = 22 })
-         row:SetWidth(194)
+         CBH.UI.SkinButton(row, { height = VIA_ROW })
+         row:SetWidth(VIA_W - VIA_PAD * 2)
          row:SetScript("OnClick", function(self)
             Advisor.SetQuestVia(f.cbhTarget, self.cbhName)
             if self.cbhName then
@@ -207,26 +230,42 @@ local function ShowViaPicker(target, zone, anchor)
       end
       row.cbhName = e.name
       -- Glyph AND word: the current pick is marked "*" and says "current", so
-      -- it never depends on colour to be legible.
-      local isCur = (e.name and pick and e.name == pick)
-         or (not e.name and (pick == nil))
+      -- it never relies on colour to be legible.
+      local isCur = (e.name and pick and e.name == pick) or (not e.name and pick == nil)
       row.cbhGlyph:SetText(isCur and "*" or ">")
-      row.cbhLabel:SetText(e.text .. (isCur and "  (current)" or "")
-         .. ((e.note and not isCur) and ("  " .. e.note) or ""))
+      row.cbhLabel:SetText(e.text .. (isCur and "   current" or ""))
       row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", f, "TOPLEFT", 8, y)
+      row:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, y)
       row:Show()
-      y = y - 24
+      y = y - (VIA_ROW + VIA_GAP)
    end
    for i = #entries + 1, #f.rows do f.rows[i]:Hide() end
 
-   if #entries == 1 then
-      f.title:SetText(target .. "  -  no checkpoints remembered for "
-         .. tostring(zone or "this zone") .. ". Port there once.")
+   -- The empty case is a hint UNDER the rows, not a sentence in the title.
+   -- Nearest still has to be offered, or a bad pick could not be undone from
+   -- the one zone whose checkpoints have not been seen yet.
+   if #list == 0 then
+      f.hint:SetText("Port to " .. tostring(zone or "this zone")
+         .. " once and its checkpoints will be listed here.")
+      f.hint:ClearAllPoints()
+      f.hint:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, y - 2)
+      f.hint:Show()
+      y = y - f.hint:GetHeight() - 4
+   else
+      f.hint:Hide()
    end
-   f:SetHeight(-y + 8)
+
+   local h = -y + VIA_PAD - VIA_GAP
+   f:SetHeight(h)
    f:ClearAllPoints()
-   f:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2)
+   -- Drops below the control, unless the card sits low enough that the panel
+   -- would run off the bottom of the screen - then it opens upward instead.
+   local below = anchor:GetBottom()
+   if below and (below - h) < 8 then
+      f:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, 3)
+   else
+      f:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -3)
+   end
    f:Show()
 end
 
@@ -274,7 +313,7 @@ RefreshCards = function()
          if not card.cbhVia then
             card.cbhVia = CreateFrame("Button", nil, card)
             card.cbhVia:SetHeight(14)
-            card.cbhVia:SetPoint("BOTTOM", card.cbhNote, "TOP", 0, 2)
+            card.cbhVia:SetPoint("BOTTOM", card.cbhNote, "TOP", 0, 4)
             card.cbhVia.label = CBH.UI.Text(card.cbhVia, "meta",
                CBH.UI.INK_SOFT, CBH.UI.FONT_META)
             card.cbhVia.label:SetPoint("CENTER", card.cbhVia, "CENTER", 0, 0)
