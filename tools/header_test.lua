@@ -906,5 +906,38 @@ check("a card naming no zone at all stays unknown",
 
 
 print("")
+print("== a pick can live in ANOTHER zone ==")
+-- REPORTED IN GAME: a Wintergrasp quest could not be routed to Fordragon Hold
+-- in Dragonblight. Wintergrasp carries exactly one checkpoint, so "nearest"
+-- was the only offer, when the route the player wants is to land in
+-- Dragonblight and fly in. A cross-zone pick has to carry the MAP to scan as
+-- well as the checkpoint name, or the port looks for that name on the wrong
+-- map and silently falls back to nearest.
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+Advisor.SetQuestVia("Raging Flame", "Fordragon Hold, Dragonblight", "Dragonblight")
+check("the checkpoint reads back",
+   Advisor.PortTargetViaFor("Raging Flame"), "Fordragon Hold, Dragonblight")
+check("  ...and so does the map to scan",
+   Advisor.PortTargetMapFor("Raging Flame"), "Dragonblight")
+
+-- A same-zone pick stays a plain string, so every pick saved before this
+-- feature existed still reads correctly.
+Advisor.SetQuestVia("Whispering Wind", "Stars Rest, Dragonblight")
+check("a same-zone pick is still a plain string",
+   type(CBH.db.portTargets["whispering wind"]), "string")
+check("  ...with no map", Advisor.PortTargetMapFor("Whispering Wind"), nil)
+
+-- Clearing has to work on both shapes, and must survive as a cleared marker
+-- so it also suppresses the shipped TARGET_CHECKPOINT default.
+Advisor.SetQuestVia("Raging Flame", nil)
+check("clearing a cross-zone pick clears the checkpoint",
+   Advisor.PortTargetViaFor("Raging Flame"), nil)
+check("  ...and the map with it", Advisor.PortTargetMapFor("Raging Flame"), nil)
+check("  ...leaving a cleared marker, not a hole",
+   CBH.db.portTargets["raging flame"], "")
+CBH.db.portTargets, CBH.db.portOverrides = {}, {}
+
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end

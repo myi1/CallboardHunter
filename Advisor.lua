@@ -132,10 +132,22 @@ Advisor.ShortCp = ShortCp
 -- /cbh portvia go through here: an empty string means "cleared", which is
 -- distinct from nil (never set) because a cleared pick must also suppress the
 -- shipped TARGET_CHECKPOINT default - see PortTargetViaFor.
-function Advisor.SetQuestVia(target, name)
+-- `mapZone` is for a CROSS-ZONE pick: the checkpoint you want is on another
+-- zone's map. Wintergrasp is the case that forced it - it carries exactly one
+-- checkpoint, so "port to Dragonblight and fly in" is the only sensible route
+-- and the picker could not express it. Stored as a table then, a plain string
+-- otherwise, which keeps every pick saved before this readable.
+function Advisor.SetQuestVia(target, name, mapZone)
    if not target or target == "" then return false end
    CBH.db.portTargets = CBH.db.portTargets or {}
-   CBH.db.portTargets[string.lower(target)] = name or ""
+   local key = string.lower(target)
+   if not name then
+      CBH.db.portTargets[key] = ""          -- cleared, and stays cleared
+   elseif mapZone then
+      CBH.db.portTargets[key] = { cp = name, map = mapZone }
+   else
+      CBH.db.portTargets[key] = name
+   end
    return true
 end
 
@@ -146,9 +158,9 @@ local function CheckpointsFor(zone)
 end
 
 local viaPicker
-local VIA_W, VIA_PAD, VIA_ROW, VIA_GAP = 250, 10, 20, 3
+local VIA_W, VIA_PAD, VIA_ROW, VIA_MAX = 250, 10, 22, 18
 
--- Long names do not get to reflow the panel. The first version put a whole
+-- Long names do not get to reflow the panel. An earlier version put a whole
 -- sentence in the title, it wrapped to two lines, and the rows - positioned
 -- from a fixed offset - were drawn underneath it.
 local function Trunc(t, n)
@@ -164,23 +176,27 @@ local function EnsureViaPicker()
    f:SetFrameStrata("FULLSCREEN_DIALOG")
    f:EnableMouse(true)          -- swallow clicks so they do not reach the board
    CBH.UI.Skin(f, CBH.UI.SURFACE_1)
-   -- This panel is addon chrome, NOT card art, so it takes the dark-ground
-   -- text colours. The control that opens it sits on parchment and uses ink.
+   -- Addon chrome, NOT card art, so the dark-ground text colours. The control
+   -- that opens this sits on parchment and uses ink.
+   --
+   -- Header is ONE line: name left, zone right. Two stacked lines cost a row of
+   -- height, and the zone is a qualifier rather than a title.
    f.title = CBH.UI.Text(f, "label", CBH.UI.TEXT_PRIMARY)
    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, -VIA_PAD)
-   f.title:SetWidth(VIA_W - VIA_PAD * 2)
    f.title:SetJustifyH("LEFT")
-   f.sub = CBH.UI.Text(f, "meta", CBH.UI.TEXT_MUTED, CBH.UI.FONT_META)
-   f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -2)
-   f.sub:SetWidth(VIA_W - VIA_PAD * 2)
-   f.sub:SetJustifyH("LEFT")
+   f.zone = CBH.UI.Text(f, "meta", CBH.UI.TEXT_MUTED, CBH.UI.FONT_META)
+   f.zone:SetPoint("TOPRIGHT", f, "TOPRIGHT", -VIA_PAD, -VIA_PAD - 2)
+   f.zone:SetJustifyH("RIGHT")
+   f.rule = f:CreateTexture(nil, "ARTWORK")
+   f.rule:SetTexture(CBH.UI.BORDER[1], CBH.UI.BORDER[2], CBH.UI.BORDER[3], 0.10)
+   f.rule:SetHeight(1)
    f.hint = CBH.UI.Text(f, "meta", CBH.UI.TEXT_MUTED, CBH.UI.FONT_META)
    f.hint:SetWidth(VIA_W - VIA_PAD * 2)
    f.hint:SetJustifyH("LEFT")
    f.rows = {}
    f:Hide()
-   -- Escape closes it, the way every other panel in this UI does. Without
-   -- this the only way out was picking something.
+   -- Escape closes it, the way every other panel in this UI does. Without this
+   -- the only way out was picking something.
    if UISpecialFrames then
       table.insert(UISpecialFrames, "CallboardHunterViaPicker")
    end
@@ -193,81 +209,137 @@ local function HideViaPicker()
 end
 Advisor.HideViaPicker = HideViaPicker
 
+-- One row, no box. Five bordered rectangles stacked inside a sixth was most of
+-- the visual weight; a brass rule on the chosen line carries the same meaning
+-- for a fraction of the ink.
+local function ViaRow(f)
+   local row = CreateFrame("Button", nil, f)
+   row:SetHeight(VIA_ROW)
+   row:SetWidth(VIA_W - VIA_PAD * 2)
+   row.hl = row:CreateTexture(nil, "BACKGROUND")
+   row.hl:SetTexture(CBH.UI.SURFACE_3[1], CBH.UI.SURFACE_3[2], CBH.UI.SURFACE_3[3], 1)
+   row.hl:SetAllPoints(row)
+   row.hl:Hide()
+   row.rule = row:CreateTexture(nil, "ARTWORK")
+   row.rule:SetTexture(CBH.UI.BRASS[1], CBH.UI.BRASS[2], CBH.UI.BRASS[3], 1)
+   row.rule:SetWidth(3)
+   row.rule:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+   row.rule:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+   row.rule:Hide()
+   row.label = CBH.UI.Text(row, "body", CBH.UI.TEXT_SECONDARY, CBH.UI.FONT_META)
+   row.label:SetPoint("LEFT", row, "LEFT", 9, 0)
+   row.label:SetJustifyH("LEFT")
+   row.tag = CBH.UI.Text(row, "stamp", CBH.UI.TEXT_MUTED, CBH.UI.FONT_META)
+   row.tag:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+   row.tag:SetJustifyH("RIGHT")
+   row:SetScript("OnEnter", function(self) self.hl:Show() end)
+   row:SetScript("OnLeave", function(self) self.hl:Hide() end)
+   return row
+end
+
 local function ShowViaPicker(target, zone, anchor)
    if not (target and CBH.UI) then return end
    local f = EnsureViaPicker()
    if f:IsShown() and f.cbhTarget == target then f:Hide(); return end
    f.cbhTarget = target
-   f.title:SetText(Trunc(target, 30))
-   f.sub:SetText(zone and ("in " .. zone) or "zone unknown")
+   f.title:SetText(Trunc(target, 24))
+   f.zone:SetText(zone and Trunc(zone, 16) or "zone unknown")
 
-   local list = CheckpointsFor(zone)
-   local pick = Advisor.PortTargetViaFor(target)
    -- "Nearest" is always first: it is the default and the way back out of a
-   -- bad pick, so it must not move around as the list grows.
+   -- bad pick, so it must not move as the list grows.
    local entries = { { name = nil, text = "nearest checkpoint" } }
-   for _, n in ipairs(list) do
-      entries[#entries + 1] = { name = n, text = Trunc(ShortCp(n), 28) }
+   local here = CheckpointsFor(zone)
+   for _, n in ipairs(here) do
+      entries[#entries + 1] = { name = n, text = ShortCp(n) }
+   end
+   -- Checkpoints in OTHER zones, tagged with theirs. Wintergrasp carries
+   -- exactly one checkpoint, so without these the only answer for a quest
+   -- there was "nearest" - when what the player wants is to land in
+   -- Dragonblight and fly in. A pick from here carries its map, so the port
+   -- scans that zone instead.
+   local others = {}
+   for z, list in pairs((CBH.db and CBH.db.zoneCheckpoints) or {}) do
+      if z ~= zone then
+         for _, n in ipairs(list) do
+            others[#others + 1] = { name = n, text = ShortCp(n), map = z, tag = z }
+         end
+      end
+   end
+   table.sort(others, function(a, b)
+      if a.tag ~= b.tag then return a.tag < b.tag end
+      return a.text < b.text
+   end)
+   local cut = false
+   for _, e in ipairs(others) do
+      if #entries >= VIA_MAX then cut = true; break end
+      entries[#entries + 1] = e
    end
 
-   -- Measured, not assumed: the header is two FontStrings whose height depends
-   -- on the font and on whether anything wrapped.
-   local y = -(VIA_PAD + f.title:GetHeight() + 2 + f.sub:GetHeight() + 6)
+   local pick = Advisor.PortTargetViaFor(target)
+   local y = -(VIA_PAD + f.title:GetHeight() + 6)
+   f.rule:ClearAllPoints()
+   f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, y)
+   f.rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", -VIA_PAD, y)
+   y = y - 5
+
    for i, e in ipairs(entries) do
       local row = f.rows[i]
-      if not row then
-         row = CreateFrame("Button", nil, f)
-         CBH.UI.SkinButton(row, { height = VIA_ROW })
-         row:SetWidth(VIA_W - VIA_PAD * 2)
-         row:SetScript("OnClick", function(self)
-            Advisor.SetQuestVia(f.cbhTarget, self.cbhName)
-            if self.cbhName then
-               CBH.print(f.cbhTarget .. " will now port via " .. self.cbhName .. ".")
-            else
-               CBH.print(f.cbhTarget .. " will port to the nearest checkpoint again.")
-            end
-            CBH.Log("port", "PORTVIA card pick -> '" .. tostring(self.cbhName)
-               .. "' for " .. tostring(f.cbhTarget))
-            f:Hide()
-            if Advisor.RefreshCards then Advisor.RefreshCards() end
-         end)
-         f.rows[i] = row
-      end
-      row.cbhName = e.name
-      -- Glyph AND word: the current pick is marked "*" and says "current", so
-      -- it never relies on colour to be legible.
+      if not row then row = ViaRow(f); f.rows[i] = row end
+      row.cbhName, row.cbhMap = e.name, e.map
+      row:SetScript("OnClick", function(self)
+         Advisor.SetQuestVia(f.cbhTarget, self.cbhName, self.cbhMap)
+         if self.cbhName then
+            CBH.print(f.cbhTarget .. " will now port via " .. self.cbhName
+               .. (self.cbhMap and ("  (via the " .. self.cbhMap .. " map)") or "") .. ".")
+         else
+            CBH.print(f.cbhTarget .. " will port to the nearest checkpoint again.")
+         end
+         CBH.Log("port", "PORTVIA card pick -> " .. tostring(self.cbhName)
+            .. " map=" .. tostring(self.cbhMap) .. " for " .. tostring(f.cbhTarget))
+         f:Hide()
+         if Advisor.RefreshCards then Advisor.RefreshCards() end
+      end)
+      -- Rule AND word: the chosen row carries a brass rule and the word
+      -- CURRENT, so it never depends on colour alone to be legible.
       local isCur = (e.name and pick and e.name == pick) or (not e.name and pick == nil)
-      row.cbhGlyph:SetText(isCur and "*" or ">")
-      row.cbhLabel:SetText(e.text .. (isCur and "   current" or ""))
+      if isCur then row.rule:Show() else row.rule:Hide() end
+      row.label:SetText(Trunc(e.text, 26))
+      CBH.UI.Font(row.label, "body",
+         isCur and CBH.UI.TEXT_PRIMARY or CBH.UI.TEXT_SECONDARY, CBH.UI.FONT_META)
+      row.tag:SetText(isCur and "CURRENT" or (e.tag and Trunc(e.tag, 14)) or "")
       row:ClearAllPoints()
       row:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, y)
       row:Show()
-      y = y - (VIA_ROW + VIA_GAP)
+      y = y - VIA_ROW
    end
    for i = #entries + 1, #f.rows do f.rows[i]:Hide() end
 
-   -- The empty case is a hint UNDER the rows, not a sentence in the title.
-   -- Nearest still has to be offered, or a bad pick could not be undone from
-   -- the one zone whose checkpoints have not been seen yet.
-   if #list == 0 then
-      f.hint:SetText("Port to " .. tostring(zone or "this zone")
-         .. " once and its checkpoints will be listed here.")
+   -- The empty case is a hint UNDER the rows, never a sentence in the header.
+   local msg
+   if #here == 0 then
+      msg = "No checkpoints known in " .. tostring(zone or "this zone")
+         .. " yet - port there once."
+   elseif cut then
+      msg = "Other zones trimmed to fit."
+   end
+   if msg then
+      f.hint:SetText(msg)
       f.hint:ClearAllPoints()
-      f.hint:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, y - 2)
+      f.hint:SetPoint("TOPLEFT", f, "TOPLEFT", VIA_PAD, y - 4)
       f.hint:Show()
-      y = y - f.hint:GetHeight() - 4
+      y = y - f.hint:GetHeight() - 6
    else
       f.hint:Hide()
    end
 
-   local h = -y + VIA_PAD - VIA_GAP
+   local h = -y + VIA_PAD
    f:SetHeight(h)
    f:ClearAllPoints()
    -- Drops below the control, unless the card sits low enough that the panel
    -- would run off the bottom of the screen - then it opens upward instead.
    local below = anchor:GetBottom()
    if below and (below - h) < 8 then
-      f:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, 3)
+      f:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 0, h + 3)
    else
       f:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -3)
    end
@@ -319,10 +391,16 @@ RefreshCards = function()
          if not card.cbhVia then
             card.cbhVia = CreateFrame("Button", nil, card)
             card.cbhVia:SetHeight(14)
-            card.cbhVia:SetPoint("BOTTOM", card.cbhNote, "TOP", 0, 4)
+            card.cbhVia:SetWidth(96)
+            -- Directly under the favourite star. That corner is already CBH's,
+            -- so nothing of the server's can collide with it. Anchoring above
+            -- the note instead put this line in the middle of the card
+            -- whenever the note was empty, which is what shipped and was wrong.
+            card.cbhVia:SetPoint("TOPRIGHT", card, "TOPRIGHT", -6, -26)
             card.cbhVia.label = CBH.UI.Text(card.cbhVia, "meta",
                CBH.UI.INK_SOFT, CBH.UI.FONT_META)
-            card.cbhVia.label:SetPoint("CENTER", card.cbhVia, "CENTER", 0, 0)
+            card.cbhVia.label:SetPoint("RIGHT", card.cbhVia, "RIGHT", 0, 0)
+            card.cbhVia.label:SetJustifyH("RIGHT")
             card.cbhVia:SetScript("OnClick", function(self)
                if self.cbhTarget then
                   ShowViaPicker(self.cbhTarget, self.cbhZone, self)
@@ -364,11 +442,12 @@ RefreshCards = function()
          card.cbhVia.cbhZone = zone
          if target then
             local pick = Advisor.PortTargetViaFor(target)
-            -- Reads as a sentence, not a glyph: this is the one place that
-            -- answers "where does this card send me" before you commit to it.
-            card.cbhVia.label:SetText(pick and ("> via " .. ShortCp(pick))
-               or "> nearest checkpoint")
-            card.cbhVia:SetWidth(card.cbhVia.label:GetStringWidth() + 8)
+            -- The corner is narrow, so the destination is truncated rather
+            -- than allowed to run under the card's title. Still a word, not a
+            -- glyph: "auto" says what happens, and the picker carries the
+            -- detail. Truncation is the accepted cost of this position.
+            card.cbhVia.label:SetText(pick
+               and ("> " .. Trunc(ShortCp(pick), 14)) or "> auto")
             card.cbhVia:Show()
          else
             card.cbhVia:Hide()
@@ -934,13 +1013,29 @@ Advisor.ViaText = ViaText
 -- are both there and want different checkpoints, so one zone-keyed entry
 -- cannot serve both. Keyed on the objective's target name, lowercased, which
 -- is the same key SpawnDB's shipped TARGET_CHECKPOINT defaults use.
-local function PortTargetViaFor(target)
+-- A pick is either a checkpoint name, or {cp, map} when that checkpoint lives
+-- on another zone's map. Returns both halves; map is nil for a same-zone pick.
+local function PortTargetPick(target)
    if not target then return nil end
    local t = CBH.db and CBH.db.portTargets and CBH.db.portTargets[string.lower(target)]
-   if t == "" then return nil end          -- explicitly cleared
-   return t
+   if t == nil or t == "" then return nil end   -- unset, or explicitly cleared
+   if type(t) == "table" then return t.cp, t.map end
+   return t, nil
+end
+Advisor.PortTargetPick = PortTargetPick
+
+local function PortTargetViaFor(target)
+   local cp = PortTargetPick(target)
+   return cp
 end
 Advisor.PortTargetViaFor = PortTargetViaFor
+
+-- Which map to scan for this quest's pick, when the pick is in another zone.
+local function PortTargetMapFor(target)
+   local _, map = PortTargetPick(target)
+   return map
+end
+Advisor.PortTargetMapFor = PortTargetMapFor
 
 local function IsWatched(questIndex)
    if not questIndex or not GetNumQuestWatches then return false end
@@ -1669,7 +1764,13 @@ function Advisor.Port(zoneArg)
    end
    -- Already in the destination zone: the checkpoint network doesn't hop you
    -- around within a zone, so this would be a dead click. Say so instead.
-   if destZone and GetRealZoneText() == destZone then
+   -- A cross-zone pick means the player asked to leave for another zone's
+   -- checkpoint and fly back, so "you are already here" is not true of where
+   -- they are going. Wintergrasp is the case: one checkpoint, often contested,
+   -- and the fix is to land in Dragonblight - which this guard used to refuse
+   -- precisely because they were standing in Wintergrasp.
+   if destZone and GetRealZoneText() == destZone
+      and not PortTargetMapFor(Advisor.lastDestTarget) then
       CBH.print("You're already in " .. destZone .. " - fly or walk to the spot.")
       CBH.Log("port", "SKIP: already in dest zone " .. destZone)
       return
@@ -1693,7 +1794,7 @@ function Advisor.Port(zoneArg)
    -- Fordragon Hold) wins; else a zone's map can carry a checkpoint named for
    -- another zone (Crystalsong's map has a Dalaran checkpoint). Prefer that named
    -- checkpoint on THIS map rather than switching maps.
-   local mapZone = MapViaFor(destZone)
+   local mapZone = PortTargetMapFor(Advisor.lastDestTarget) or MapViaFor(destZone)
    Advisor.portMapZone = mapZone
    -- With a map redirect the checkpoint we want is the one NAMED for the
    -- destination, sitting on the other zone's map.

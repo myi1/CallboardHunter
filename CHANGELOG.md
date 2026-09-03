@@ -4,6 +4,32 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.15.0] - 2026-09-04
+### Added
+- **A quest can now be routed through a checkpoint in ANOTHER zone.** Reported
+  in game: a Wintergrasp quest could not be sent to Fordragon Hold in
+  Dragonblight. Wintergrasp carries exactly one checkpoint, so "nearest" was
+  the only thing on offer, when the route the player wants is to land in
+  Dragonblight and fly in. The picker now lists every remembered zone's
+  checkpoints, tagged with their zone, and a cross-zone pick carries the map to
+  scan alongside the name - without that the port hunts for the name on the
+  wrong map and silently falls back to nearest.
+- A cross-zone pick also suppresses the "you are already in <zone>" refusal:
+  the player asked to leave for another zone, so standing in the quest's zone
+  is no longer a reason to decline.
+
+### Changed
+- **The picker was redesigned** (direction A of three drafted on a canvas).
+  Header is one line - quest name left, zone right - over a hairline rule; rows
+  lost their boxes entirely, and the chosen row is marked with a brass rule and
+  the word CURRENT. Five bordered rectangles stacked inside a sixth was most of
+  the visual weight.
+- **The card control moved under the favourite star.** That corner already
+  belongs to CBH, so nothing of the server's can collide with it. Anchored
+  above CBH's own note, the line dropped into the middle of the card whenever
+  that note was empty. The corner is narrow, so the destination is truncated -
+  the accepted cost of a position that cannot drift.
+
 ## [1.14.0] - 2026-09-03
 ### Added
 - **Pick a quest's port checkpoint on the callboard card itself.** Every card
