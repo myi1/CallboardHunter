@@ -4,6 +4,19 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.13.4] - 2026-09-03
+### Fixed
+- **An objective in the zone you were standing in could block the Port button
+  entirely.** Reported in game: standing in Wintergrasp with a Wintergrasp
+  quest active, accepting `Pacify Winterspring: Whispering Wind` (which belongs
+  in Dragonblight) and clicking Port answered *"You're already in Wintergrasp -
+  fly or walk to the spot."* The older quest won the watched/quest-index sort,
+  its zone matched the current one, and the port refused rather than trying the
+  next candidate - so a quest that genuinely needed a port could not get one.
+  Objectives in your current zone are now skipped while another objective is
+  somewhere else, and kept as the fallback so "you're already here" still comes
+  back when every objective really is in this zone.
+
 ## [1.13.3] - 2026-09-03
 ### Fixed
 - **`/cbh portvia <n>` could pick from another zone's list.** The numbers came

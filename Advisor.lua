@@ -834,29 +834,51 @@ local function ResolveDestination(zoneArg, allowSweep)
       if (a.qi or 9999) ~= (b.qi or 9999) then return (a.qi or 9999) < (b.qi or 9999) end
       return tostring(a.zone or a.name) < tostring(b.zone or b.name)
    end)
+   -- An objective in the zone you are ALREADY STANDING IN is not somewhere a
+   -- port can take you, so it must not consume the button while another
+   -- objective is genuinely elsewhere. Reported in game: standing in
+   -- Wintergrasp with a Wintergrasp quest active, accepting "Pacify
+   -- Winterspring: Whispering Wind" (which belongs in Dragonblight) and
+   -- clicking Port answered "You're already in Wintergrasp - fly or walk to
+   -- the spot." The older quest won the sort, its zone matched the current
+   -- one, and Advisor.Port refused rather than trying the next candidate. The
+   -- here-and-now objective is kept as a fallback, so when EVERY objective is
+   -- in this zone the honest "you're already here" answer still comes back.
+   local here = GetRealZoneText()
+   local fb
    for _, c in ipairs(cands) do
       if c.kind == "hot" then
-         -- A rare-sighting zone has no single target name to key an override on.
-         Advisor.lastDestTarget = nil
-         return c.zone, PointsForZone(c.zone), nil, false
+         if c.zone ~= here then
+            -- A rare-sighting zone has no single target name to key an override on.
+            Advisor.lastDestTarget = nil
+            return c.zone, PointsForZone(c.zone), nil, false
+         end
+         if not fb then fb = { zone = c.zone, pts = PointsForZone(c.zone) } end
       else
          local zone, pts, isDungeon, via = ResolveKill(c.name, c.ko, allowSweep)
          if zone then
-            -- Remembered so /cbh portvia knows WHICH objective a pick applies
-            -- to. Set only once the objective actually resolves, mirroring how
-            -- lastDestZone stays sticky rather than clearing on a failed probe.
-            Advisor.lastDestTarget = c.name
-            -- An objective-specific checkpoint override (e.g. Flame Revenant ->
-            -- Fordragon Hold on the Dragonblight map): carry the checkpoint name
-            -- through so DoPort forces it; no POI chase.
-            if via then return zone, pts, nil, false, via end
-            -- A dungeon objective has no outdoor quest POI to chase: route to
-            -- the containing zone's checkpoint by position, don't prefer/prefetch
-            -- a POI that lives inside the instance.
-            if isDungeon then return zone, pts, nil, false end
-            return zone, pts, c.ko.questID, true
+            local pick = { name = c.name, zone = zone, pts = pts,
+               qid = (not isDungeon and not via) and c.ko.questID or nil,
+               prefer = (not isDungeon and not via) or false, via = via }
+            if zone ~= here then
+               -- Remembered so /cbh portvia knows WHICH objective a pick
+               -- applies to. Set only once the objective actually resolves,
+               -- mirroring how lastDestZone stays sticky rather than clearing
+               -- on a failed probe.
+               Advisor.lastDestTarget = pick.name
+               -- An objective-specific checkpoint override (e.g. Flame Revenant
+               -- -> Fordragon Hold on the Dragonblight map): carry the
+               -- checkpoint name through so DoPort forces it; no POI chase.
+               -- A dungeon objective has no outdoor quest POI to chase either.
+               return pick.zone, pick.pts, pick.qid, pick.prefer, pick.via
+            end
+            if not fb then fb = pick end
          end
       end
+   end
+   if fb then
+      Advisor.lastDestTarget = fb.name
+      return fb.zone, fb.pts, fb.qid, fb.prefer or false, fb.via
    end
    return nil, nil
 end

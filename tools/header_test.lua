@@ -814,5 +814,41 @@ check("  ...and the confirmation says where the list came from",
 CBH.db.portTargets, CBH.db.portOverrides, CBH.db.zoneCheckpoints = {}, {}, {}
 
 print("")
+print("== an objective in the zone you are standing in must not eat the button ==")
+-- REPORTED IN GAME. Standing in Wintergrasp with a Wintergrasp quest already
+-- active, the player accepted "Pacify Winterspring: Whispering Wind" - which
+-- belongs in Dragonblight - clicked Port, and got "You're already in
+-- Wintergrasp - fly or walk to the spot." The older quest won the sort, its
+-- zone matched the current one, and the port refused instead of trying the
+-- next candidate. Whispering Wind lands in Dragonblight via the curated
+-- TARGET_CHECKPOINT entry, so this also covers that override surviving the
+-- new preference. The Wintergrasp quest is listed FIRST, so it wins the
+-- watched/quest-index sort exactly as the reported one did.
+CURRENT_ZONE = "Wintergrasp"
+CBH.db.home, CBH.db.callboards = nil, {}
+QUESTLOG = {
+   { title = "Wintergrasp", header = true },
+   { title = "Southern Sabotage", objectives = { "Beast Kill in Wintergrasp: 0/10" } },
+   { title = "Pacify Winterspring: Whispering Wind",
+     objectives = { "Whispering Wind slain: 0/8" } },
+}
+QW.Update(true)
+local wdest = Advisor.ResolveDestination()
+check("routes to the objective you are NOT standing in", wdest, "Dragonblight")
+check("  ...and remembers which objective that was", Advisor.lastDestTarget, "Whispering Wind")
+
+-- The honest refusal has to survive: with nothing to port to, "you are already
+-- here" is the right answer, not a route to somewhere irrelevant.
+QUESTLOG = {
+   { title = "Wintergrasp", header = true },
+   { title = "Southern Sabotage", objectives = { "Beast Kill in Wintergrasp: 0/10" } },
+}
+QW.Update(true)
+check("every objective here still reports this zone",
+   (Advisor.ResolveDestination()), "Wintergrasp")
+CURRENT_ZONE = nil
+CBH.db.portTargets, CBH.db.portOverrides, CBH.db.zoneCheckpoints = {}, {}, {}
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end
