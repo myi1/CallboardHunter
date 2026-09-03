@@ -949,6 +949,8 @@ function Advisor.PortVia(arg)
                .. ((mark ~= "   ") and "  (current)" or ""))
          end
          CBH.print("Pick one: /cbh portvia <number>   clear it: /cbh portvia none")
+         CBH.Log("port", "PORTVIA list for " .. tostring(label) .. " (captured for "
+            .. tostring(listOwner()) .. "): " .. table.concat(list, " | "))
       else
          if pick then CBH.print("  currently: " .. pick .. "  (" .. why .. ")") end
          CBH.print("  No checkpoint list for " .. tostring(label) .. "."
@@ -996,6 +998,8 @@ function Advisor.PortVia(arg)
       if not list then
          CBH.print("No checkpoint list for " .. tostring(label) .. "."
             .. staleNote())
+         CBH.Log("port", "PORTVIA refused: live=" .. tostring(label)
+            .. " list was for " .. tostring(listOwner()))
          return
       end
       if not list[n] then
@@ -1005,6 +1009,8 @@ function Advisor.PortVia(arg)
          return
       end
       name = list[n]
+      CBH.Log("port", "PORTVIA pick #" .. n .. " of " .. #list .. " -> '"
+         .. tostring(name) .. "' for " .. tostring(label))
    end
 
    if target then
