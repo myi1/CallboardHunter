@@ -337,9 +337,22 @@ RefreshCards = function()
          -- The zone comes from the whole card, not just the title: the title
          -- carries this server's "<Zone>:" category prefix, which is the thing
          -- that mis-routed Wintergrasp quests to Winterspring in 1.11.1.
+         --
+         -- Curated tables first, THEN a scan for any real zone named in the
+         -- text - the same order the port itself resolves in, and the order
+         -- matters: "Whispering Wind" must land in Dragonblight even though
+         -- its card says "in Wintergrasp". Without the second pass a card
+         -- reading "Raging Flame ... in Wintergrasp" reported "zone unknown",
+         -- because ZoneForTargetText only knows the curated tables and never
+         -- reads a zone name out of the sentence.
          local zone
          for _, t in ipairs(CardTexts(card)) do
             if not zone then zone = CBH.SpawnDB.ZoneForTargetText(t) end
+         end
+         if not zone and CBH.SpawnDB.FindMapZoneIn then
+            for _, t in ipairs(CardTexts(card)) do
+               if not zone then zone = CBH.SpawnDB.FindMapZoneIn(t) end
+            end
          end
          card.cbhVia.cbhTarget = target
          card.cbhVia.cbhZone = zone
@@ -361,6 +374,21 @@ end
 -- Exposed so the picker can redraw the card it just changed, and so a test
 -- can drive card decoration without a board event.
 Advisor.RefreshCards = RefreshCards
+
+-- The card picker's zone resolution, in one place so the curated-first
+-- ordering can be pinned without building card frames.
+function Advisor.ZoneForCardTexts(texts)
+   local zone
+   for _, t in ipairs(texts or {}) do
+      if not zone then zone = CBH.SpawnDB.ZoneForTargetText(t) end
+   end
+   if not zone and CBH.SpawnDB.FindMapZoneIn then
+      for _, t in ipairs(texts or {}) do
+         if not zone then zone = CBH.SpawnDB.FindMapZoneIn(t) end
+      end
+   end
+   return zone
+end
 
 -- ------------------------------------------------------------- port button
 

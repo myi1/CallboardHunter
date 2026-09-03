@@ -886,5 +886,25 @@ check("  ...and nil stays nil", Advisor.ShortCp(nil), nil)
 CBH.db.portTargets, CBH.db.portOverrides = {}, {}
 
 print("")
+print("== a card's zone: curated tables first, then the sentence ==")
+-- REPORTED IN GAME: the picker on a "Raging Flame Infestation" card said
+-- "zone unknown" while the card itself read "... in Wintergrasp".
+-- ZoneForTargetText only consults the curated tables; reading a zone name out
+-- of the sentence is a separate pass that the card never ran.
+check("a zone named in the card text is found",
+   Advisor.ZoneForCardTexts({ "Slay 10 Raging Flame in Wintergrasp." }), "Wintergrasp")
+-- ORDER MATTERS, and getting it backwards is the 1.11.1 bug: Whispering Wind's
+-- card also says "in Wintergrasp", but the curated entry puts it in
+-- Dragonblight and must win over the sentence scan.
+check("a curated target still beats a zone named in the text",
+   Advisor.ZoneForCardTexts({ "Whispering Wind in Wintergrasp." }), "Dragonblight")
+check("  ...and the title's category prefix does not win either",
+   Advisor.ZoneForCardTexts({ "Winterspring: Whispering Wind",
+                              "Whispering Wind in Wintergrasp." }), "Dragonblight")
+check("a card naming no zone at all stays unknown",
+   Advisor.ZoneForCardTexts({ "Collect 5 Shiny Things." }), nil)
+
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end
