@@ -939,5 +939,60 @@ CBH.db.portTargets, CBH.db.portOverrides = {}, {}
 
 
 print("")
+print("== a moved frame remembers WHERE it was anchored ==")
+-- REPORTED BY CHALKIE: "would it be possible to have the UI button remember
+-- where it lives - every time I login / reload the UI it resets".
+--
+-- The position was saved as x/y only and restored as CENTER-to-CENTER.
+-- GetPoint returns five values, and StartMoving is free to re-anchor a frame
+-- while it is being dragged, so a frame that came to rest anchored TOPLEFT had
+-- its offsets re-read on the next login as if measured from the centre - and
+-- reappeared somewhere else. All four movable frames had the same bug: the
+-- port button, the arrow, and both route panels.
+local function FakeFrame(point, rel, x, y)
+   local f = { _p = { point, nil, rel, x, y } }
+   function f:GetPoint() return self._p[1], self._p[2], self._p[3], self._p[4], self._p[5] end
+   function f:ClearAllPoints() self._p = {} end
+   function f:SetPoint(p, _, r, px, py) self._p = { p, nil, r, px, py } end
+   return f
+end
+local store = {}
+CBH.SaveFramePos(FakeFrame("TOPLEFT", "BOTTOMLEFT", 740, 512), store, "btn")
+check("the anchor point is saved, not just the offsets", store.btn.point, "TOPLEFT")
+check("  ...and the relative point too", store.btn.rel, "BOTTOMLEFT")
+check("  ...with the offsets", store.btn.x, 740)
+
+local restored = FakeFrame("CENTER", "CENTER", 0, 130)
+CBH.RestoreFramePos(restored, store, "btn", 0, 130)
+local rp, _, rr, rx, ry = restored:GetPoint()
+check("a TOPLEFT frame comes back TOPLEFT", rp, "TOPLEFT")
+check("  ...against the same relative point", rr, "BOTTOMLEFT")
+check("  ...at the same offsets", rx, 740)
+check("  ...and y", ry, 512)
+
+-- Positions written by an older build carry no anchor. Those really were
+-- saved as CENTER-to-CENTER, so filling the two missing fields with CENTER
+-- restores them exactly rather than moving anyone who upgrades.
+store.old = { x = -392, y = -33 }
+local legacy = FakeFrame("CENTER", "CENTER", 0, 0)
+CBH.RestoreFramePos(legacy, store, "old", 0, 130)
+local lp, _, lr, lx = legacy:GetPoint()
+check("a pre-anchor save still restores", lp, "CENTER")
+check("  ...relative to centre", lr, "CENTER")
+check("  ...at its saved offset", lx, -392)
+
+-- Nothing saved yet: the first-run placement.
+local fresh = FakeFrame("CENTER", "CENTER", 0, 0)
+CBH.RestoreFramePos(fresh, store, "never-set", 0, 130)
+local _, _, _, _, fy = fresh:GetPoint()
+check("an unset position takes the default", fy, 130)
+
+-- A frame whose GetPoint returns nothing must not write a junk entry, or the
+-- next login would restore from it.
+CBH.SaveFramePos(FakeFrame(nil, nil, nil, nil), store, "unanchored")
+check("an unanchored frame saves nothing", store.unanchored, nil)
+
+
+print("")
 if fails > 0 then print(fails .. " FAILURE(S) of " .. n); os.exit(1)
 else print("ALL " .. n .. " PASS") end

@@ -67,6 +67,42 @@ function CBH.print(msg)
    DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99CallboardHunter|r: " .. tostring(msg))
 end
 
+-- ------------------------------------------------------- draggable positions
+-- Both movable frames (the port button and the arrow) saved only the x/y from
+-- GetPoint() and restored them as CENTER-to-CENTER. GetPoint returns FIVE
+-- values - point, relativeTo, relativePoint, x, y - and StartMoving is free to
+-- re-anchor a frame while dragging it, so a frame that came to rest anchored
+-- TOPLEFT had its offsets re-read on the next login as if they were measured
+-- from the centre, and reappeared somewhere else entirely. Reported by Chalkie:
+-- "every time I login / reload the UI it resets".
+--
+-- The anchor is part of the position. Save all of it.
+-- `store` is the saved table the position lives in - options for the button and
+-- arrow, CBH.db.route for the route panels - so all four movable frames share
+-- one implementation instead of four copies of the same mistake.
+function CBH.SaveFramePos(frame, store, key)
+   if not (frame and store and key) then return end
+   local point, _, rel, x, y = frame:GetPoint()
+   if not point then return end
+   store[key] = { point = point, rel = rel, x = x, y = y }
+end
+
+-- `defX`/`defY` are the first-run placement; pass no defaults to leave a frame
+-- where it already is when nothing is saved. A position saved by an older
+-- build carries no anchor: those were genuinely written as CENTER-to-CENTER,
+-- so defaulting the two missing fields to CENTER restores them exactly.
+function CBH.RestoreFramePos(frame, store, key, defX, defY)
+   if not frame then return end
+   local pos = store and key and store[key]
+   if pos and pos.x and pos.y then
+      frame:ClearAllPoints()
+      frame:SetPoint(pos.point or "CENTER", UIParent, pos.rel or "CENTER", pos.x, pos.y)
+   elseif defX or defY then
+      frame:ClearAllPoints()
+      frame:SetPoint("CENTER", UIParent, "CENTER", defX or 0, defY or 0)
+   end
+end
+
 -- Set/clear the home callboard (the checkpoint nearest where you stand).
 function CBH.SetHomeHere()
    -- A home inside an instance is not a place the checkpoint network can return

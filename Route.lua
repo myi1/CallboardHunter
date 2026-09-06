@@ -1050,21 +1050,17 @@ function Route.Build()
   })
   f:EnableMouse(true)
   f:SetMovable(true)
+  f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton")
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     CBH.db.route = CBH.db.route or {}
-    local _, _, _, x, y = self:GetPoint()
-    CBH.db.route.pos = { x = x, y = y }
+    CBH.SaveFramePos(self, CBH.db.route, "pos")
   end)
   f:SetFrameStrata("MEDIUM")
 
-  local pos = CBH.db.route and CBH.db.route.pos
-  if pos then
-    f:ClearAllPoints()
-    f:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
-  end
+  CBH.RestoreFramePos(f, CBH.db.route, "pos")
 
   f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   f.title:SetPoint("TOP", 0, -14)
@@ -1425,15 +1421,14 @@ function Route.BuildMini()
     insets = { left = 6, right = 6, top = 6, bottom = 6 },
   })
   f:EnableMouse(true); f:SetMovable(true); f:RegisterForDrag("LeftButton")
+  f:SetClampedToScreen(true)
   f:SetScript("OnDragStart", f.StartMoving)
   f:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     CBH.db.route = CBH.db.route or {}
-    local _, _, _, x, y = self:GetPoint()
-    CBH.db.route.miniPos = { x = x, y = y }
+    CBH.SaveFramePos(self, CBH.db.route, "miniPos")
   end)
-  local mp = CBH.db.route and CBH.db.route.miniPos
-  if mp then f:ClearAllPoints(); f:SetPoint("CENTER", UIParent, "CENTER", mp.x, mp.y) end
+  CBH.RestoreFramePos(f, CBH.db.route, "miniPos")
 
   f.head = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   f.head:SetPoint("TOPLEFT", 12, -11)

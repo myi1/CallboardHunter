@@ -121,16 +121,16 @@ function Arrow.Init()
    frame = CreateFrame("Frame", "CallboardHunterArrow", UIParent)
    frame:SetWidth(64); frame:SetHeight(80)
    frame:SetMovable(true); frame:EnableMouse(true)
+   -- Dragged off the edge it could not be dragged back; see CBH.SaveFramePos
+   -- for why the anchor, not just the offsets, has to be remembered.
+   frame:SetClampedToScreen(true)
    frame:RegisterForDrag("LeftButton")
    frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
    frame:SetScript("OnDragStop", function(self)
       self:StopMovingOrSizing()
-      local _, _, _, x, y = self:GetPoint()
-      CBH.db.options.arrowPos = { x = x, y = y }
+      CBH.SaveFramePos(self, CBH.db.options, "arrowPos")
    end)
-   local pos = CBH.db.options.arrowPos
-   if pos then frame:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
-   else frame:SetPoint("CENTER", UIParent, "CENTER", 0, 180) end
+   CBH.RestoreFramePos(frame, CBH.db.options, "arrowPos", 0, 180)
 
    tex = frame:CreateTexture(nil, "ARTWORK")
    tex:SetTexture("Interface\\Minimap\\ROTATING-MINIMAPARROW")

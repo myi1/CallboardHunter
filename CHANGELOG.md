@@ -4,6 +4,24 @@ All notable changes to CallboardHunter are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/); version numbers match the
 GitHub releases and the `.toc`.
 
+## [1.15.1] - 2026-09-07
+### Fixed
+- **Moved frames could reappear somewhere else after a login or reload.**
+  Reported by `Chalkie` for the port button. Positions were saved as x/y only
+  and restored as CENTER-to-CENTER, but `GetPoint` returns five values and
+  `StartMoving` is free to re-anchor a frame while it is being dragged. A frame
+  that came to rest anchored `TOPLEFT` had its offsets re-read on the next
+  login as if they were measured from the centre, and moved. The anchor is part
+  of the position and is now saved with it. All four movable frames had the
+  same bug - the port button, the guidance arrow, and both route panels - and
+  all four now share one implementation (`CBH.SaveFramePos` /
+  `CBH.RestoreFramePos`) rather than four copies of the same mistake.
+  Positions saved by earlier builds carry no anchor; those genuinely were
+  CENTER-to-CENTER, so they restore exactly where they were.
+- **A frame dragged past the screen edge could not be dragged back.** The only
+  recovery was `/cbh reset`, which throws away every option to fix one. All
+  four are now clamped to the screen.
+
 ## [1.15.0] - 2026-09-04
 ### Added
 - **A quest can now be routed through a checkpoint in ANOTHER zone.** Reported

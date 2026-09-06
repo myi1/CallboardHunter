@@ -170,6 +170,25 @@ CallboardHunter = {
 }
 local CBH = CallboardHunter
 function CBH.print(m) out[#out + 1] = "CBH: " .. tostring(m) end
+-- Frame positions go through Core's shared save/restore. Faithful enough to
+-- position a panel; the real one is under test in header_test.lua.
+function CBH.SaveFramePos(frame, store, key)
+  if not (frame and store and key) then return end
+  local point, _, rel, x, y = frame:GetPoint()
+  if not point then return end
+  store[key] = { point = point, rel = rel, x = x, y = y }
+end
+function CBH.RestoreFramePos(frame, store, key, defX, defY)
+  if not frame then return end
+  local pos = store and key and store[key]
+  if pos and pos.x and pos.y then
+    frame:ClearAllPoints()
+    frame:SetPoint(pos.point or "CENTER", UIParent, pos.rel or "CENTER", pos.x, pos.y)
+  elseif defX or defY then
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", defX or 0, defY or 0)
+  end
+end
 -- Surface errors instead of swallowing them: the real safeCall prints and moves
 -- on, which is right in-game and useless in a test.
 function CBH.safeCall(fn, ...)

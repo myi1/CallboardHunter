@@ -493,16 +493,16 @@ local function EnsurePortButton()
    CBH.UI.SkinButton(portBtn, { accent = true, height = 26, minWidth = 132 })
    portBtn:SetLabel("Checkpoint")
    portBtn:SetMovable(true)
+   -- A button dragged past the screen edge cannot be dragged back, and the
+   -- only recovery was /cbh reset, which throws away every option to fix one.
+   portBtn:SetClampedToScreen(true)
    portBtn:RegisterForDrag("RightButton") -- right-drag moves, left-click ports
    portBtn:SetScript("OnDragStart", function(self) self:StartMoving() end)
    portBtn:SetScript("OnDragStop", function(self)
       self:StopMovingOrSizing()
-      local _, _, _, x, y = self:GetPoint()
-      CBH.db.options.portBtnPos = { x = x, y = y }
+      CBH.SaveFramePos(self, CBH.db.options, "portBtnPos")
    end)
-   local pos = CBH.db.options.portBtnPos
-   if pos then portBtn:SetPoint("CENTER", UIParent, "CENTER", pos.x, pos.y)
-   else portBtn:SetPoint("CENTER", UIParent, "CENTER", 0, 130) end
+   CBH.RestoreFramePos(portBtn, CBH.db.options, "portBtnPos", 0, 130)
    portBtn:SetScript("OnClick", function(self)
       if self.mode == "board" then
          CBH.safeCall(Advisor.PortToCallboard)
